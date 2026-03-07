@@ -28,9 +28,21 @@ This project provides tools for extracting activation steering vectors from LLMs
 
 3. **Run extraction**
    ```bash
-   # Example: Extract steering vectors for honesty
-   uv run python scripts/extract_vectors.py --concept honesty
+   # Example: Extract steering vectors for honesty with default model
+   uv run python scripts/extract_honesty.py
+   
+   # Use specific models (Qwen, Gemma)
+   uv run python scripts/extract_honesty.py --model "Qwen/Qwen2-1.5B"
+   uv run python scripts/extract_honesty.py --model "Qwen/Qwen2.5-1.5B"
+   uv run python scripts/extract_honesty.py --model "google/gemma-2-2b"
    ```
+   
+   All extraction scripts support the same models:
+   - `extract_honesty.py` - Honesty steering vectors
+   - `extract_sycophancy.py` - Sycophancy steering vectors
+   - `extract_toxicity.py` - Toxicity steering vectors
+   - `extract_sentiment.py` - Sentiment steering vectors
+   - `extract_refusal.py` - Refusal steering vectors
 
 ## Project Structure
 
@@ -67,6 +79,33 @@ This project provides tools for extracting activation steering vectors from LLMs
 - **data/** - Input datasets and contrast pairs for different concepts
 - **plot/** - Visualizations of activation spaces and steering effects
 - **assets/** - Saved steering vectors and evaluation reports
+
+## Supported Models
+
+This framework works with any causal language model from HuggingFace Transformers. Recommended models for steering vector extraction:
+
+### Qwen Family
+- **Qwen/Qwen2-1.5B** - Lightweight Qwen2 model (~1.5B parameters)
+- **Qwen/Qwen2.5-1.5B** - Improved Qwen2.5 (~1.5B parameters)
+- **Qwen/Qwen2.5-3B** - Larger Qwen2.5 model (~3B parameters)
+
+### Gemma Family
+- **google/gemma-2-2b** - Gemma 2 model (~2B parameters)
+
+### Usage Example
+```bash
+# Extract with Qwen2.5
+uv run python scripts/extract_honesty.py \
+    --model "Qwen/Qwen2.5-1.5B" \
+    --num-pairs 500 \
+    --output data/vectors/
+
+# Extract with Gemma 2
+uv run python scripts/extract_toxicity.py \
+    --model "google/gemma-2-2b" \
+    --method pca \
+    --output data/vectors/
+```
 
 ## Development
 
