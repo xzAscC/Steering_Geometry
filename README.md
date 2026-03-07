@@ -1,15 +1,16 @@
-# Steering Geometry
+# Steering Geometry - AI Steering Vector Extraction Framework
 
-Vehicle steering geometry analysis and visualization toolkit for understanding and optimizing steering systems.
+A research framework for extracting and analyzing steering vectors in Large Language Models (LLMs) to understand and control model behavior.
 
 ## What This Is
 
-This project provides tools for analyzing and visualizing vehicle steering geometry parameters, including:
+This project provides tools for extracting activation steering vectors from LLMs across five key behavioral concepts:
 
-- **Ackermann steering geometry** - Inner and outer wheel angle relationships
-- **Turning radius calculations** - Minimum turning radius analysis
-- **Steering angle visualization** - Interactive plots of steering behavior
-- **Geometry parameter analysis** - Track width, wheelbase, and steering arm effects
+- **Honesty** - Encouraging truthful responses and reducing hallucinations
+- **Sycophancy** - Identifying and mitigating the tendency to agree with user misconceptions
+- **Toxicity** - Detecting and steering away from harmful or offensive content generation
+- **Sentiment** - Controlling the emotional tone and valence of model outputs
+- **Refusal** - Understanding the mechanisms behind model refusals and safety boundaries
 
 ## Quick Start
 
@@ -25,10 +26,10 @@ This project provides tools for analyzing and visualizing vehicle steering geome
    uv run pytest
    ```
 
-3. **Run scripts**
+3. **Run extraction**
    ```bash
-   # Example: Run analysis script
-   uv run python scripts/analyze_geometry.py
+   # Example: Extract steering vectors for honesty
+   uv run python scripts/extract_vectors.py --concept honesty
    ```
 
 ## Project Structure
@@ -41,12 +42,17 @@ This project provides tools for analyzing and visualizing vehicle steering geome
 ├── pyproject.toml               # Project config
 ├── .python-version              # Python version (3.12+)
 ├── src/steering_geometry/       # Source code
-│   └── __init__.py
+│   ├── concepts/                # Concept-specific datasets and prompts
+│   ├── types.py                 # Core type definitions
+│   ├── config.py                # Configuration management
+│   ├── models.py                # Model loading and wrapping
+│   ├── extraction.py            # Activation extraction logic
+│   └── evaluation.py            # Vector evaluation and validation
 ├── tests/                       # Test files
 ├── scripts/                     # Analysis and utility scripts
-├── data/                        # Data files and inputs
-├── plot/                        # Generated plots and visualizations
-├── assets/                      # Analysis results and outputs
+├── data/                        # Raw datasets and contrast pairs
+├── plot/                        # Generated visualizations of activations
+├── assets/                      # Extracted steering vectors and results
 └── docs/
     ├── design-docs/             # Design documents
     ├── exec-plans/              # Execution plans
@@ -56,11 +62,11 @@ This project provides tools for analyzing and visualizing vehicle steering geome
 
 ## Directory Usage
 
-- **src/** - Core Python modules for steering geometry calculations
-- **scripts/** - Executable scripts for analysis and visualization
-- **data/** - Input data files (vehicle parameters, measurements)
-- **plot/** - Generated plots, graphs, and visualizations
-- **assets/** - Analysis results, reports, and outputs
+- **src/** - Core Python modules for steering vector extraction and evaluation
+- **scripts/** - Executable scripts for running the extraction pipeline
+- **data/** - Input datasets and contrast pairs for different concepts
+- **plot/** - Visualizations of activation spaces and steering effects
+- **assets/** - Saved steering vectors and evaluation reports
 
 ## Development
 
