@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai_research_template"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "AI Research Template - Python template for AI-assisted research projects"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pytest>=8.0.0",
+    "pyyaml>=6.0.3",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+packages = ["ai_research_template"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

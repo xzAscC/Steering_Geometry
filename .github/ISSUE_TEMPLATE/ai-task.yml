@@ -1,0 +1,53 @@
+name: AI Task
+description: Define a task for AI agent execution
+labels: [ai-task]
+body:
+  - type: dropdown
+    id: task-type
+    attributes:
+      label: Task Type
+      options:
+        - feature
+        - bugfix
+        - refactor
+        - documentation
+        - test
+        - maintenance
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What needs to be done and why
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Checkboxes of what 'done' looks like
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files Likely Involved
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope Assessment
+      options:
+        - small (1-2 files)
+        - medium (3-5 files)
+        - large (6+ files)
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Explicitly Out of Scope
+    validations:
+      required: false
