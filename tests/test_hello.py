@@ -1,4 +1,4 @@
-from ai_research_template.hello import greet
+from steering_geometry.hello import greet
 
 
 def test_greet_returns_greeting() -> None:

@@ -34,3 +34,9 @@ htmlcov/
 
 # Sisyphus evidence
 .sisyphus/
+
+# Project-specific directories
+# Uncomment to ignore generated files:
+# plot/*.png
+# plot/*.pdf
+# assets/*.json

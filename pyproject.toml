@@ -3,10 +3,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ai_research_template"
+name = "steering_geometry"
 version = "0.1.0"
 requires-python = ">=3.12"
-description = "AI Research Template - Python template for AI-assisted research projects"
+description = "Steering Geometry - Vehicle steering geometry analysis and visualization"
 
 [dependency-groups]
 dev = [
@@ -32,7 +32,7 @@ python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
-packages = ["ai_research_template"]
+packages = ["steering_geometry"]
 mypy_path = "src"
 
 [tool.pytest.ini_options]

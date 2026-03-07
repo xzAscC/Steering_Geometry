@@ -1,71 +1,37 @@
-# AI Research Template
+# Steering Geometry
 
-A Python template optimized for AI-assisted research projects. Designed for experiments, prototypes, and research codebases where AI agents handle implementation.
+Vehicle steering geometry analysis and visualization toolkit for understanding and optimizing steering systems.
 
 ## What This Is
 
-This template provides a complete foundation for **research projects** where AI agents (Claude Code, Opencode, Aider, etc.) handle implementation. It emphasizes:
+This project provides tools for analyzing and visualizing vehicle steering geometry parameters, including:
 
-- **Rapid experimentation** — Minimal boilerplate, quick iteration cycles
-- **Reproducibility** — Structured documentation for experiments and results
-- **AI-friendly structure** — Clear conventions that AI agents understand
-- **Quality tracking** — Built-in quality metrics for research code
+- **Ackermann steering geometry** - Inner and outer wheel angle relationships
+- **Turning radius calculations** - Minimum turning radius analysis
+- **Steering angle visualization** - Interactive plots of steering behavior
+- **Geometry parameter analysis** - Track width, wheelbase, and steering arm effects
 
 ## Quick Start
 
-1. **Use this template**
-   - Click "Use this template" on GitHub, or
-   - Clone: `git clone <repo-url>`
-
-2. **Rename the package**
-   ```bash
-   # Replace 'ai_research_template' with your project name
-   find . -type f -name "*.py" -o -name "*.toml" | xargs sed -i 's/ai_research_template/your_project_name/g'
-   mv src/ai_research_template src/your_project_name
-   ```
-
-3. **Install dependencies**
+1. **Install dependencies**
    ```bash
    uv sync
    ```
 
-4. **Verify everything works**
+2. **Verify installation**
    ```bash
    uv run ruff check src/ tests/
    uv run mypy src/
    uv run pytest
    ```
 
-## What's Included
+3. **Run scripts**
+   ```bash
+   # Example: Run analysis script
+   uv run python scripts/analyze_geometry.py
+   ```
 
-- **AGENTS.md** — AI agent operational policy (commands, escalation rules)
-- **ARCHITECTURE.md** — System design template
-- **docs/** — Documentation structure (design-docs, exec-plans, quality tracking)
-- **pyproject.toml** — Configured with ruff, mypy, pytest
-- **.github/** — CI workflow, PR template, issue templates
-
-## Research Workflow
-
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Define     │───▶│  Document   │───▶│  AI reads   │
-│  hypothesis │    │  experiment │    │    docs     │
-└─────────────┘    └─────────────┘    └─────────────┘
-                                             │
-                                             ▼
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Review     │◀───│  AI opens   │◀───│  AI codes,  │
-│  results    │    │     PR      │    │  tests,     │
-└─────────────┘    └─────────────┘    │  verifies   │
-       │                              └─────────────┘
-       ▼
-┌─────────────┐
-│  Document   │───▶ Repeat for next experiment
-│  findings   │
-└─────────────┘
-```
-
-## File Structure
+## Project Structure
 
 ```
 .
@@ -73,39 +39,63 @@ This template provides a complete foundation for **research projects** where AI 
 ├── ARCHITECTURE.md              # System design
 ├── README.md                    # This file
 ├── pyproject.toml               # Project config
-├── .python-version              # Python version
-├── src/ai_research_template/    # Source code
+├── .python-version              # Python version (3.12+)
+├── src/steering_geometry/       # Source code
+│   └── __init__.py
 ├── tests/                       # Test files
-├── docs/
-│   ├── design-docs/             # Design documents
-│   ├── exec-plans/              # Execution plans
-│   ├── PLANS.md                 # Project roadmap
-│   └── QUALITY_SCORE.md         # Quality tracking
-└── .github/
-    ├── workflows/ci.yml         # CI pipeline
-    ├── pull_request_template.md
-    └── ISSUE_TEMPLATE/          # Issue templates
+├── scripts/                     # Analysis and utility scripts
+├── data/                        # Data files and inputs
+├── plot/                        # Generated plots and visualizations
+├── assets/                      # Analysis results and outputs
+└── docs/
+    ├── design-docs/             # Design documents
+    ├── exec-plans/              # Execution plans
+    ├── PLANS.md                 # Project roadmap
+    └── QUALITY_SCORE.md         # Quality tracking
 ```
 
-## Renaming Guide
+## Directory Usage
 
-After cloning, replace all instances of `ai_research_template`:
+- **src/** - Core Python modules for steering geometry calculations
+- **scripts/** - Executable scripts for analysis and visualization
+- **data/** - Input data files (vehicle parameters, measurements)
+- **plot/** - Generated plots, graphs, and visualizations
+- **assets/** - Analysis results, reports, and outputs
 
-1. **pyproject.toml**: Change `name = "ai_research_template"`
-2. **src/ai_research_template/**: Rename directory
-3. **Imports**: Update all `from ai_research_template` imports
-4. **AGENTS.md**: Update package references
+## Development
 
-## Research-Specific Features
+### Code Quality
 
-- **Experiment tracking**: Use `docs/design-docs/` for hypothesis and experiment documentation
-- **Quality metrics**: `docs/QUALITY_SCORE.md` tracks code quality over time
-- **Execution plans**: `docs/exec-plans/` structure your research iterations
+This project uses:
+- **ruff** for linting and formatting
+- **mypy** for type checking
+- **pytest** for testing
 
-## Related Templates
+### Running Checks
 
-- **ai-general-template** — For general-purpose projects (coming soon)
+```bash
+# Lint check
+uv run ruff check src/ tests/
+
+# Format check
+uv run ruff format --check src/ tests/
+
+# Format fix
+uv run ruff format src/ tests/
+
+# Type check
+uv run mypy src/
+
+# Run all tests
+uv run pytest
+
+# Run single test file
+uv run pytest tests/test_hello.py
+
+# Run test by name
+uv run pytest -k "test_name"
+```
 
 ## License
 
-[Add your license here]
+MIT License - see LICENSE file for details
