@@ -6,10 +6,10 @@ in a given directory, outputting a structured JSON report.
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from itertools import combinations
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 import torch
 from torch import Tensor
@@ -37,7 +37,9 @@ Examples:
   uv run python scripts/compare_concepts.py --model sshleifer/tiny-gpt2
 
   # Custom input/output paths
-  uv run python scripts/compare_concepts.py --vectors-dir data/vectors/ --output assets/comparison_report.json
+  uv run python scripts/compare_concepts.py \
+      --vectors-dir data/vectors/ \
+      --output assets/comparison_report.json
         """,
     )
     _ = parser.add_argument(
@@ -48,7 +50,8 @@ Examples:
     _ = parser.add_argument(
         "--model",
         default=None,
-        help="Filter vectors by model name (e.g., sshleifer/tiny-gpt2). If not specified, uses all models.",
+        help="Filter vectors by model name (e.g., sshleifer/tiny-gpt2). "
+        "If not specified, uses all models.",
     )
     _ = parser.add_argument(
         "--output",
@@ -118,7 +121,7 @@ def _compute_l2_norm(vector: SteeringVector) -> float:
         return 0.0
 
     concatenated = torch.cat([act.flatten() for act in all_activations])
-    return concatenated.norm(p=2).item()
+    return float(concatenated.norm(p=2).item())
 
 
 def _compute_average_cosine_similarity(
@@ -146,7 +149,7 @@ def _compute_average_cosine_similarity(
 def _generate_comparison_report(
     vectors: dict[str, SteeringVector],
     model_name: str | None,
-) -> dict:
+) -> dict[str, Any]:
     """Generate a comparison report with cosine similarities and L2 norms.
 
     Args:
@@ -178,7 +181,7 @@ def _generate_comparison_report(
         "l2_norms": l2_norms,
         "metadata": {
             "model": metadata_model,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "num_concepts": len(concepts),
             "concepts": concepts,
         },

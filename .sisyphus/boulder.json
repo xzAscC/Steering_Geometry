@@ -1,10 +1,10 @@
 {
-  "active_plan": "/home/xzascc/Documents/code/template_agent/.sisyphus/plans/agent-engineering-template.md",
-  "started_at": "2026-03-07T03:59:11.406Z",
+  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/steering-concepts-pipeline.md",
+  "started_at": "2026-03-07T07:02:11.445Z",
   "session_ids": [
-    "ses_3399d84e2ffeedYXX65GE5EsEq"
+    "ses_338f96ae7ffezhdLhwv73DsLqx"
   ],
-  "plan_name": "agent-engineering-template",
+  "plan_name": "steering-concepts-pipeline",
   "agent": "atlas",
-  "worktree_path": "/home/xzascc/Documents/code/template_agent"
+  "worktree_path": "/home/xzascc/Documents/code/Steering_Geometry"
 }

@@ -1,12 +1,21 @@
 from pathlib import Path
+from typing import TypedDict, cast
 
 import pytest
 import torch
+from torch import Tensor
 
 from steering_geometry.config import ExtractionConfig
 from steering_geometry.extraction import extract_steering_vector
 from steering_geometry.models import HookedModel
 from steering_geometry.types import ContrastPair, SteeringVector
+
+
+class SerializedSteeringVector(TypedDict):
+    layer_activations: dict[int, Tensor]
+    model_name: str
+    concept: str
+    method: str
 
 
 @pytest.mark.slow
@@ -42,7 +51,7 @@ def test_pipeline_extract_save_load_and_apply_vector(
     }
     torch.save(payload, vector_path)
 
-    loaded_payload = torch.load(vector_path)
+    loaded_payload = cast(SerializedSteeringVector, torch.load(vector_path))
     loaded_vector = SteeringVector(
         layer_activations=loaded_payload["layer_activations"],
         model_name=loaded_payload["model_name"],
