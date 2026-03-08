@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ALL_CONCEPTS=("honesty" "sycophancy" "toxicity" "sentiment" "refusal")
-ALL_MODELS=("Qwen/Qwen2-1.5B" "Qwen/Qwen2.5-1.5B" "Qwen/Qwen2.5-3B" "google/gemma-2-2b")
+ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3.5-2B" "Qwen/Qwen3.5-4B" "google/gemma-2-2b")
 
 usage() {
     cat << EOF
@@ -16,7 +16,7 @@ Run steering vector extraction for specified concepts and models.
 Options:
     -c, --concepts LIST    Comma-separated list of concepts (default: all)
                            Available: honesty, sycophancy, toxicity, sentiment, refusal
-    -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen2.5-1.5B)
+    -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3.5-2B)
     -p, --pairs N          Number of contrast pairs (default: 500)
     -M, --method METHOD    Extraction method: mean or pca (default: mean)
     -o, --output DIR       Output directory (default: data/vectors)
@@ -26,7 +26,7 @@ Options:
 Examples:
     $(basename "$0")                                    # All concepts, default model
     $(basename "$0") -c honesty,toxicity                # Specific concepts
-    $(basename "$0") -m Qwen/Qwen2.5-1.5B,google/gemma-2-2b  # Multiple models
+    $(basename "$0") -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
     $(basename "$0") -c sentiment -p 100 -M pca         # Custom params
     $(basename "$0") -c all -m all                      # All concepts × all models
 
@@ -44,7 +44,7 @@ list_available() {
 }
 
 CONCEPTS=""
-MODELS="Qwen/Qwen2.5-1.5B"
+MODELS="Qwen/Qwen3.5-2B"
 NUM_PAIRS=500
 METHOD="mean"
 OUTPUT_DIR="$PROJECT_ROOT/data/vectors"

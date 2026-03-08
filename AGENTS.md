@@ -121,7 +121,7 @@ Run steering vector extractions:
 
 ```bash
 # Single extraction via Python module
-uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen2.5-1.5B"
+uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen3.5-2B"
 uv run python -m steering_geometry.extract_toxicity --method pca
 
 # All concepts with default model (via shell script)
@@ -131,7 +131,7 @@ uv run python -m steering_geometry.extract_toxicity --method pca
 ./scripts/run_extractions.sh -c honesty,toxicity
 
 # Multiple models
-./scripts/run_extractions.sh -m "Qwen/Qwen2.5-1.5B,google/gemma-2-2b"
+./scripts/run_extractions.sh -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
 
 # All concepts × all models
 ./scripts/run_extractions.sh -c all -m all

@@ -32,12 +32,12 @@ This project provides tools for extracting activation steering vectors from LLMs
    uv run python -m steering_geometry.extract_honesty
    
    # Use specific models (Qwen, Gemma)
-   uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen2-1.5B"
-   uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen2.5-1.5B"
+    uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen3-1.7B"
+    uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen3.5-2B"
    uv run python -m steering_geometry.extract_honesty --model "google/gemma-2-2b"
    
    # Or use the batch script for multiple extractions
-   ./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen2.5-1.5B"
+    ./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
    ```
    
    All extraction modules support the same models:
@@ -92,18 +92,18 @@ This project provides tools for extracting activation steering vectors from LLMs
 This framework works with any causal language model from HuggingFace Transformers. Recommended models for steering vector extraction:
 
 ### Qwen Family
-- **Qwen/Qwen2-1.5B** - Lightweight Qwen2 model (~1.5B parameters)
-- **Qwen/Qwen2.5-1.5B** - Improved Qwen2.5 (~1.5B parameters)
-- **Qwen/Qwen2.5-3B** - Larger Qwen2.5 model (~3B parameters)
+- **Qwen/Qwen3-1.7B** - Lightweight Qwen3 model (~1.7B parameters)
+- **Qwen/Qwen3.5-2B** - Improved Qwen3.5 (~2B parameters)
+- **Qwen/Qwen3.5-4B** - Larger Qwen3.5 model (~4B parameters)
 
 ### Gemma Family
 - **google/gemma-2-2b** - Gemma 2 model (~2B parameters)
 
 ### Usage Example
 ```bash
-# Extract with Qwen2.5
+# Extract with Qwen3.5
 uv run python -m steering_geometry.extract_honesty \
-    --model "Qwen/Qwen2.5-1.5B" \
+    --model "Qwen/Qwen3.5-2B" \
     --num-pairs 500 \
     --output data/vectors/
 
@@ -114,7 +114,7 @@ uv run python -m steering_geometry.extract_toxicity \
     --output data/vectors/
 
 # Batch extraction via shell script
-./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen2.5-1.5B,google/gemma-2-2b"
+./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
 ```
 
 ## Development
