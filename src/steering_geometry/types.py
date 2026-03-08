@@ -34,7 +34,7 @@ class SteeringVector:
         layer_activations: Mapping from layer index to activation tensor.
         model_name: Name/identifier of the model this vector was extracted from.
         concept: The behavioral concept this vector targets.
-        method: The extraction method used (e.g., "contrast", "pca").
+        method: The extraction method used (e.g., "mean", "pca").
     """
 
     layer_activations: dict[int, Tensor]
@@ -43,43 +43,7 @@ class SteeringVector:
     method: str
 
 
-@dataclass
-class ExtractionResult:
-    """Result of a steering vector extraction process.
-
-    Contains the extracted vector along with metrics about the extraction.
-
-    Attributes:
-        vector: The extracted steering vector.
-        metrics: Metrics from the extraction (e.g., variance explained).
-        timestamp: ISO format timestamp of when extraction completed.
-    """
-
-    vector: SteeringVector
-    metrics: dict[str, float]
-    timestamp: str
-
-
-@dataclass
-class EvaluationResult:
-    """Result of evaluating a steering vector's effectiveness.
-
-    Contains scores measuring how well the vector steers model behavior.
-
-    Attributes:
-        scores: Evaluation metrics (e.g., accuracy, effect_size).
-        concept: The concept that was evaluated.
-        model_name: Name of the model used for evaluation.
-    """
-
-    scores: dict[str, float]
-    concept: str
-    model_name: str
-
-
 __all__ = [
     "ContrastPair",
     "SteeringVector",
-    "ExtractionResult",
-    "EvaluationResult",
 ]

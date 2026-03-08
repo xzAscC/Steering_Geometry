@@ -27,7 +27,7 @@ class ExtractionConfig:
     Attributes:
         layers: Relative layer positions (0.0-1.0) to extract activations from.
             For example, [0.4, 0.5, 0.6] extracts from 40%, 50%, 60% of model depth.
-        method: Extraction method ("mean", "pca", "lda").
+        method: Extraction method ("mean", "pca").
         batch_size: Batch size for processing contrast pairs.
         read_token_index: Token position to read activations from (-1 for last token).
     """
@@ -36,19 +36,6 @@ class ExtractionConfig:
     method: str = "mean"
     batch_size: int = 8
     read_token_index: int = -1
-
-
-@dataclass
-class EvaluationConfig:
-    """Configuration for steering vector evaluation.
-
-    Attributes:
-        num_samples: Number of samples to use for evaluation.
-        seed: Random seed for reproducibility.
-    """
-
-    num_samples: int = 100
-    seed: int = 42
 
 
 @dataclass
@@ -69,6 +56,5 @@ class ConceptConfig:
 __all__ = [
     "ModelConfig",
     "ExtractionConfig",
-    "EvaluationConfig",
     "ConceptConfig",
 ]

@@ -7,8 +7,7 @@ import torch
 from torch import Tensor
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from steering_geometry.config import ModelConfig
-from steering_geometry.types import SteeringVector
+from .config import ModelConfig
 
 _DTYPE_MAP: dict[str, torch.dtype] = {
     "float16": torch.float16,
@@ -145,62 +144,6 @@ class HookedModel:
                 handle.remove()
 
         return activations
-
-    def generate(
-        self,
-        prompt: str,
-        max_new_tokens: int,
-        steering_vector: SteeringVector | None = None,
-    ) -> str:
-        """Generate text with optional steering vector intervention.
-
-        Args:
-            prompt: The input prompt to continue.
-            max_new_tokens: Maximum number of new tokens to generate.
-            steering_vector: Optional steering vector to apply during generation.
-
-        Returns:
-            The generated text (excluding the prompt).
-        """
-        inputs = self.tokenizer(prompt, return_tensors="pt")
-        device = next(self.model.parameters()).device
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-
-        handles: list[torch.utils.hooks.RemovableHandle] = []
-
-        if steering_vector is not None:
-            model_layers = self._get_layers_module()
-
-            def make_steering_hook(steering_vec: Tensor) -> Callable[[Any, Any, Tensor], Tensor]:
-                def hook_fn(module: Any, input: Any, output: Tensor) -> Tensor:
-                    if isinstance(output, tuple):
-                        modified = output[0] + steering_vec.to(output[0].device)
-                        return (modified,) + output[1:]
-                    return output + steering_vec.to(output.device)
-
-                return hook_fn
-
-            for layer_idx, layer_activation in steering_vector.layer_activations.items():
-                handle = model_layers[layer_idx].register_forward_hook(
-                    make_steering_hook(layer_activation)
-                )
-                handles.append(handle)
-
-        try:
-            with torch.no_grad():
-                output_ids = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=False,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                )
-
-            full_output = self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
-            return str(full_output)[len(prompt) :].strip()
-
-        finally:
-            for handle in handles:
-                handle.remove()
 
 
 __all__ = ["HookedModel"]
