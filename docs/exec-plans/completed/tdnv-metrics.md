@@ -58,7 +58,7 @@ Implement TDNV metrics module that computes topic separability for steering vect
 - `tests/unit/test_tdnv.py` - Unit tests with mock activations
 - CLI: `uv run python -m steering_geometry.tdnv --concept honesty --model Qwen/Qwen3.5-2B`
 - Output: `data/tdnv/{concept}_{model}.json`
-- Visualization: `plot/tdnv/{concept}_{model}.png`
+- Visualization: `plot/tdnv/{concept}_{model}.pdf`
 
 ### Definition of Done
 - [ ] `uv run ruff check src/ tests/` → 0 violations
@@ -595,12 +595,12 @@ Max Concurrent: 4 (Wave 2)
   - Plot TDNV vs layer index
   - Plot NormNum and NormDen on same or separate axes
   - Add layerwise energy as secondary y-axis or subplot
-  - Save to `plot/tdnv/{concept}_{model_sanitized}.png`
+  - Save to `plot/tdnv/{concept}_{model_sanitized}.pdf`
   - Use clear labels, legend, title
 
   **Must NOT do**:
   - Do not use fancy styling that breaks matplotlib defaults
-  - Do not create interactive plots - static PNG only
+  - Do not create interactive plots - static PDF only
 
   **Recommended Agent Profile**:
   - **Category**: `visual-engineering`
@@ -680,7 +680,7 @@ Max Concurrent: 4 (Wave 2)
     Steps:
       1. Run: uv run python -m steering_geometry.tdnv --concept honesty --model sshleifer/tiny-gpt2 --num-pairs 5
       2. Verify JSON exists: data/tdnv/honesty_sshleifer_tiny-gpt2.json
-      3. Verify plot exists: plot/tdnv/honesty_sshleifer_tiny-gpt2.png
+      3. Verify plot exists: plot/tdnv/honesty_sshleifer_tiny-gpt2.pdf
       4. Load JSON and verify structure
     Expected Result: Both files exist with correct content
     Evidence: .sisyphus/evidence/task-9-integration.txt

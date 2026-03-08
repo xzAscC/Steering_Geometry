@@ -19,7 +19,7 @@
 #
 # Output:
 #   - JSON: data/tdnv/{concept}_{model}.json
-#   - Plot: plot/tdnv/{concept}_{model}.png
+#   - Plot: plot/tdnv/{concept}_{model}.pdf
 # =============================================================================
 
 set -euo pipefail
@@ -72,7 +72,7 @@ Examples:
 
 Output Files:
     JSON:  data/tdnv/{concept}_{model}.json
-    Plot:  plot/tdnv/{concept}_{model}.png
+    Plot:  plot/tdnv/{concept}_{model}.pdf
 
 EOF
     exit 0

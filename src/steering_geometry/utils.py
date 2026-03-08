@@ -2,6 +2,12 @@
 
 import random
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+import torch
+
+if TYPE_CHECKING:
+    from torch import Tensor
 
 
 def validate_positive_int(value: int, name: str = "value") -> None:
@@ -73,10 +79,45 @@ def clamp_score(score: int, min_val: int = 0, max_val: int = 10) -> int:
     return max(min_val, min(max_val, score))
 
 
+def select_token_activations(activations: "Tensor", read_token_index: int) -> "Tensor":
+    """Select activations from a specific token position.
+
+    Args:
+        activations: Activation tensor of shape (batch, seq_len, hidden_dim) or (batch, hidden_dim).
+        read_token_index: Token position index. -1 selects last non-zero token.
+
+    Returns:
+        Activation tensor of shape (batch, hidden_dim).
+
+    Raises:
+        ValueError: If activations tensor has unexpected dimensions.
+    """
+    if activations.ndim == 2:
+        return activations
+    if activations.ndim != 3:
+        msg = f"Expected 2D or 3D activation tensor, got shape {tuple(activations.shape)}"
+        raise ValueError(msg)
+
+    sequence_length = activations.shape[1]
+    if read_token_index == -1:
+        non_zero_mask = activations.abs().sum(dim=-1) > 0
+        token_indices = non_zero_mask.long().sum(dim=1) - 1
+        token_indices = torch.clamp(token_indices, min=0, max=sequence_length - 1)
+        batch_indices = torch.arange(activations.shape[0], device=activations.device)
+        return activations[batch_indices, token_indices, :]
+
+    index = read_token_index
+    if index < 0:
+        index += sequence_length
+    index = max(0, min(sequence_length - 1, index))
+    return activations[:, index, :]
+
+
 __all__ = [
     "validate_positive_int",
     "sample_with_seed",
     "ensure_dir",
     "safe_model_name",
     "clamp_score",
+    "select_token_activations",
 ]

@@ -31,7 +31,13 @@ from torch import Tensor
 from .config import ConceptConfig, ExtractionConfig, ModelConfig
 from .models import HookedModel
 from .types import ContrastPair, ContrastPairMetadata, SteeringVector
-from .utils import ensure_dir, safe_model_name, sample_with_seed, validate_positive_int
+from .utils import (
+    ensure_dir,
+    safe_model_name,
+    sample_with_seed,
+    select_token_activations,
+    validate_positive_int,
+)
 
 # =============================================================================
 # Dataset Field Documentation (verified 2024-01)
@@ -188,35 +194,6 @@ def _resolve_aggregator(method: str, config: ExtractionConfig | None = None) -> 
         msg = f"Unsupported extraction method: {method}. Choose from: {available}"
         raise ValueError(msg)
     return aggregators[method]
-
-
-# =============================================================================
-# Token Activation Selection
-# =============================================================================
-
-
-def _select_token_activations(activations: Tensor, read_token_index: int) -> Tensor:
-    """Select activations from a specific token position."""
-    if activations.ndim == 2:
-        return activations
-    if activations.ndim != 3:
-        msg = f"Expected 2D or 3D activation tensor, got shape {tuple(activations.shape)}"
-        raise ValueError(msg)
-
-    sequence_length = activations.shape[1]
-    if read_token_index == -1:
-        # Select last non-zero token
-        non_zero_mask = activations.abs().sum(dim=-1) > 0
-        token_indices = non_zero_mask.long().sum(dim=1) - 1
-        token_indices = torch.clamp(token_indices, min=0, max=sequence_length - 1)
-        batch_indices = torch.arange(activations.shape[0], device=activations.device)
-        return activations[batch_indices, token_indices, :]
-
-    index = read_token_index
-    if index < 0:
-        index += sequence_length
-    index = max(0, min(sequence_length - 1, index))
-    return activations[:, index, :]
 
 
 # =============================================================================
@@ -519,11 +496,11 @@ def extract_steering_vector(
                 msg = f"Missing activations for layer {layer}"
                 raise ValueError(msg)
 
-            positive_selected = _select_token_activations(
+            positive_selected = select_token_activations(
                 positive_activations[layer],
                 config.read_token_index,
             )
-            negative_selected = _select_token_activations(
+            negative_selected = select_token_activations(
                 negative_activations[layer],
                 config.read_token_index,
             )
@@ -601,6 +578,7 @@ class _Args(Protocol):
     output: str
     dry_run: bool
     top_k: int
+    layers: list[float] | None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -648,6 +626,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Load data only, skip model loading and extraction",
     )
+    parser.add_argument(
+        "--layers",
+        nargs="+",
+        type=float,
+        default=None,
+        help="Relative layer positions (e.g., --layers 0.5 or --layers 0.4 0.5 0.6)",
+    )
     return parser
 
 
@@ -673,7 +658,11 @@ def main() -> None:
 
     # Load model and extract
     model = HookedModel(ModelConfig(model_name=args.model))
-    extraction_config = ExtractionConfig(method=args.method, top_k=args.top_k)
+    extraction_config = ExtractionConfig(
+        method=args.method,
+        top_k=args.top_k,
+        layers=args.layers if args.layers else [0.4, 0.5, 0.6, 0.7, 0.8],
+    )
     vector = extract_steering_vector(model=model, pairs=pairs, config=extraction_config)
 
     # Save output

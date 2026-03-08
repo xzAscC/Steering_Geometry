@@ -25,7 +25,7 @@ from .config import ModelConfig, TDNVConfig
 from .extract import VALID_CONCEPTS, load_contrast_pairs
 from .models import HookedModel
 from .types import TDNVLayerMetrics, TDNVResult
-from .utils import ensure_dir, safe_model_name
+from .utils import ensure_dir, safe_model_name, select_token_activations
 
 EPS = 1e-8
 
@@ -121,29 +121,6 @@ def compute_tdnv(
     )
 
 
-def _select_token_activations(activations: Tensor, read_token_index: int) -> Tensor:
-    """Select activations from a specific token position."""
-    if activations.ndim == 2:
-        return activations
-    if activations.ndim != 3:
-        msg = f"Expected 2D or 3D activation tensor, got shape {tuple(activations.shape)}"
-        raise ValueError(msg)
-
-    sequence_length = activations.shape[1]
-    if read_token_index == -1:
-        non_zero_mask = activations.abs().sum(dim=-1) > 0
-        token_indices = non_zero_mask.long().sum(dim=1) - 1
-        token_indices = torch.clamp(token_indices, min=0, max=sequence_length - 1)
-        batch_indices = torch.arange(activations.shape[0], device=activations.device)
-        return activations[batch_indices, token_indices, :]
-
-    index = read_token_index
-    if index < 0:
-        index += sequence_length
-    index = max(0, min(sequence_length - 1, index))
-    return activations[:, index, :]
-
-
 def compute_tdnv_for_concept(
     concept: str,
     model_name: str,
@@ -191,11 +168,11 @@ def compute_tdnv_for_concept(
         neg_activations = model.get_activations(neg_texts, layers)
 
         for layer in layers:
-            pos_selected = _select_token_activations(
+            pos_selected = select_token_activations(
                 pos_activations[layer],
                 config.read_token_index,
             )
-            neg_selected = _select_token_activations(
+            neg_selected = select_token_activations(
                 neg_activations[layer],
                 config.read_token_index,
             )
@@ -284,7 +261,7 @@ def plot_tdnv_trends(result: TDNVResult, plot_dir: Path) -> Path:
 
     plot_dir = ensure_dir(plot_dir)
     model_slug = safe_model_name(result.model_name)
-    output_file = plot_dir / f"{result.concept}_{model_slug}.png"
+    output_file = plot_dir / f"{result.concept}_{model_slug}.pdf"
 
     fig, ax1 = plt.subplots(figsize=(12, 6))
 
@@ -332,7 +309,7 @@ def plot_tdnv_trends(result: TDNVResult, plot_dir: Path) -> Path:
 
     plt.title(f"TDNV Analysis: {result.concept} ({result.model_name})")
     fig.tight_layout()
-    plt.savefig(output_file, dpi=150, bbox_inches="tight")
+    plt.savefig(output_file, bbox_inches="tight")
     plt.close()
 
     print(f"Saved plot to {output_file}")

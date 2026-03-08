@@ -1,4 +1,8 @@
-# AGENTS.md
+# PROJECT KNOWLEDGE BASE
+
+**Generated:** 2026-03-08
+**Commit:** 4aa68b2
+**Branch:** project-setup
 
 AI agents working in this repository MUST follow these rules.
 
@@ -6,8 +10,9 @@ AI agents working in this repository MUST follow these rules.
 
 - Package manager: `uv`
 - Python: 3.12+ (see `.python-version`)
-- Lint/Format: `ruff`
-- Type check: `mypy`
+- Build: `hatchling`
+- Lint/Format: `ruff` (line-length 100, double quotes)
+- Type check: `mypy --strict`
 - Test: `pytest`
 
 ## 2) Build & Verify Commands
@@ -89,8 +94,50 @@ Enforced by ruff (see pyproject.toml):
 - Line length: 100
 - Quote style: double
 - Naming: snake_case for functions/vars, PascalCase for classes
+- Lint rules: E, F, I (isort), UP (pyupgrade), B (bugbear), SIM (simplify), N (naming)
 
-## 9) Pipeline Workflow
+### Import Style
+- ESM-style imports: `from x import y`
+- Grouping: stdlib → third-party → local (enforced by isort)
+- Modern union syntax: `str | None` (enforced by pyupgrade)
+
+### Type System
+- `py.typed` marker present — package is typed
+- Dataclasses for domain objects, TypedDict for dict schemas
+- Modern syntax: `list[str]`, `dict[int, Tensor]`
+
+## 9) Where to Look
+
+| Task | Location | Notes |
+|------|----------|-------|
+| Extract steering vector | `src/steering_geometry/extract.py` | `extract_vector()`, `load_contrast_pairs()` |
+| Add new concept | `extract.py:_DATASET_LOADERS` | Add loader + prefix constants |
+| Load model with hooks | `src/steering_geometry/models.py` | `HookedModel` class |
+| Apply steering | `src/steering_geometry/apply_steering.py` | `apply_steering()` |
+| Evaluate steering | `src/steering_geometry/evaluation.py` | `JudgeEvaluator`, `MMLUEvaluator` |
+| Core types | `src/steering_geometry/types.py` | `ContrastPair`, `SteeringVector`, etc. |
+| Config classes | `src/steering_geometry/config.py` | `ModelConfig`, `ExtractionConfig`, etc. |
+| Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
+| Pipeline scripts | `scripts/run_pipeline.sh` | Full orchestration |
+| Quick scripts | `scripts/quick/` | Single-layer operations |
+
+## 10) Anti-Patterns
+
+### Forbidden in This Project
+- `typing.Any` — Use proper types or `unknown` patterns
+- `# type: ignore` — Avoid unless for untyped third-party libs
+- `print()` in production code — Use logging module
+- Bare `except:` — Always specify exception type
+- `from x import *` — Explicit imports only
+
+### Current Technical Debt
+| File | Issue | Fix |
+|------|-------|-----|
+| `models.py:133,187` | `Any` in hook params | Use Protocol or specific types |
+| `extract.py` + `tdnv.py` | `_select_token_activations` duplicated | Extract to utils.py |
+| `extract.py`, `apply_steering.py`, `tdnv.py` | `print()` for CLI | Use logging |
+
+## 11) Pipeline Workflow
 
 **ALWAYS follow this pipeline for every task:**
 
@@ -121,23 +168,20 @@ Run steering vector extractions:
 
 ```bash
 # Single extraction via Python module
-uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen3.5-2B"
-uv run python -m steering_geometry.extract_toxicity --method pca
+uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
+uv run python -m steering_geometry.extract --concept toxicity --method pca
 
-# All concepts with default model (via shell script)
-./scripts/run_extractions.sh
+# Full pipeline (extract → steer → evaluate)
+./scripts/run_pipeline.sh -c honesty,toxicity
 
-# Specific concepts
-./scripts/run_extractions.sh -c honesty,toxicity
+# Extraction only
+./scripts/run_pipeline.sh -c all --extract-only
 
 # Multiple models
-./scripts/run_extractions.sh -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
+./scripts/run_pipeline.sh -c honesty -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
 
-# All concepts × all models
-./scripts/run_extractions.sh -c all -m all
-
-# Custom parameters
-./scripts/run_extractions.sh -c sentiment -p 100 -M pca -o ./my_vectors/
+# Quick single-layer extraction
+./scripts/quick/quick_extract.sh -c honesty -l 0.7
 ```
 
 ### Directory Rules
@@ -164,7 +208,7 @@ Open PR when feature complete:
 - Verification output included
 - Risks documented
 
-## 10) Architecture Cross-References
+## 12) Architecture Cross-References
 
 - System design: `ARCHITECTURE.md`
 - Design docs: `docs/design-docs/`

@@ -83,6 +83,16 @@ The extraction pipeline follows a linear data flow:
 - **Decision**: Use Pydantic for configuration management and strict type hints throughout the codebase.
 - **Consequences**: Reduced runtime errors and better IDE support for experiment configuration.
 
+### ADR-003: PDF-Only Visualization Output
+
+- **Context**: Consistent output format needed for plots and visualizations across the framework.
+- **Decision**: All visualization outputs MUST be PDF format only. No PNG, SVG, or other formats.
+- **Consequences**:
+  - Vector graphics for high-quality publication-ready figures
+  - Consistent file handling across all scripts and documentation
+  - Smaller file sizes for complex plots with many data points
+- **Implementation**: `plot/tdnv/*.pdf` — all plots use `plt.savefig(..., bbox_inches="tight")` with `.pdf` extension
+
 ## How to Update This Document
 
 Update this file when:
