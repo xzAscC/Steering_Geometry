@@ -98,9 +98,42 @@ Enforced by ruff (see pyproject.toml):
 1. READ PLAN    → Read PLAN.md, parse tasks, understand requirements
 2. CODE         → Implement following conventions in this file
 3. VERIFY       → Run: ruff check, ruff format, mypy, pytest (ALL must pass)
-4. MOVE PLAN    → Complete → docs/exec-plans/completed/, In-progress → active/
+4. MOVE PLAN    → ./scripts/complete_plan.sh <plan_name>
 5. UPDATE DOCS  → PLANS.md, QUALITY_SCORE.md, ARCHITECTURE.md as needed
 6. COMMIT/PR    → When logical unit complete + all checks pass
+```
+
+### Plan Completion
+
+When a plan from `.sisyphus/plans/` is complete:
+
+```bash
+# Move plan to docs/exec-plans/completed/
+./scripts/complete_plan.sh <plan_name>
+
+# Example:
+./scripts/complete_plan.sh steering-concepts-pipeline
+```
+
+### Extraction Scripts
+
+Run steering vector extractions:
+
+```bash
+# All concepts with default model
+./scripts/run_extractions.sh
+
+# Specific concepts
+./scripts/run_extractions.sh -c honesty,toxicity
+
+# Multiple models
+./scripts/run_extractions.sh -m "Qwen/Qwen2.5-1.5B,google/gemma-2-2b"
+
+# All concepts × all models
+./scripts/run_extractions.sh -c all -m all
+
+# Custom parameters
+./scripts/run_extractions.sh -c sentiment -p 100 -M pca -o ./my_vectors/
 ```
 
 ### Commit Criteria
