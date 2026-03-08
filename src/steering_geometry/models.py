@@ -1,5 +1,6 @@
 """Model loading and activation extraction using forward hooks."""
 
+import math
 from collections.abc import Callable
 from typing import Any
 
@@ -81,7 +82,10 @@ class HookedModel:
             List of absolute layer indices (0-indexed).
         """
         n_layers = self.num_layers
-        return [round(max(0.0, min(1.0, rel_pos)) * (n_layers - 1)) for rel_pos in relative_layers]
+        return [
+            math.floor(max(0.0, min(1.0, rel_pos)) * (n_layers - 1) + 0.5)
+            for rel_pos in relative_layers
+        ]
 
     def _get_layers_module(self) -> Any:
         """Get the layers module from the model architecture."""
