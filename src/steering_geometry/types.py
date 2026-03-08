@@ -1,9 +1,77 @@
 """Core type definitions for steering geometry package."""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 from torch import Tensor
+
+# =============================================================================
+# TypedDict definitions for structured metadata
+# =============================================================================
+
+
+class ContrastPairMetadata(TypedDict, total=False):
+    """Metadata for a contrast pair.
+
+    Attributes:
+        concept: The behavioral concept this pair targets.
+        dataset: Name of the source dataset.
+        source: Specific source identifier within the dataset.
+        pair_index: Index of this pair in the sampled set.
+        original_question: Original question text (for honesty concept).
+    """
+
+    concept: str
+    dataset: str
+    source: str
+    pair_index: int
+    original_question: str
+
+
+class EvaluationMetadata(TypedDict, total=False):
+    """Metadata for steering evaluation results.
+
+    Attributes:
+        concept: The behavioral concept being evaluated.
+        model: Name of the model used for generation.
+        layer: Layer index where steering was applied.
+        multiplier: Steering strength multiplier.
+    """
+
+    concept: str
+    model: str
+    layer: int
+    multiplier: float
+
+
+class MMLUPrediction(TypedDict):
+    """Single MMLU benchmark prediction record.
+
+    Attributes:
+        question: The question text.
+        predicted: Model's predicted answer (e.g., "A", "B").
+        ground_truth: Correct answer.
+        correct: Whether the prediction was correct.
+    """
+
+    question: str
+    predicted: str | None
+    ground_truth: str
+    correct: bool
+
+
+class MMLUQuestion(TypedDict):
+    """MMLU question format from HuggingFace dataset.
+
+    Attributes:
+        question: The question text.
+        options: List of answer choices.
+        answer: The correct answer letter.
+    """
+
+    question: str
+    options: list[str]
+    answer: str
 
 
 @dataclass
@@ -20,7 +88,7 @@ class ContrastPair:
 
     positive: str
     negative: str
-    metadata: dict[str, Any]
+    metadata: ContrastPairMetadata
 
 
 @dataclass
@@ -43,7 +111,69 @@ class SteeringVector:
     method: str
 
 
+@dataclass
+class JudgeScore:
+    """Score from LLM judge evaluating a steered response.
+
+    Contains numeric scores and reasoning for concept adherence and fluency.
+
+    Attributes:
+        concept_score: Score for how well the response matches the target concept (1-5).
+        fluency_score: Score for response quality and naturalness (1-5).
+        final_score: Weighted combination of concept and fluency scores.
+        reasoning: Explanation of the scoring decision.
+    """
+
+    concept_score: int
+    fluency_score: int
+    final_score: float
+    reasoning: str
+
+
+@dataclass
+class MMLUResult:
+    """Results from MMLU benchmark evaluation.
+
+    Contains accuracy metrics and individual predictions for the benchmark.
+
+    Attributes:
+        correct: Number of correctly answered questions.
+        total: Total number of questions evaluated.
+        accuracy: Fraction of correct answers (correct/total).
+        predictions: List of prediction records with question, choices, and answer.
+    """
+
+    correct: int
+    total: int
+    accuracy: float
+    predictions: list[MMLUPrediction]
+
+
+@dataclass
+class EvaluationResult:
+    """Complete evaluation results for a steering experiment.
+
+    Aggregates judge scores and benchmark results with experiment metadata.
+
+    Attributes:
+        judge_scores: List of judge scores for each evaluated response.
+        mmlu_result: MMLU benchmark results if evaluation was run.
+        metadata: Additional context (model, concept, steering strength, etc.).
+    """
+
+    judge_scores: list[JudgeScore]
+    mmlu_result: MMLUResult
+    metadata: EvaluationMetadata
+
+
 __all__ = [
     "ContrastPair",
+    "ContrastPairMetadata",
     "SteeringVector",
+    "JudgeScore",
+    "MMLUResult",
+    "MMLUPrediction",
+    "MMLUQuestion",
+    "EvaluationResult",
+    "EvaluationMetadata",
 ]

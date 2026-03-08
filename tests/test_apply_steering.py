@@ -103,11 +103,11 @@ class TestNormalizeVectors:
 
 class TestSafeModelName:
     def test_safe_model_name(self) -> None:
-        from steering_geometry.apply_steering import _safe_model_name
+        from steering_geometry.utils import safe_model_name
 
-        assert _safe_model_name("Qwen/Qwen3.5-2B") == "Qwen_Qwen3.5-2B"
-        assert _safe_model_name("google/gemma-2-2b") == "google_gemma-2-2b"
-        assert _safe_model_name("simple-name") == "simple-name"
+        assert safe_model_name("Qwen/Qwen3.5-2B") == "Qwen_Qwen3.5-2B"
+        assert safe_model_name("google/gemma-2-2b") == "google_gemma-2-2b"
+        assert safe_model_name("simple-name") == "simple-name"
 
 
 class TestApplySteering:

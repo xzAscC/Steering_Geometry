@@ -13,9 +13,8 @@ The framework provides tools for extracting and analyzing steering vectors in La
 | Types | Core data structures and type hints | `src/steering_geometry/types.py` | typing |
 | Configuration | Model and extraction settings | `src/steering_geometry/config.py` | pydantic |
 | Model Wrapper | LLM loading and activation hooks | `src/steering_geometry/models.py` | torch, transformers |
-| Extraction | Activation collection and vector calculation | `src/steering_geometry/extraction.py` | numpy, scikit-learn |
-| Evaluation | Steering effect validation and metrics | `src/steering_geometry/evaluation.py` | scipy |
-| Concepts | Concept-specific datasets and prompts | `src/steering_geometry/concepts/` | pyyaml |
+| Extraction | Activation collection and vector calculation | `src/steering_geometry/extract.py` | numpy, scikit-learn, datasets |
+| Steering | Apply steering vectors to model outputs | `src/steering_geometry/apply_steering.py` | torch |
 
 ## Data Flow
 
@@ -44,14 +43,11 @@ The extraction pipeline follows a linear data flow:
 ```
 .
 ├── src/steering_geometry/  # Source code (Python modules ONLY)
-│   ├── concepts/           # Concept-specific logic and data
 │   ├── types.py            # Core type definitions
 │   ├── config.py           # Configuration management
-│   ├── models.py           # Model loading and wrapping
-│   ├── extraction.py       # Activation extraction logic
-│   ├── evaluation.py       # Vector evaluation and validation
-│   ├── extract_*.py        # CLI entry points for extraction
-│   └── compare_concepts.py # Cross-concept comparison analysis
+│   ├── models.py           # Model loading and activation hooks
+│   ├── extract.py          # Unified extraction (all concepts via --concept flag)
+│   └── apply_steering.py   # Apply steering vectors to model outputs
 ├── tests/                  # Test files
 ├── scripts/                # Shell scripts ONLY (no .py files)
 │   ├── run_extractions.sh  # Batch extraction orchestrator

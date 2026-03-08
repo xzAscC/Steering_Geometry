@@ -18,7 +18,6 @@ Usage:
 """
 
 import argparse
-import random
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, cast
@@ -30,7 +29,8 @@ from torch import Tensor
 
 from .config import ConceptConfig, ExtractionConfig, ModelConfig
 from .models import HookedModel
-from .types import ContrastPair, SteeringVector
+from .types import ContrastPair, ContrastPairMetadata, SteeringVector
+from .utils import ensure_dir, safe_model_name, sample_with_seed, validate_positive_int
 
 # =============================================================================
 # Dataset Field Documentation (verified 2024-01)
@@ -140,9 +140,7 @@ def _select_token_activations(activations: Tensor, read_token_index: int) -> Ten
 
 def load_honesty_data(config: ConceptConfig) -> list[ContrastPair]:
     """Load honesty contrast pairs from TruthfulQA."""
-    if config.num_pairs <= 0:
-        msg = "num_pairs must be greater than 0"
-        raise ValueError(msg)
+    validate_positive_int(config.num_pairs, "num_pairs")
 
     dataset = load_dataset("truthfulqa/truthful_qa", "generation")
 
@@ -161,20 +159,19 @@ def load_honesty_data(config: ConceptConfig) -> list[ContrastPair]:
         msg = "Not enough data to construct honesty contrast pairs"
         raise ValueError(msg)
 
-    rng = random.Random(42)
-    sampled_questions = rng.sample(questions, k=requested_pairs)
+    sampled_questions = sample_with_seed(questions, requested_pairs)
 
     return [
         ContrastPair(
             positive=f"{_HONEST_PREFIX} {question}",
             negative=f"{_DISHONEST_PREFIX} {question}",
-            metadata={
-                "concept": config.concept_name,
-                "dataset": config.dataset_name,
-                "source": "truthfulqa/truthful_qa",
-                "pair_index": pair_index,
-                "original_question": question,
-            },
+            metadata=ContrastPairMetadata(
+                concept=config.concept_name,
+                dataset=config.dataset_name,
+                source="truthfulqa/truthful_qa",
+                pair_index=pair_index,
+                original_question=question,
+            ),
         )
         for pair_index, question in enumerate(sampled_questions)
     ]
@@ -182,9 +179,7 @@ def load_honesty_data(config: ConceptConfig) -> list[ContrastPair]:
 
 def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
     """Load sentiment contrast pairs from SST-2."""
-    if config.num_pairs <= 0:
-        msg = "num_pairs must be greater than 0"
-        raise ValueError(msg)
+    validate_positive_int(config.num_pairs, "num_pairs")
 
     dataset = load_dataset("glue", "sst2")
 
@@ -207,23 +202,22 @@ def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
     max_pairs = min(len(positives), len(negatives))
     requested_pairs = min(config.num_pairs, max_pairs)
     if requested_pairs == 0:
-        msg = "Not enough data to construct sentiment contrast pairs"
+        msg = "not enough data to construct sentiment contrast pairs"
         raise ValueError(msg)
 
-    rng = random.Random(42)
-    sampled_positives = rng.sample(positives, k=requested_pairs)
-    sampled_negatives = rng.sample(negatives, k=requested_pairs)
+    sampled_positives = sample_with_seed(positives, requested_pairs)
+    sampled_negatives = sample_with_seed(negatives, requested_pairs)
 
     return [
         ContrastPair(
             positive=positive_sentence,
             negative=negative_sentence,
-            metadata={
-                "concept": config.concept_name,
-                "dataset": config.dataset_name,
-                "source": "glue/sst2",
-                "pair_index": pair_index,
-            },
+            metadata=ContrastPairMetadata(
+                concept=config.concept_name,
+                dataset=config.dataset_name,
+                source="glue/sst2",
+                pair_index=pair_index,
+            ),
         )
         for pair_index, (positive_sentence, negative_sentence) in enumerate(
             zip(sampled_positives, sampled_negatives, strict=True)
@@ -233,9 +227,7 @@ def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
 
 def load_toxicity_data(config: ConceptConfig) -> list[ContrastPair]:
     """Load toxicity contrast pairs from Civil Comments."""
-    if config.num_pairs <= 0:
-        msg = "num_pairs must be greater than 0"
-        raise ValueError(msg)
+    validate_positive_int(config.num_pairs, "num_pairs")
 
     dataset = load_dataset("google/civil_comments")
 
@@ -259,24 +251,22 @@ def load_toxicity_data(config: ConceptConfig) -> list[ContrastPair]:
     max_pairs = min(len(toxic_texts), len(non_toxic_texts))
     requested_pairs = min(config.num_pairs, max_pairs)
     if requested_pairs == 0:
-        msg = "Not enough data to construct toxicity contrast pairs"
+        msg = "not enough data to construct toxicity contrast pairs"
         raise ValueError(msg)
 
-    rng = random.Random(42)
-    sampled_toxic = rng.sample(toxic_texts, k=requested_pairs)
-    sampled_non_toxic = rng.sample(non_toxic_texts, k=requested_pairs)
+    sampled_toxic = sample_with_seed(toxic_texts, requested_pairs)
+    sampled_non_toxic = sample_with_seed(non_toxic_texts, requested_pairs)
 
-    # positive = non-toxic (good behavior), negative = toxic (bad behavior)
     return [
         ContrastPair(
             positive=non_toxic,
             negative=toxic,
-            metadata={
-                "concept": config.concept_name,
-                "dataset": config.dataset_name,
-                "source": "google/civil_comments",
-                "pair_index": pair_index,
-            },
+            metadata=ContrastPairMetadata(
+                concept=config.concept_name,
+                dataset=config.dataset_name,
+                source="google/civil_comments",
+                pair_index=pair_index,
+            ),
         )
         for pair_index, (non_toxic, toxic) in enumerate(
             zip(sampled_non_toxic, sampled_toxic, strict=True)
@@ -286,9 +276,7 @@ def load_toxicity_data(config: ConceptConfig) -> list[ContrastPair]:
 
 def load_sycophancy_data(config: ConceptConfig) -> list[ContrastPair]:
     """Load sycophancy contrast pairs from Anthropic model-written-evals."""
-    if config.num_pairs <= 0:
-        msg = "num_pairs must be greater than 0"
-        raise ValueError(msg)
+    validate_positive_int(config.num_pairs, "num_pairs")
 
     dataset = load_dataset("Anthropic/model-written-evals")
 
@@ -301,7 +289,6 @@ def load_sycophancy_data(config: ConceptConfig) -> list[ContrastPair]:
         answer_matching = row["answer_matching_behavior"]
         answer_not_matching = row["answer_not_matching_behavior"]
 
-        # positive = sycophantic (agrees), negative = objective (disagrees)
         sycophantic_prompt = f"{_SYCOPHANTIC_PREFIX}\n\n{question}\nAnswer:{answer_matching}"
         objective_prompt = f"{_OBJECTIVE_PREFIX}\n\n{question}\nAnswer:{answer_not_matching}"
 
@@ -309,17 +296,17 @@ def load_sycophancy_data(config: ConceptConfig) -> list[ContrastPair]:
             ContrastPair(
                 positive=sycophantic_prompt,
                 negative=objective_prompt,
-                metadata={
-                    "concept": config.concept_name,
-                    "dataset": config.dataset_name,
-                    "source": "Anthropic/model-written-evals",
-                    "pair_index": pair_index,
-                },
+                metadata=ContrastPairMetadata(
+                    concept=config.concept_name,
+                    dataset=config.dataset_name,
+                    source="Anthropic/model-written-evals",
+                    pair_index=pair_index,
+                ),
             )
         )
 
     if not pairs:
-        msg = "Not enough data to construct sycophancy contrast pairs"
+        msg = "not enough data to construct sycophancy contrast pairs"
         raise ValueError(msg)
 
     return pairs
@@ -327,9 +314,7 @@ def load_sycophancy_data(config: ConceptConfig) -> list[ContrastPair]:
 
 def load_refusal_data(config: ConceptConfig) -> list[ContrastPair]:
     """Load refusal contrast pairs from LLM-LAT/harmful-dataset."""
-    if config.num_pairs <= 0:
-        msg = "num_pairs must be greater than 0"
-        raise ValueError(msg)
+    validate_positive_int(config.num_pairs, "num_pairs")
 
     dataset = load_dataset("LLM-LAT/harmful-dataset")
 
@@ -339,10 +324,9 @@ def load_refusal_data(config: ConceptConfig) -> list[ContrastPair]:
             break
 
         prompt = row["prompt"]
-        chosen = row["chosen"]  # refusal response
-        rejected = row["rejected"]  # compliance response
+        chosen = row["chosen"]
+        rejected = row["rejected"]
 
-        # positive = refusal (safe), negative = compliance (unsafe)
         refusal_prompt = f"{_REFUSAL_PREFIX}\n\nUser: {prompt}\nAssistant: {chosen}"
         compliance_prompt = f"{_COMPLIANCE_PREFIX}\n\nUser: {prompt}\nAssistant: {rejected}"
 
@@ -350,17 +334,17 @@ def load_refusal_data(config: ConceptConfig) -> list[ContrastPair]:
             ContrastPair(
                 positive=refusal_prompt,
                 negative=compliance_prompt,
-                metadata={
-                    "concept": config.concept_name,
-                    "dataset": config.dataset_name,
-                    "source": "LLM-LAT/harmful-dataset",
-                    "pair_index": pair_index,
-                },
+                metadata=ContrastPairMetadata(
+                    concept=config.concept_name,
+                    dataset=config.dataset_name,
+                    source="LLM-LAT/harmful-dataset",
+                    pair_index=pair_index,
+                ),
             )
         )
 
     if not pairs:
-        msg = "Not enough data to construct refusal contrast pairs"
+        msg = "not enough data to construct refusal contrast pairs"
         raise ValueError(msg)
 
     return pairs
@@ -522,6 +506,8 @@ def extract_vector(
 
 
 class _Args(Protocol):
+    """Protocol defining CLI arguments for extraction."""
+
     concept: str
     model: str
     method: str
@@ -531,6 +517,7 @@ class _Args(Protocol):
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Build argument parser for extraction CLI."""
     parser = argparse.ArgumentParser(
         prog="steering_geometry.extract",
         description="Extract steering vectors for behavioral concepts",
@@ -572,6 +559,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """CLI entry point for steering vector extraction."""
     args = cast(_Args, cast(object, _build_parser().parse_args()))
 
     # Load data
@@ -596,10 +584,9 @@ def main() -> None:
     vector = extract_steering_vector(model=model, pairs=pairs, config=extraction_config)
 
     # Save output
-    output_dir = Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    safe_model_name = args.model.replace("/", "_")
-    output_file = output_dir / f"{args.concept}_{safe_model_name}_{args.method}.pt"
+    output_dir = ensure_dir(Path(args.output))
+    model_slug = safe_model_name(args.model)
+    output_file = output_dir / f"{args.concept}_{model_slug}_{args.method}.pt"
     torch.save(
         {
             "vector": vector,

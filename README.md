@@ -29,23 +29,23 @@ This project provides tools for extracting activation steering vectors from LLMs
 3. **Run extraction**
    ```bash
    # Example: Extract steering vectors for honesty with default model
-   uv run python -m steering_geometry.extract_honesty
+   uv run python -m steering_geometry.extract --concept honesty
    
    # Use specific models (Qwen, Gemma)
-    uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen3-1.7B"
-    uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen3.5-2B"
-   uv run python -m steering_geometry.extract_honesty --model "google/gemma-2-2b"
+   uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3-1.7B"
+   uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
+   uv run python -m steering_geometry.extract --concept honesty --model "google/gemma-2-2b"
    
    # Or use the batch script for multiple extractions
-    ./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
+   ./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
    ```
    
-   All extraction modules support the same models:
-   - `steering_geometry.extract_honesty` - Honesty steering vectors
-   - `steering_geometry.extract_sycophancy` - Sycophancy steering vectors
-   - `steering_geometry.extract_toxicity` - Toxicity steering vectors
-   - `steering_geometry.extract_sentiment` - Sentiment steering vectors
-   - `steering_geometry.extract_refusal` - Refusal steering vectors
+   Supported concepts:
+   - `honesty` - Honesty steering vectors
+   - `sycophancy` - Sycophancy steering vectors
+   - `toxicity` - Toxicity steering vectors
+   - `sentiment` - Sentiment steering vectors
+   - `refusal` - Refusal steering vectors
 
 ## Project Structure
 
@@ -57,14 +57,11 @@ This project provides tools for extracting activation steering vectors from LLMs
 ├── pyproject.toml               # Project config
 ├── .python-version              # Python version (3.12+)
 ├── src/steering_geometry/       # Source code (Python modules ONLY)
-│   ├── concepts/                # Concept-specific datasets and prompts
 │   ├── types.py                 # Core type definitions
 │   ├── config.py                # Configuration management
-│   ├── models.py                # Model loading and wrapping
-│   ├── extraction.py            # Activation extraction logic
-│   ├── evaluation.py            # Vector evaluation and validation
-│   ├── extract_*.py             # CLI entry points for extraction
-│   └── compare_concepts.py      # Cross-concept comparison
+│   ├── models.py                # Model loading and activation hooks
+│   ├── extract.py               # Unified extraction (all concepts)
+│   └── apply_steering.py        # Apply steering vectors to model
 ├── tests/                       # Test files
 ├── scripts/                     # Shell scripts ONLY (no .py files)
 │   ├── run_extractions.sh       # Batch extraction orchestrator
@@ -86,6 +83,7 @@ This project provides tools for extracting activation steering vectors from LLMs
 - **data/** - Input datasets and contrast pairs for different concepts
 - **plot/** - Visualizations of activation spaces and steering effects
 - **assets/** - Saved steering vectors and evaluation reports
+- **docs/** - Design documents, execution plans, and quality tracking
 
 ## Supported Models
 
@@ -102,13 +100,15 @@ This framework works with any causal language model from HuggingFace Transformer
 ### Usage Example
 ```bash
 # Extract with Qwen3.5
-uv run python -m steering_geometry.extract_honesty \
+uv run python -m steering_geometry.extract \
+    --concept honesty \
     --model "Qwen/Qwen3.5-2B" \
     --num-pairs 500 \
     --output data/vectors/
 
 # Extract with Gemma 2
-uv run python -m steering_geometry.extract_toxicity \
+uv run python -m steering_geometry.extract \
+    --concept toxicity \
     --model "google/gemma-2-2b" \
     --method pca \
     --output data/vectors/

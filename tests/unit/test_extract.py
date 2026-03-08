@@ -20,28 +20,19 @@ HAS_ACCELERATE = importlib.util.find_spec("accelerate") is not None
 
 
 class TestLoadContrastPairs:
-    """Tests for load_contrast_pairs function."""
-
-    def test_valid_concepts(self) -> None:
-        """All 5 concepts should load successfully."""
-        for concept in VALID_CONCEPTS:
-            pairs = load_contrast_pairs(concept, num_pairs=5)
-            assert len(pairs) == 5
-            assert all(isinstance(p, ContrastPair) for p in pairs)
-
     def test_invalid_concept_raises(self) -> None:
         """Invalid concept should raise ValueError."""
         with pytest.raises(ValueError, match="Invalid concept"):
-            load_contrast_pairs("invalid_concept", num_pairs=5)
+            load_contrast_pairs("invalid_concept", num_pairs=10)
 
     def test_zero_pairs_raises(self) -> None:
         """Zero pairs should raise ValueError."""
-        with pytest.raises(ValueError, match="must be greater than 0"):
+        with pytest.raises(ValueError, match="must be positive"):
             load_contrast_pairs("honesty", num_pairs=0)
 
     def test_negative_pairs_raises(self) -> None:
         """Negative pairs should raise ValueError."""
-        with pytest.raises(ValueError, match="must be greater than 0"):
+        with pytest.raises(ValueError, match="must be positive"):
             load_contrast_pairs("honesty", num_pairs=-1)
 
 

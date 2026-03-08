@@ -25,15 +25,12 @@ from typing import Any, Protocol, cast
 import torch
 from torch import Tensor
 
-from .config import ModelConfig, SteeringConfig
+from .config import JudgeConfig, MMLUConfig, ModelConfig, SteeringConfig
+from .evaluation import JudgeEvaluator, MMLUEvaluator, generate_html_report
 from .extract import load_contrast_pairs
 from .models import HookedModel
-from .types import SteeringVector
-
-
-def _safe_model_name(model_name: str) -> str:
-    """Convert model name to safe directory name."""
-    return model_name.replace("/", "_")
+from .types import EvaluationMetadata, EvaluationResult, SteeringVector
+from .utils import ensure_dir, safe_model_name
 
 
 def _normalize_vectors(vector: SteeringVector) -> dict[int, Tensor]:
@@ -77,6 +74,9 @@ def apply_steering(
     model_name: str,
     output_dir: Path,
     config: SteeringConfig,
+    evaluate: bool = False,
+    judge_model: str = "google/gemini-3.1-flash-lite-preview",
+    mmlu_questions: int = 10,
 ) -> None:
     """Apply steering vector to model and save results as JSONL.
 
@@ -87,12 +87,16 @@ def apply_steering(
     4. Computes average activation per layer
     5. For each layer, applies steering with each multiplier
     6. Saves results to JSONL files per layer
+    7. Optionally runs evaluation (judge + MMLU)
 
     Args:
         vector_path: Path to saved steering vector (.pt file).
         model_name: HuggingFace model name.
         output_dir: Directory for output JSONL files.
         config: Steering configuration.
+        evaluate: Whether to run evaluation on steered outputs.
+        judge_model: Judge model for LLM-as-judge evaluation.
+        mmlu_questions: Number of MMLU questions for evaluation.
     """
     if config.num_samples <= 0:
         raise ValueError("num_samples must be positive")
@@ -127,9 +131,8 @@ def apply_steering(
     avg_activations = _compute_avg_activation(model, neg_samples, layers)
 
     # Create output directory
-    safe_model = _safe_model_name(model_name)
-    concept_dir = output_dir / concept / safe_model
-    concept_dir.mkdir(parents=True, exist_ok=True)
+    safe_model = safe_model_name(model_name)
+    concept_dir = ensure_dir(output_dir / concept / safe_model)
 
     # Process each layer
     for layer_idx in layers:
@@ -168,10 +171,76 @@ def apply_steering(
                 f.write(json.dumps(result) + "\n")
         print(f"Saved {len(results)} results to {output_file}")
 
+        if evaluate and len(results) > 0:
+            print(f"  Running evaluation for layer {layer_idx}...")
+            judge_config = JudgeConfig(model=judge_model)
+            mmlu_config = MMLUConfig(num_questions=mmlu_questions)
+
+            judge = JudgeEvaluator(judge_config)
+
+            for multiplier in config.multipliers:
+                scale = avg_act * multiplier
+
+                mult_results = [r for r in results if r["multiplier"] == multiplier]
+                if not mult_results:
+                    continue
+
+                judge_scores = []
+                for result in mult_results:
+                    score = judge.evaluate_dual(concept, result["generated_text"])
+                    judge_scores.append(score)
+
+                mmlu = MMLUEvaluator(mmlu_config, model)
+                mmlu_result = mmlu.evaluate(normalized_v, layer_idx, scale)
+
+                metadata: EvaluationMetadata = {
+                    "concept": concept,
+                    "model": model_name,
+                    "layer": layer_idx,
+                    "multiplier": multiplier,
+                }
+                eval_result = EvaluationResult(
+                    judge_scores=judge_scores,
+                    mmlu_result=mmlu_result,
+                    metadata=metadata,
+                )
+
+                eval_dir = ensure_dir(concept_dir / "eval")
+
+                eval_json_path = eval_dir / f"layer{layer_idx}_mult{multiplier}.json"
+                with eval_json_path.open("w") as f:
+                    json.dump(
+                        {
+                            "judge_scores": [
+                                {
+                                    "concept": s.concept_score,
+                                    "fluency": s.fluency_score,
+                                    "final": s.final_score,
+                                    "reasoning": s.reasoning,
+                                }
+                                for s in judge_scores
+                            ],
+                            "mmlu": {
+                                "correct": mmlu_result.correct,
+                                "total": mmlu_result.total,
+                                "accuracy": mmlu_result.accuracy,
+                            },
+                            "metadata": metadata,
+                        },
+                        f,
+                        indent=2,
+                    )
+
+                html_path = eval_dir / f"layer{layer_idx}_mult{multiplier}.html"
+                generate_html_report(eval_result, html_path)
+                print(f"    Evaluated mult {multiplier}: saved to {eval_dir}")
+
     print(f"\nDone! Results saved to {concept_dir}")
 
 
 class _Args(Protocol):
+    """Protocol defining CLI arguments for steering application."""
+
     vector: str
     model: str
     output: str
@@ -179,9 +248,13 @@ class _Args(Protocol):
     multipliers: str
     max_new_tokens: int
     temperature: float
+    evaluate: bool
+    judge_model: str
+    mmlu_questions: int
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Build argument parser for steering CLI."""
     parser = argparse.ArgumentParser(
         prog="steering_geometry.apply_steering",
         description="Apply steering vectors to model generation",
@@ -224,10 +297,27 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="Sampling temperature (default: 0.0 for greedy)",
     )
+    parser.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="Run evaluation on steered outputs",
+    )
+    parser.add_argument(
+        "--judge-model",
+        default="google/gemini-3.1-flash-lite-preview",
+        help="Judge model for LLM-as-judge evaluation",
+    )
+    parser.add_argument(
+        "--mmlu-questions",
+        type=int,
+        default=10,
+        help="Number of MMLU questions for evaluation",
+    )
     return parser
 
 
 def main() -> None:
+    """CLI entry point for steering vector application."""
     args = cast(_Args, cast(object, _build_parser().parse_args()))
 
     # Parse multipliers
@@ -245,6 +335,9 @@ def main() -> None:
         model_name=args.model,
         output_dir=Path(args.output),
         config=config,
+        evaluate=args.evaluate,
+        judge_model=args.judge_model,
+        mmlu_questions=args.mmlu_questions,
     )
 
 
