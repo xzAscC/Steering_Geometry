@@ -53,8 +53,28 @@ class ConceptConfig:
     num_pairs: int = 500
 
 
+@dataclass
+class SteeringConfig:
+    """Configuration for applying steering vectors.
+
+    Attributes:
+        multipliers: Scale factors multiplied by avg activation norm.
+        num_samples: Number of negative samples to steer.
+        seed: Random seed for reproducible sample selection.
+        max_new_tokens: Maximum number of tokens to generate.
+        temperature: Sampling temperature (0.0 for greedy decoding).
+    """
+
+    multipliers: list[float] = field(default_factory=lambda: [0.01, 0.1, 1.0, 10.0])
+    num_samples: int = 10
+    seed: int = 42
+    max_new_tokens: int = 100
+    temperature: float = 0.0
+
+
 __all__ = [
     "ModelConfig",
     "ExtractionConfig",
     "ConceptConfig",
+    "SteeringConfig",
 ]

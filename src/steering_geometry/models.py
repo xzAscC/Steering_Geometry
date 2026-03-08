@@ -149,5 +149,70 @@ class HookedModel:
 
         return activations
 
+    def generate_with_steering(
+        self,
+        prompt: str,
+        layer_idx: int,
+        steering_vector: Tensor,
+        scale: float,
+        max_new_tokens: int = 100,
+        temperature: float = 0.0,
+    ) -> str:
+        """Generate text with steering vector applied to a specific layer.
+
+        Args:
+            prompt: Input text prompt.
+            layer_idx: Absolute layer index to apply steering.
+            steering_vector: Normalized steering vector (norm=1).
+            scale: Scaling factor for the steering vector.
+            max_new_tokens: Maximum tokens to generate.
+            temperature: Sampling temperature (0.0 for greedy).
+
+        Returns:
+            Generated text string.
+
+        Raises:
+            ValueError: If layer_idx is out of bounds.
+        """
+        if layer_idx < 0 or layer_idx >= self.num_layers:
+            msg = f"layer_idx {layer_idx} out of bounds [0, {self.num_layers - 1}]"
+            raise ValueError(msg)
+
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+        device = next(self.model.parameters()).device
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        model_layers = self._get_layers_module()
+
+        def steering_hook(module: Any, input: Any, output: Tensor) -> Tensor:
+            tensor_output = output[0] if isinstance(output, tuple) else output
+            steering = steering_vector.to(device=tensor_output.device, dtype=tensor_output.dtype)
+            tensor_output = tensor_output + steering * scale
+            if isinstance(output, tuple):
+                return (tensor_output,) + output[1:]
+            return tensor_output
+
+        handle = model_layers[layer_idx].register_forward_hook(steering_hook)
+
+        try:
+            gen_kwargs: dict[str, Any] = {
+                "max_new_tokens": max_new_tokens,
+                "pad_token_id": self.tokenizer.pad_token_id,
+            }
+            if temperature > 0:
+                gen_kwargs["temperature"] = temperature
+                gen_kwargs["do_sample"] = True
+
+            with torch.no_grad():
+                output_ids = self.model.generate(**inputs, **gen_kwargs)
+
+            generated_text: str = self.tokenizer.decode(
+                output_ids[0][inputs["input_ids"].shape[1] :],
+                skip_special_tokens=True,
+            )
+            return generated_text
+        finally:
+            handle.remove()
+
 
 __all__ = ["HookedModel"]
