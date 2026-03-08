@@ -27,15 +27,18 @@ class ExtractionConfig:
     Attributes:
         layers: Relative layer positions (0.0-1.0) to extract activations from.
             For example, [0.4, 0.5, 0.6] extracts from 40%, 50%, 60% of model depth.
-        method: Extraction method ("mean", "pca").
+        method: Extraction method ("mean", "pca", "weighted_mean", "discriminative").
         batch_size: Batch size for processing contrast pairs.
         read_token_index: Token position to read activations from (-1 for last token).
+        top_k: Number of top tokens to select for discriminative method.
+            Only used when method="discriminative". Default is None (uses 100 internally).
     """
 
     layers: list[float] = field(default_factory=lambda: [0.4, 0.5, 0.6, 0.7, 0.8])
     method: str = "mean"
     batch_size: int = 8
     read_token_index: int = -1
+    top_k: int | None = None
 
 
 @dataclass

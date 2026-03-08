@@ -6,7 +6,6 @@ import pytest
 
 from steering_geometry.config import ConceptConfig, ExtractionConfig, ModelConfig
 from steering_geometry.extract import (
-    VALID_CONCEPTS,
     load_contrast_pairs,
     load_honesty_data,
     load_refusal_data,
@@ -14,7 +13,6 @@ from steering_geometry.extract import (
     load_sycophancy_data,
     load_toxicity_data,
 )
-from steering_geometry.types import ContrastPair
 
 HAS_ACCELERATE = importlib.util.find_spec("accelerate") is not None
 

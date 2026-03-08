@@ -19,6 +19,7 @@ Usage:
 
 import argparse
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -92,14 +93,99 @@ def pca_aggregator(pos: Tensor, neg: Tensor) -> Tensor:
     return component.to(device=deltas.device, dtype=deltas.dtype)
 
 
-def _resolve_aggregator(method: str) -> Aggregator:
+def weighted_mean_aggregator(pos: Tensor, neg: Tensor) -> Tensor:
+    """Weighted mean direction aggregator with distance-based weights.
+
+    Tokens closer to the class center receive larger weights.
+
+    For each class c:
+        1. h̄_c = (1/n_c) Σ h_i^(c)  (class center)
+        2. τ_c² = (1/n_c) Σ ||h_i^(c) - h̄_c||²  (variance)
+        3. w_i^(c) = exp(-||h_i^(c) - h̄_c||² / τ_c²)  (weights)
+        4. μ_c^w = Σ w_i^(c) h_i^(c) / Σ w_i^(c)  (weighted mean)
+    Steering direction: v = μ_+^w - μ_-^w
+    """
+
+    def _weighted_mean(class_activations: Tensor) -> Tensor:
+        n = class_activations.shape[0]
+        if n == 0:
+            msg = "Cannot compute weighted mean of empty tensor"
+            raise ValueError(msg)
+
+        center = class_activations.mean(dim=0)
+
+        if n == 1:
+            return center
+
+        distances_sq = ((class_activations - center) ** 2).sum(dim=1)
+        variance = distances_sq.mean()
+
+        if variance == 0:
+            return center
+
+        weights = torch.exp(-distances_sq / variance)
+        weighted_mean = (weights.unsqueeze(1) * class_activations).sum(dim=0) / weights.sum()
+        return weighted_mean
+
+    pos_weighted = _weighted_mean(pos)
+    neg_weighted = _weighted_mean(neg)
+
+    return pos_weighted - neg_weighted
+
+
+def discriminative_token_aggregator(pos: Tensor, neg: Tensor, top_k: int = 100) -> Tensor:
+    """Discriminative token aggregator selecting top-k tokens by class separation.
+
+    Scores each token by: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+    Higher scores mean the token is closer to its own class and farther from the other.
+
+    For each class c:
+        1. Compute μ_same (own class center) and μ_other (other class center)
+        2. Score each token by discriminative distance
+        3. Select top-k tokens with highest scores
+        4. μ_c^disc = mean of selected tokens
+    Steering direction: v = μ_+^disc - μ_-^disc
+    """
+    if pos.shape[0] == 0 or neg.shape[0] == 0:
+        msg = "Cannot compute discriminative aggregator with empty tensors"
+        raise ValueError(msg)
+
+    pos_center = pos.mean(dim=0)
+    neg_center = neg.mean(dim=0)
+
+    pos_scores = ((pos - neg_center) ** 2).sum(dim=1) - ((pos - pos_center) ** 2).sum(dim=1)
+    neg_scores = ((neg - pos_center) ** 2).sum(dim=1) - ((neg - neg_center) ** 2).sum(dim=1)
+
+    k_pos = min(top_k, pos.shape[0])
+    k_neg = min(top_k, neg.shape[0])
+
+    _, pos_top_indices = torch.topk(pos_scores, k_pos)
+    _, neg_top_indices = torch.topk(neg_scores, k_neg)
+
+    pos_selected = pos[pos_top_indices]
+    neg_selected = neg[neg_top_indices]
+
+    pos_prototype = pos_selected.mean(dim=0)
+    neg_prototype = neg_selected.mean(dim=0)
+
+    return pos_prototype - neg_prototype
+
+
+def _resolve_aggregator(method: str, config: ExtractionConfig | None = None) -> Aggregator:
     """Resolve aggregator by method name."""
     aggregators: dict[str, Aggregator] = {
         "mean": mean_aggregator,
         "pca": pca_aggregator,
+        "weighted_mean": weighted_mean_aggregator,
     }
+
+    if method == "discriminative":
+        top_k = config.top_k if config and config.top_k is not None else 100
+        return partial(discriminative_token_aggregator, top_k=top_k)
+
     if method not in aggregators:
-        msg = f"Unsupported extraction method: {method}. Choose from: {list(aggregators.keys())}"
+        available = list(aggregators.keys()) + ["discriminative"]
+        msg = f"Unsupported extraction method: {method}. Choose from: {available}"
         raise ValueError(msg)
     return aggregators[method]
 
@@ -415,7 +501,7 @@ def extract_steering_vector(
         raise ValueError(msg)
 
     layers = model.resolve_layers(config.layers)
-    aggregator = _resolve_aggregator(config.method)
+    aggregator = _resolve_aggregator(config.method, config)
 
     positive_per_layer: dict[int, list[Tensor]] = {layer: [] for layer in layers}
     negative_per_layer: dict[int, list[Tensor]] = {layer: [] for layer in layers}
@@ -514,6 +600,7 @@ class _Args(Protocol):
     num_pairs: int
     output: str
     dry_run: bool
+    top_k: int
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -535,7 +622,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--method",
-        choices=["mean", "pca"],
+        choices=["mean", "pca", "weighted_mean", "discriminative"],
         default="mean",
         help="Extraction method (default: mean)",
     )
@@ -544,6 +631,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=500,
         help="Number of contrast pairs (default: 500)",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=100,
+        help="Top-k tokens for discriminative method (default: 100)",
     )
     parser.add_argument(
         "--output",
@@ -580,7 +673,7 @@ def main() -> None:
 
     # Load model and extract
     model = HookedModel(ModelConfig(model_name=args.model))
-    extraction_config = ExtractionConfig(method=args.method)
+    extraction_config = ExtractionConfig(method=args.method, top_k=args.top_k)
     vector = extract_steering_vector(model=model, pairs=pairs, config=extraction_config)
 
     # Save output
@@ -613,5 +706,7 @@ __all__ = [
     "load_refusal_data",
     "mean_aggregator",
     "pca_aggregator",
+    "weighted_mean_aggregator",
+    "discriminative_token_aggregator",
     "VALID_CONCEPTS",
 ]
