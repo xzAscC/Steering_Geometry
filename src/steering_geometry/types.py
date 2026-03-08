@@ -166,6 +166,53 @@ class EvaluationResult:
     metadata: EvaluationMetadata
 
 
+@dataclass
+class TDNVLayerMetrics:
+    """Per-layer TDNV metrics.
+
+    Contains the TDNV value and normalized components for a single layer.
+
+    Attributes:
+        tdnv: Topic-Discriminative Normalized Variance value.
+        norm_num: Normalized numerator (avg within-topic variance / avg energy).
+        norm_den: Normalized denominator (avg between-topic distance / avg energy).
+        energy: Average activation energy (s = (1/N) * sum ||h||^2).
+    """
+
+    tdnv: float
+    norm_num: float
+    norm_den: float
+    energy: float
+
+
+@dataclass
+class TDNVResult:
+    """Complete TDNV analysis results for a concept and model.
+
+    Contains layer-wise TDNV metrics measuring separability of positive/negative
+    contrast pairs across all model layers.
+
+    Attributes:
+        concept: The behavioral concept analyzed (e.g., "honesty", "toxicity").
+        model_name: Name/identifier of the model.
+        num_pairs: Number of contrast pairs used.
+        layers: List of layer indices analyzed.
+        tdnv_values: TDNV value per layer (lower = better separability).
+        norm_num_values: Normalized numerator per layer.
+        norm_den_values: Normalized denominator per layer.
+        layerwise_energy: Average activation energy per layer.
+    """
+
+    concept: str
+    model_name: str
+    num_pairs: int
+    layers: list[int]
+    tdnv_values: list[float]
+    norm_num_values: list[float]
+    norm_den_values: list[float]
+    layerwise_energy: list[float]
+
+
 __all__ = [
     "ContrastPair",
     "ContrastPairMetadata",
@@ -176,4 +223,6 @@ __all__ = [
     "MMLUQuestion",
     "EvaluationResult",
     "EvaluationMetadata",
+    "TDNVLayerMetrics",
+    "TDNVResult",
 ]

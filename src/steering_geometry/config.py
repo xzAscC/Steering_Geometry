@@ -119,6 +119,25 @@ class EvaluationConfig:
     output_dir: str = "data/eval"
 
 
+@dataclass
+class TDNVConfig:
+    """Configuration for TDNV metrics computation.
+
+    Attributes:
+        num_pairs: Number of contrast pairs to use.
+        batch_size: Batch size for processing activations.
+        output_dir: Directory to save JSON results.
+        plot_dir: Directory to save visualization plots.
+        read_token_index: Token position to read activations from (-1 for last token).
+    """
+
+    num_pairs: int = 500
+    batch_size: int = 8
+    output_dir: str = "data/tdnv/"
+    plot_dir: str = "plot/tdnv/"
+    read_token_index: int = -1
+
+
 __all__ = [
     "ModelConfig",
     "ExtractionConfig",
@@ -127,4 +146,5 @@ __all__ = [
     "JudgeConfig",
     "MMLUConfig",
     "EvaluationConfig",
+    "TDNVConfig",
 ]
