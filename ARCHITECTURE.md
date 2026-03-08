@@ -43,15 +43,19 @@ The extraction pipeline follows a linear data flow:
 
 ```
 .
-├── src/steering_geometry/  # Source code
+├── src/steering_geometry/  # Source code (Python modules ONLY)
 │   ├── concepts/           # Concept-specific logic and data
 │   ├── types.py            # Core type definitions
 │   ├── config.py           # Configuration management
 │   ├── models.py           # Model loading and wrapping
 │   ├── extraction.py       # Activation extraction logic
-│   └── evaluation.py       # Vector evaluation and validation
+│   ├── evaluation.py       # Vector evaluation and validation
+│   ├── extract_*.py        # CLI entry points for extraction
+│   └── compare_concepts.py # Cross-concept comparison analysis
 ├── tests/                  # Test files
-├── scripts/                # Executable extraction scripts
+├── scripts/                # Shell scripts ONLY (no .py files)
+│   ├── run_extractions.sh  # Batch extraction orchestrator
+│   └── complete_plan.sh    # Plan completion utility
 ├── data/                   # Raw datasets and contrast pairs
 ├── plot/                   # Visualizations of activation spaces
 ├── assets/                 # Saved steering vectors and results
@@ -60,6 +64,14 @@ The extraction pipeline follows a linear data flow:
 │   └── exec-plans/         # Execution plans
 └── .github/                # GitHub configs
 ```
+
+### File Placement Rules
+
+| File Type | Location | Reason |
+|-----------|----------|--------|
+| `.py` (modules) | `src/steering_geometry/` | Part of the importable package |
+| `.sh` (scripts) | `scripts/` | Executable orchestration, not imported |
+| `.py` (tests) | `tests/` | Test isolation from source |
 
 ## Key Design Decisions
 

@@ -120,7 +120,11 @@ When a plan from `.sisyphus/plans/` is complete:
 Run steering vector extractions:
 
 ```bash
-# All concepts with default model
+# Single extraction via Python module
+uv run python -m steering_geometry.extract_honesty --model "Qwen/Qwen2.5-1.5B"
+uv run python -m steering_geometry.extract_toxicity --method pca
+
+# All concepts with default model (via shell script)
 ./scripts/run_extractions.sh
 
 # Specific concepts
@@ -135,6 +139,11 @@ Run steering vector extractions:
 # Custom parameters
 ./scripts/run_extractions.sh -c sentiment -p 100 -M pca -o ./my_vectors/
 ```
+
+### Directory Rules
+
+- **scripts/** → Shell scripts (`.sh`) ONLY. No Python files.
+- **src/steering_geometry/** → All Python modules (`.py`).
 
 ### Commit Criteria
 

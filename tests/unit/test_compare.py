@@ -1,19 +1,15 @@
-import sys
 from pathlib import Path
 
 import pytest
 import torch
 
-from steering_geometry.types import SteeringVector
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
-
-from compare_concepts import (
+from steering_geometry.compare_concepts import (
     _compute_average_cosine_similarity,
     _compute_l2_norm,
     _generate_comparison_report,
     _load_vectors_from_directory,
 )
+from steering_geometry.types import SteeringVector
 
 
 def _make_steering_vector(

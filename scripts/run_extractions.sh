@@ -118,7 +118,7 @@ for model in "${MODEL_ARRAY[@]}"; do
         echo "[$current/$total] Extracting: $concept × $model"
         echo "----------------------------------------"
         
-        uv run python "$SCRIPT_DIR/extract_${concept}.py" \
+        uv run python -m "steering_geometry.extract_${concept}" \
             --model "$model" \
             --num-pairs "$NUM_PAIRS" \
             --method "$METHOD" \
