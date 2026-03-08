@@ -1,13 +1,13 @@
 # Current Task
 
-## Completed: Add Pipeline Workflow to AGENTS.md
+## Completed: Tdnv Metrics
 
 **Status**: Completed
-**Exec Plan**: [docs/exec-plans/completed/pipeline-update.md](docs/exec-plans/completed/pipeline-update.md)
+**Exec Plan**: [docs/exec-plans/completed/tdnv-metrics.md](docs/exec-plans/completed/tdnv-metrics.md)
 
 ### Summary
 
-Successfully updated AGENTS.md with pipeline workflow section.
+Plan has been completed and archived.
 
 ### Next Task
 
