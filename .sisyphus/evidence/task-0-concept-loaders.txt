@@ -1,0 +1,31 @@
+# Task 0 Validation: Concept Loaders Registry
+
+**Date:** 2026-03-13
+**Status:** ✅ PASSED
+
+## Validation: All 5 concepts found in `_DATASET_LOADERS`
+
+### Evidence from `src/steering_geometry/extract.py`:
+
+```python
+_DATASET_LOADERS: dict[str, Callable[[ConceptConfig], list[ContrastPair]]] = {
+    "honesty": load_honesty_data,
+    "sentiment": load_sentiment_data,
+    "toxicity": load_toxicity_data,
+    "sycophancy": load_sycophancy_data,
+    "refusal": load_refusal_data,
+}
+```
+
+### Dataset Sources:
+- **honesty**: truthfulqa/truthful_qa
+- **sentiment**: glue/sst2
+- **toxicity**: google/civil_comments
+- **sycophancy**: Anthropic/model-written-evals
+- **refusal**: LLM-LAT/harmful-dataset
+
+### Verification:
+- `VALID_CONCEPTS = {"honesty", "sentiment", "toxicity", "sycophancy", "refusal"}` matches registry
+
+## Result:
+✅ All 5 required concepts (honesty, sentiment, toxicity, sycophancy, refusal) are registered in `_DATASET_LOADERS`

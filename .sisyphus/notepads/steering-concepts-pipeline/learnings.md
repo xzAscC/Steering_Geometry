@@ -1,0 +1,5 @@
+- 2026-03-07: `extract_steering_vector` works reliably when positive/negative batches have different sequence lengths by selecting per-sample last non-padding token when `read_token_index=-1`.
+- 2026-03-07: Layer-wise aggregation is stable when activations are first reduced to `(batch, hidden)` then aggregated (`mean` or PCA first component).
+- 2026-03-07: SST-2 contrast pairs can be built robustly by independently sampling positive/negative sentence pools, then zipping sampled lists with `strict=True`.
+- 2026-03-07: Keyword-list sentiment scoring is sufficient for fast steering validation; positive-rate and mean-score deltas provide quick end-to-end checks without an external classifier.
+- 2026-03-07: Local Python LSP validation can be restored in this environment with `uv tool install basedpyright`, enabling `lsp_diagnostics` checks on changed files.

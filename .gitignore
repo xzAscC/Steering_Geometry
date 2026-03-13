@@ -32,8 +32,6 @@ htmlcov/
 .env
 .env.local
 
-# Sisyphus evidence
-.sisyphus/
 
 # Project-specific directories
 data/
