@@ -543,7 +543,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   - Files: `src/steering_geometry/experiments.py`, `tests/test_experiments.py`, `scripts/experiments/run_diff_means_heatmaps.sh`
   - Pre-commit: `uv run pytest tests/test_experiments.py -v`
 
-- [ ] 6. Implement Experiment 2 (discriminative)
+- [x] 6. Implement Experiment 2 (discriminative)
 
   **What to do**:
   - Add to `src/steering_geometry/experiments.py`:
