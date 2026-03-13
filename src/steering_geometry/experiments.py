@@ -263,11 +263,19 @@ def run_diff_means_experiment(
         off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
         off_diagonal_values = similarity_matrix[off_diagonal_mask]
 
-        statistics[layer_frac] = {
-            "mean_similarity": float(off_diagonal_values.mean()),
-            "min_similarity": float(off_diagonal_values.min()),
-            "max_similarity": float(off_diagonal_values.max()),
-        }
+        # Handle edge case of single vector (no off-diagonal elements)
+        if len(off_diagonal_values) > 0:
+            statistics[layer_frac] = {
+                "mean_similarity": float(off_diagonal_values.mean()),
+                "min_similarity": float(off_diagonal_values.min()),
+                "max_similarity": float(off_diagonal_values.max()),
+            }
+        else:
+            statistics[layer_frac] = {
+                "mean_similarity": 1.0,
+                "min_similarity": 1.0,
+                "max_similarity": 1.0,
+            }
 
         heatmap_path = output_dir / "heatmaps" / "diff_means" / f"{concept}_layer{layer_frac}.pdf"
         title = f"Cosine Similarity: {concept} (layer {layer_frac})"
@@ -395,11 +403,19 @@ def run_discriminative_experiment(
         off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
         off_diagonal_values = similarity_matrix[off_diagonal_mask]
 
-        statistics[layer_frac] = {
-            "mean_similarity": float(off_diagonal_values.mean()),
-            "min_similarity": float(off_diagonal_values.min()),
-            "max_similarity": float(off_diagonal_values.max()),
-        }
+        # Handle edge case of single vector (no off-diagonal elements)
+        if len(off_diagonal_values) > 0:
+            statistics[layer_frac] = {
+                "mean_similarity": float(off_diagonal_values.mean()),
+                "min_similarity": float(off_diagonal_values.min()),
+                "max_similarity": float(off_diagonal_values.max()),
+            }
+        else:
+            statistics[layer_frac] = {
+                "mean_similarity": 1.0,
+                "min_similarity": 1.0,
+                "max_similarity": 1.0,
+            }
 
         heatmap_path = (
             output_dir / "heatmaps" / "discriminative" / f"{concept}_layer{layer_frac}.pdf"
