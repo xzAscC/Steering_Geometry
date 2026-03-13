@@ -224,7 +224,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   **Commit**: NO
   - This is validation only, no changes to commit
 
-- [ ] 1. Create experiments module with core functions
+- [x] 1. Create experiments module with core functions
 
   **What to do**:
   - Create new file: `src/steering_geometry/experiments.py`
