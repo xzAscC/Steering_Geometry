@@ -79,3 +79,24 @@
 - Use small model: Qwen/Qwen3-1.7B
 - Verify: file creation, vector shape (1D, non-zero), statistics structure
 - Use `tmp_path` fixture for output directory
+
+## 2026-03-13: run_discriminative_experiment Implementation
+
+### Using Lower-Level APIs
+- `extract_vector()` doesn't support `top_k` parameter for discriminative method
+- Use `extract_steering_vector()` directly with custom `ExtractionConfig` when need fine-grained control
+- Import `HookedModel`, `ModelConfig`, `ExtractionConfig` from their respective modules
+
+### Model Loading Strategy
+- For discriminative experiment, load model once and reuse for all K values
+- Avoids repeated model loading overhead compared to calling `extract_vector()` in a loop
+
+### K Value Validation
+- Validate `k_values` is not empty
+- Validate all K values are positive integers (K > 0)
+- Different from `n_examples` validation in diff_means which only checks for empty list
+
+### Output Path Patterns
+- Vectors: `{output_dir}/vectors/{concept}/discriminative/k{K}_layer{layer_frac}.pt`
+- Heatmaps: `{output_dir}/heatmaps/discriminative/{concept}_layer{layer_frac}.pdf`
+- Return dict keys: `k{K}_layer{layer_frac}` (vs `n{n}_layer{layer_frac}` in diff_means)

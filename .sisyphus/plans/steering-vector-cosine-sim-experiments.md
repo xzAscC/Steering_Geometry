@@ -479,7 +479,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   **Commit**: NO
   - Commit together with Tasks 3 and 5 (Experiment 1 complete)
 
-- [ ] 5. Create shell script for Experiment 1
+- [x] 5. Create shell script for Experiment 1
 
   **What to do**:
   - Create directory: `scripts/experiments/`

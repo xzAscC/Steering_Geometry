@@ -13,7 +13,9 @@ from numpy import ndarray
 from sklearn.metrics.pairwise import cosine_similarity  # type: ignore[import-untyped]
 from torch import Tensor
 
-from steering_geometry.extract import extract_vector, load_contrast_pairs
+from steering_geometry.config import ExtractionConfig, ModelConfig
+from steering_geometry.extract import extract_steering_vector, extract_vector, load_contrast_pairs
+from steering_geometry.models import HookedModel
 from steering_geometry.utils import ensure_dir
 
 logger = logging.getLogger(__name__)
@@ -281,6 +283,140 @@ def run_diff_means_experiment(
     }
 
 
+def run_discriminative_experiment(
+    concept: str,
+    k_values: list[int],
+    layers: list[float],
+    model_name: str,
+    output_dir: Path | str = "outputs",
+) -> dict[str, dict[str, str] | dict[str, str] | dict[str, dict[str, float]]]:
+    """Run discriminative token selection experiment across varying K values.
+
+    For each K value, extracts steering vectors using discriminative token selection
+    and computes pairwise cosine similarities across all K values at each layer.
+
+    Args:
+        concept: Concept to extract (e.g., "honesty", "toxicity").
+        k_values: List of top_k values to test (e.g., [16, 32, 64, 128]).
+        layers: Relative layer positions (0.0-1.0) to analyze.
+        model_name: HuggingFace model name.
+        output_dir: Base output directory for vectors and heatmaps.
+
+    Returns:
+        Dict with:
+            - "vector_paths": Dict mapping (k_value, layer) to vector file paths
+            - "heatmap_paths": Dict mapping layer to heatmap file paths
+            - "statistics": Dict with mean/min/max similarities per layer
+
+    Raises:
+        ValueError: If k_values is empty, contains non-positive values,
+            or all vectors contain NaN.
+    """
+    if not k_values:
+        msg = "k_values cannot be empty"
+        raise ValueError(msg)
+
+    for k in k_values:
+        if k <= 0:
+            msg = f"All k_values must be positive integers, got {k}"
+            raise ValueError(msg)
+
+    output_dir = Path(output_dir)
+
+    logger.info("Loading contrast pairs for concept '%s'", concept)
+    # Use a large num_pairs since we're varying K (top_k), not the number of examples
+    all_pairs = load_contrast_pairs(concept, num_pairs=1000)
+    logger.info("Loaded %d contrast pairs for concept '%s'", len(all_pairs), concept)
+
+    logger.info("Loading model '%s'", model_name)
+    model = HookedModel(ModelConfig(model_name=model_name))
+
+    vector_paths: dict[tuple[int, float], Path] = {}
+    layer_vectors: dict[float, dict[int, Tensor]] = {layer_frac: {} for layer_frac in layers}
+
+    for top_k in k_values:
+        logger.info(
+            "Extracting vector for concept='%s', method='discriminative', top_k=%d",
+            concept,
+            top_k,
+        )
+
+        extraction_config = ExtractionConfig(
+            layers=layers,
+            method="discriminative",
+            top_k=top_k,
+        )
+
+        steering_vector = extract_steering_vector(
+            model=model,
+            pairs=all_pairs,
+            config=extraction_config,
+        )
+
+        for layer_frac, abs_idx in zip(
+            layers, steering_vector.layer_activations.keys(), strict=True
+        ):
+            vector = steering_vector.layer_activations[abs_idx]
+
+            if torch.isnan(vector).any():
+                msg = f"Vector for concept='{concept}', k={top_k}, layer={layer_frac} contains NaN"
+                raise ValueError(msg)
+
+            vector_path = (
+                output_dir
+                / "vectors"
+                / concept
+                / "discriminative"
+                / f"k{top_k}_layer{layer_frac}.pt"
+            )
+            save_vector(vector, vector_path)
+            vector_paths[(top_k, layer_frac)] = vector_path
+            layer_vectors[layer_frac][top_k] = vector
+
+    heatmap_paths: dict[float, Path] = {}
+    statistics: dict[float, dict[str, float]] = {}
+
+    labels = [str(k) for k in k_values]
+
+    for layer_frac in layers:
+        vectors = [layer_vectors[layer_frac][k] for k in k_values]
+
+        first = vectors[0]
+        all_identical = all(torch.equal(v, first) for v in vectors)
+        if all_identical:
+            logger.warning(
+                "All vectors identical at layer %.2f for concept '%s'",
+                layer_frac,
+                concept,
+            )
+
+        similarity_matrix = compute_cosine_similarity_matrix(vectors)
+
+        off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
+        off_diagonal_values = similarity_matrix[off_diagonal_mask]
+
+        statistics[layer_frac] = {
+            "mean_similarity": float(off_diagonal_values.mean()),
+            "min_similarity": float(off_diagonal_values.min()),
+            "max_similarity": float(off_diagonal_values.max()),
+        }
+
+        heatmap_path = (
+            output_dir / "heatmaps" / "discriminative" / f"{concept}_layer{layer_frac}.pdf"
+        )
+        title = f"Cosine Similarity: {concept} (layer {layer_frac})"
+        plot_heatmap(similarity_matrix, labels, title, heatmap_path)
+        heatmap_paths[layer_frac] = heatmap_path
+
+    logger.info("Completed discriminative experiment for concept '%s'", concept)
+
+    return {
+        "vector_paths": {f"k{k[0]}_layer{k[1]}": str(v) for k, v in vector_paths.items()},
+        "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
+        "statistics": {f"layer{k}": v for k, v in statistics.items()},
+    }
+
+
 __all__ = [
     "compute_cosine_similarity_matrix",
     "plot_heatmap",
@@ -288,4 +424,5 @@ __all__ = [
     "load_vector",
     "cap_examples",
     "run_diff_means_experiment",
+    "run_discriminative_experiment",
 ]
