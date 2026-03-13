@@ -649,7 +649,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   - Files: `src/steering_geometry/experiments.py`, `scripts/experiments/run_discriminative_heatmaps.sh`
   - Pre-commit: `uv run pytest tests/test_experiments.py -v`
 
-- [ ] 8. Update AGENTS.md with experiment commands
+- [x] 8. Update AGENTS.md with experiment commands
 
   **What to do**:
   - Add section to AGENTS.md documenting experiments:
@@ -700,7 +700,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   **Commit**: NO
   - Commit together with Task 9 (final commit)
 
-- [ ] 9. Final verification and commit
+- [x] 9. Final verification and commit
 
   **What to do**:
   - Run all verification commands:

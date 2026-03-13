@@ -39,7 +39,7 @@ def compute_cosine_similarity_matrix(vectors: list[Tensor]) -> ndarray:
         raise ValueError(msg)
 
     stacked = torch.stack(vectors)
-    matrix = stacked.numpy()
+    matrix = stacked.cpu().numpy()
 
     return cast("ndarray", cosine_similarity(matrix))
 
