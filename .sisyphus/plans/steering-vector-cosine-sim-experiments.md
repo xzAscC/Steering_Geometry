@@ -421,7 +421,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   **Commit**: NO
   - Commit together with Tasks 4-5 (Experiment 1 complete)
 
-- [ ] 4. Add GPU integration tests
+- [x] 4. Add GPU integration tests
 
   **What to do**:
   - Add to `tests/test_experiments.py`:
