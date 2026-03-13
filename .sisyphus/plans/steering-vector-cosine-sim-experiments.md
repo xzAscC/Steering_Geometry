@@ -156,7 +156,7 @@ Max Concurrent: 1 (most tasks depend on previous)
 
 ## TODOs
 
-- [ ] 0. Validate Assumptions
+- [x] 0. Validate Assumptions
 
   **What to do**:
   - Run validation commands to confirm datasets, discriminative method, and model loading work

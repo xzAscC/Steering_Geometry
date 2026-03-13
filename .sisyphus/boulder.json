@@ -1,7 +1,9 @@
 {
   "active_plan": null,
   "started_at": null,
-  "session_ids": [],
+  "session_ids": [
+    "ses_31a592536ffeM1iADSp4v6fczn"
+  ],
   "plan_name": null,
   "agent": null,
   "worktree_path": null,
