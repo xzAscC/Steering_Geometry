@@ -65,3 +65,17 @@
 - Check `torch.isnan(vector).any()` before saving vectors
 - Warn on identical vectors (would produce constant similarity matrix)
 - Cap n_examples using `cap_examples()` with max from dataset
+
+## 2026-03-13: GPU Integration Test Implementation
+
+### Type Narrowing for Complex Return Types
+- When function returns `dict[str, A | B | C]`, mypy can't narrow type after key access
+- Use `cast("dict[str, str]", result["key"])` to narrow nested dict types
+- Alternative: `typing.TypeGuard` or `@overload` (more complex)
+- Pattern: assign casted result to variable, then access nested values
+
+### GPU Test Parameters
+- Keep tests minimal: n_examples=10, single layer (0.5)
+- Use small model: Qwen/Qwen3-1.7B
+- Verify: file creation, vector shape (1D, non-zero), statistics structure
+- Use `tmp_path` fixture for output directory

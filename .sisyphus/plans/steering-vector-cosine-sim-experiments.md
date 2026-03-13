@@ -355,7 +355,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   - Files: `src/steering_geometry/experiments.py`, `tests/test_experiments.py`
   - Pre-commit: `uv run pytest tests/test_experiments.py -v -k "not gpu"`
 
-- [ ] 3. Implement Experiment 1 (difference-in-means)
+- [x] 3. Implement Experiment 1 (difference-in-means)
 
   **What to do**:
   - Add to `src/steering_geometry/experiments.py`:

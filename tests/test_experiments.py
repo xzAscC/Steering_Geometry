@@ -1,6 +1,7 @@
 """Tests for experiments module."""
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 import torch
@@ -11,6 +12,7 @@ from steering_geometry.experiments import (
     compute_cosine_similarity_matrix,
     load_vector,
     plot_heatmap,
+    run_diff_means_experiment,
     save_vector,
 )
 
@@ -237,10 +239,46 @@ class TestGPUPlaceholders:
     @pytest.mark.gpu
     @pytest.mark.slow
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires GPU")
-    def test_single_extraction_experiment1(self) -> None:
-        """Placeholder for single extraction experiment 1."""
-        # TODO: Implement actual GPU extraction test
-        pass
+    def test_single_extraction_experiment1(self, tmp_path: Path) -> None:
+        """Run single extraction with real model, verify vector shape and file creation."""
+        result = run_diff_means_experiment(
+            concept="honesty",
+            n_examples_list=[10],
+            layers=[0.5],
+            model_name="Qwen/Qwen3-1.7B",
+            output_dir=tmp_path,
+        )
+
+        # Verify result structure
+        assert "vector_paths" in result
+        assert "heatmap_paths" in result
+        assert "statistics" in result
+
+        # Verify vector file was created
+        vector_key = "n10_layer0.5"
+        assert vector_key in result["vector_paths"]
+        vector_paths = cast("dict[str, str]", result["vector_paths"])
+        vector_path = Path(vector_paths[vector_key])
+        assert vector_path.exists(), f"Vector file not created: {vector_path}"
+
+        # Load and verify vector shape
+        vector = load_vector(vector_path)
+        assert vector.dim() == 1, f"Expected 1D tensor, got {vector.dim()}D"
+        assert vector.numel() > 0, "Vector should have non-zero elements"
+
+        # Verify heatmap file was created
+        heatmap_key = "layer0.5"
+        assert heatmap_key in result["heatmap_paths"]
+        heatmap_paths = cast("dict[str, str]", result["heatmap_paths"])
+        heatmap_path = Path(heatmap_paths[heatmap_key])
+        assert heatmap_path.exists(), f"Heatmap file not created: {heatmap_path}"
+
+        # Verify statistics
+        assert heatmap_key in result["statistics"]
+        stats = cast("dict[str, dict[str, float]]", result["statistics"])[heatmap_key]
+        assert "mean_similarity" in stats
+        assert "min_similarity" in stats
+        assert "max_similarity" in stats
 
     @pytest.mark.gpu
     @pytest.mark.slow
