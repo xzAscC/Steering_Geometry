@@ -599,7 +599,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   **Commit**: NO
   - Commit together with Task 7 (Experiment 2 complete)
 
-- [ ] 7. Create shell script for Experiment 2
+- [x] 7. Create shell script for Experiment 2
 
   **What to do**:
   - Create script: `scripts/experiments/run_discriminative_heatmaps.sh`

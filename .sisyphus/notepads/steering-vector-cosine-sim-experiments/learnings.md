@@ -100,3 +100,16 @@
 - Vectors: `{output_dir}/vectors/{concept}/discriminative/k{K}_layer{layer_frac}.pt`
 - Heatmaps: `{output_dir}/heatmaps/discriminative/{concept}_layer{layer_frac}.pdf`
 - Return dict keys: `k{K}_layer{layer_frac}` (vs `n{n}_layer{layer_frac}` in diff_means)
+
+## 2026-03-13: AGENTS.md Documentation Update
+
+### Documentation Placement
+- Added new "Experiments" subsection after "Extraction Scripts" in Section 11 (Pipeline Workflow)
+- Updated "Where to Look" table with experiment entries
+- Followed existing markdown formatting patterns
+
+### Key Documentation Elements
+- Command examples for both experiment scripts
+- Parameter lists (concepts, model, layers, n_examples, K values)
+- Output directory structure diagram
+- Expected output counts (50 PDFs, 325 vectors)

@@ -120,6 +120,8 @@ Enforced by ruff (see pyproject.toml):
 | Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
 | Pipeline scripts | `scripts/run_pipeline.sh` | Full orchestration |
 | Quick scripts | `scripts/quick/` | Single-layer operations |
+| Experiment functions | `src/steering_geometry/experiments.py` | `run_diff_means_experiment()`, `run_discriminative_experiment()` |
+| Experiment scripts | `scripts/experiments/` | Cosine similarity heatmaps |
 
 ## 10) Anti-Patterns
 
@@ -181,8 +183,42 @@ uv run python -m steering_geometry.extract --concept toxicity --method pca
 ./scripts/run_pipeline.sh -c honesty -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
 
 # Quick single-layer extraction
-./scripts/quick/quick_extract.sh -c honesty -l 0.7
+scripts/quick/quick_extract.sh -c honesty -l 0.7
 ```
+
+### Experiments
+
+Run cosine similarity experiments to analyze steering vector stability:
+
+```bash
+# Differential means experiment (varying example counts)
+./scripts/experiments/run_diff_means_heatmaps.sh
+
+# Discriminative token selection experiment (varying K values)
+./scripts/experiments/run_discriminative_heatmaps.sh
+```
+
+**Parameters:**
+- Concepts: honesty, sentiment, toxicity, sycophancy, refusal
+- Model: Qwen/Qwen3-1.7B
+- Layers: 0.4, 0.5, 0.6, 0.7, 0.8
+- Diff means n_examples: 10, 30, 100, 300, 1000, 3000, 6000, 10000
+- Discriminative K values: 16, 32, 64, 128, 256
+
+**Output Structure:**
+```
+outputs/
+├── vectors/
+│   ├── {concept}/diff_means/n{count}_layer{frac}.pt
+│   └── {concept}/discriminative/k{K}_layer{frac}.pt
+└── heatmaps/
+    ├── diff_means/{concept}_layer{frac}.pdf
+    └── discriminative/{concept}_layer{frac}.pdf
+```
+
+**Expected Output Counts:**
+- 50 PDF heatmaps (5 concepts × 5 layers × 2 methods)
+- 325 steering vectors (200 diff_means + 125 discriminative)
 
 ### Directory Rules
 
