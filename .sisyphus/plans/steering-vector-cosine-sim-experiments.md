@@ -287,7 +287,7 @@ Max Concurrent: 1 (most tasks depend on previous)
   **Commit**: NO
   - Commit together with Task 2 (tests)
 
-- [ ] 2. Write unit tests for experiments module
+- [x] 2. Write unit tests for experiments module
 
   **What to do**:
   - Create new file: `tests/test_experiments.py`

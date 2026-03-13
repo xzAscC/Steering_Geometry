@@ -13,6 +13,7 @@ from numpy import ndarray
 from sklearn.metrics.pairwise import cosine_similarity  # type: ignore[import-untyped]
 from torch import Tensor
 
+from steering_geometry.extract import extract_vector, load_contrast_pairs
 from steering_geometry.utils import ensure_dir
 
 logger = logging.getLogger(__name__)
@@ -155,10 +156,136 @@ def cap_examples(requested: int, max_available: int, concept: str) -> int:
     return requested
 
 
+def run_diff_means_experiment(
+    concept: str,
+    n_examples_list: list[int],
+    layers: list[float],
+    model_name: str,
+    output_dir: Path | str = "outputs",
+) -> dict[str, dict[str, str] | dict[str, str] | dict[str, dict[str, float]]]:
+    """Run differential means experiment across varying example counts.
+
+    For each example count, extracts steering vectors and computes pairwise
+    cosine similarities across all example counts at each layer.
+
+    Args:
+        concept: Concept to extract (e.g., "honesty", "toxicity").
+        n_examples_list: List of example counts to test (e.g., [10, 30, 100]).
+        layers: Relative layer positions (0.0-1.0) to analyze.
+        model_name: HuggingFace model name.
+        output_dir: Base output directory for vectors and heatmaps.
+
+    Returns:
+        Dict with:
+            - "vector_paths": Dict mapping (n_examples, layer) to vector file paths
+            - "heatmap_paths": Dict mapping layer to heatmap file paths
+            - "statistics": Dict with mean/min/max similarities per layer
+
+    Raises:
+        ValueError: If n_examples_list is empty or all vectors contain NaN.
+    """
+    if not n_examples_list:
+        msg = "n_examples_list cannot be empty"
+        raise ValueError(msg)
+
+    output_dir = Path(output_dir)
+
+    logger.info("Loading contrast pairs for concept '%s'", concept)
+    all_pairs = load_contrast_pairs(concept, num_pairs=10000)
+    max_available = len(all_pairs)
+    logger.info("Dataset has %d examples available for concept '%s'", max_available, concept)
+
+    vector_paths: dict[tuple[int, float], Path] = {}
+    layer_vectors: dict[float, dict[int, Tensor]] = {layer_frac: {} for layer_frac in layers}
+
+    for n_examples in n_examples_list:
+        capped = cap_examples(n_examples, max_available, concept)
+
+        logger.info(
+            "Extracting vector for concept='%s', n_examples=%d (capped=%d)",
+            concept,
+            n_examples,
+            capped,
+        )
+
+        steering_vector = extract_vector(
+            concept=concept,
+            model_name=model_name,
+            num_pairs=capped,
+            method="mean",
+            layers=layers,
+        )
+
+        for layer_frac, abs_idx in zip(
+            layers, steering_vector.layer_activations.keys(), strict=True
+        ):
+            vector = steering_vector.layer_activations[abs_idx]
+
+            if torch.isnan(vector).any():
+                msg = (
+                    f"Vector for concept='{concept}', n={n_examples}, "
+                    f"layer={layer_frac} contains NaN"
+                )
+                raise ValueError(msg)
+
+            vector_path = (
+                output_dir
+                / "vectors"
+                / concept
+                / "diff_means"
+                / f"n{n_examples}_layer{layer_frac}.pt"
+            )
+            save_vector(vector, vector_path)
+            vector_paths[(n_examples, layer_frac)] = vector_path
+            layer_vectors[layer_frac][n_examples] = vector
+
+    heatmap_paths: dict[float, Path] = {}
+    statistics: dict[float, dict[str, float]] = {}
+
+    labels = [str(n) for n in n_examples_list]
+
+    for layer_frac in layers:
+        vectors = [layer_vectors[layer_frac][n] for n in n_examples_list]
+
+        first = vectors[0]
+        all_identical = all(torch.equal(v, first) for v in vectors)
+        if all_identical:
+            logger.warning(
+                "All vectors identical at layer %.2f for concept '%s'",
+                layer_frac,
+                concept,
+            )
+
+        similarity_matrix = compute_cosine_similarity_matrix(vectors)
+
+        off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
+        off_diagonal_values = similarity_matrix[off_diagonal_mask]
+
+        statistics[layer_frac] = {
+            "mean_similarity": float(off_diagonal_values.mean()),
+            "min_similarity": float(off_diagonal_values.min()),
+            "max_similarity": float(off_diagonal_values.max()),
+        }
+
+        heatmap_path = output_dir / "heatmaps" / "diff_means" / f"{concept}_layer{layer_frac}.pdf"
+        title = f"Cosine Similarity: {concept} (layer {layer_frac})"
+        plot_heatmap(similarity_matrix, labels, title, heatmap_path)
+        heatmap_paths[layer_frac] = heatmap_path
+
+    logger.info("Completed diff_means experiment for concept '%s'", concept)
+
+    return {
+        "vector_paths": {f"n{k[0]}_layer{k[1]}": str(v) for k, v in vector_paths.items()},
+        "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
+        "statistics": {f"layer{k}": v for k, v in statistics.items()},
+    }
+
+
 __all__ = [
     "compute_cosine_similarity_matrix",
     "plot_heatmap",
     "save_vector",
     "load_vector",
     "cap_examples",
+    "run_diff_means_experiment",
 ]

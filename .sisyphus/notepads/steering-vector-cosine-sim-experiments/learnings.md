@@ -46,3 +46,22 @@
 - `torch.equal(a, b)` for exact tensor comparison
 - Test dtype preservation with `torch.float64`
 - Test multi-dimensional tensors (not just 1D)
+
+## 2026-03-13: run_diff_means_experiment Implementation
+
+### Type Annotations for Complex Dict Returns
+- Use `dict[str, dict[str, str] | dict[str, dict[str, float]]]` for nested heterogeneous dicts
+- Avoid `Any` - use union types for value variation
+
+### zip() with strict=True
+- Always use `strict=True` with zip() when iterating parallel sequences
+- Catches length mismatches at runtime
+
+### Layer Index Mapping
+- `extract_vector()` returns `layer_activations` keyed by absolute indices
+- Use `zip(layers, layer_activations.keys(), strict=True)` to map back to fractions
+
+### Edge Case Handling
+- Check `torch.isnan(vector).any()` before saving vectors
+- Warn on identical vectors (would produce constant similarity matrix)
+- Cap n_examples using `cap_examples()` with max from dataset
