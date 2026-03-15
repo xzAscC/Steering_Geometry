@@ -57,18 +57,18 @@ total=${#CONCEPTS[@]}
 current=0
 
 for concept in "${CONCEPTS[@]}"; do
-    ((current++))
+    ((++current))
     echo -e "\n${GREEN}[$current/$total] Running discriminative experiment: $concept${NC}"
     echo "----------------------------------------"
 
-    uv run python -c "
+    uv run python -u -c "
 from steering_geometry.vector_analysis import run_discriminative_experiment
 from pathlib import Path
 
 result = run_discriminative_experiment(
     concept='${concept}',
-    k_values=[${k_values_str#\[}],
-    layers=[${layers_str#\[}],
+    k_values=${k_values_str},
+    layers=${layers_str},
     model_name='${MODEL}',
     output_dir=Path('${OUTPUT_DIR}')
 )
@@ -81,10 +81,11 @@ stats = result.get('statistics', {})
 if stats:
     print(f'  Statistics:')
     for layer, layer_stats in stats.items():
-        print(f'    Layer {layer}: mean={layer_stats.get(\"mean\", \"N/A\"):.4f}, min={layer_stats.get(\"min\", \"N/A\"):.4f}, max={layer_stats.get(\"max\", \"N/A\"):.4f}')
-" 2>&1 | while read -r line; do
-        echo "  $line"
-    done
+        m = layer_stats.get('mean_similarity', layer_stats.get('mean', 'N/A'))
+        mn = layer_stats.get('min_similarity', layer_stats.get('min', 'N/A'))
+        mx = layer_stats.get('max_similarity', layer_stats.get('max', 'N/A'))
+        print(f'    Layer {layer}: mean={m:.4f}, min={mn:.4f}, max={mx:.4f}')
+" 2>&1
 
     echo -e "${GREEN}✓ Completed: $concept${NC}"
 done
