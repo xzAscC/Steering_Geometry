@@ -1,7 +1,7 @@
-"""Experimental utilities for steering vector analysis.
+"""Steering vector analysis utilities.
 
 Provides functions for computing cosine similarity matrices, generating heatmaps,
-and managing vector persistence for steering vector experiments.
+and managing vector persistence for analyzing steering vector stability.
 """
 
 import logging

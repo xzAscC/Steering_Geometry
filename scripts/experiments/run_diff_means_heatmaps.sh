@@ -67,7 +67,7 @@ for concept in "${CONCEPTS[@]}"; do
     echo "----------------------------------------"
 
     uv run python -c "
-from steering_geometry.experiments import run_diff_means_experiment
+from steering_geometry.vector_analysis import run_diff_means_experiment
 from pathlib import Path
 
 result = run_diff_means_experiment(
