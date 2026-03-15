@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-03-08
-**Commit:** 4aa68b2
-**Branch:** project-setup
+**Generated:** 2026-03-14
+**Commit:** 32ab292
+**Branch:** experiment/test-steering
 
 AI agents working in this repository MUST follow these rules.
 
@@ -120,7 +120,7 @@ Enforced by ruff (see pyproject.toml):
 | Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
 | Pipeline scripts | `scripts/run_pipeline.sh` | Full orchestration |
 | Quick scripts | `scripts/quick/` | Single-layer operations |
-| Experiment functions | `src/steering_geometry/experiments.py` | `run_diff_means_experiment()`, `run_discriminative_experiment()` |
+| Vector analysis | `src/steering_geometry/vector_analysis.py` | `run_diff_means_experiment()`, `run_discriminative_experiment()` |
 | Experiment scripts | `scripts/experiments/` | Cosine similarity heatmaps |
 
 ## 10) Anti-Patterns
