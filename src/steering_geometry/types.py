@@ -227,6 +227,7 @@ class TokenRecord:
         contrast_pair_idx: Index of the contrast pair this token belongs to.
         position_in_sequence: Position of this token within its sequence.
         label: Label indicating "positive" or "negative" class membership.
+        score: Discriminative score (higher = more discriminative for its class).
     """
 
     token_id: int
@@ -235,6 +236,7 @@ class TokenRecord:
     contrast_pair_idx: int
     position_in_sequence: int
     label: str
+    score: float = 0.0
 
 
 @dataclass
@@ -297,6 +299,46 @@ class ProbeExperimentResult:
     layer_results: list[ProbeLayerResult] = field(default_factory=list)
 
 
+@dataclass
+class UnembedAnalysisResult:
+    """Single steering vector unembedding analysis result.
+
+    Contains the top tokens and their cosine similarities when projecting
+    a steering vector through the unembedding matrix.
+
+    Attributes:
+        layer: Layer fraction where the steering vector was extracted (0.1-1.0).
+        method: Extraction method used (e.g., "diff_means", "discriminative").
+        tokens: Top-5 decoded tokens from unembedding projection.
+        similarities: Cosine similarity scores for each token.
+    """
+
+    layer: float
+    method: str
+    tokens: list[str]
+    similarities: list[float]
+
+
+@dataclass
+class ConceptAnalysisResult:
+    """Full concept analysis result across multiple layers.
+
+    Aggregates unembedding analysis results for a single concept and model,
+    organized by layer fraction for comparison across extraction methods.
+
+    Attributes:
+        concept: The behavioral concept analyzed (e.g., "honesty", "toxicity").
+        model: Name/identifier of the model.
+        method: Extraction method used for all results.
+        results: Mapping from layer key (e.g., "layer_0.5") to analysis result.
+    """
+
+    concept: str
+    model: str
+    method: str
+    results: dict[str, UnembedAnalysisResult]
+
+
 __all__ = [
     "ContrastPair",
     "ContrastPairMetadata",
@@ -313,4 +355,6 @@ __all__ = [
     "DiscriminativeTokenResult",
     "ProbeLayerResult",
     "ProbeExperimentResult",
+    "UnembedAnalysisResult",
+    "ConceptAnalysisResult",
 ]
