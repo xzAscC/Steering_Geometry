@@ -70,6 +70,9 @@ def compute_topk_similar_tokens(
         )
         raise ValueError(msg)
 
+    # Ensure all tensors are on the same device
+    unembed_matrix = unembed_matrix.to(vector.device)
+
     # Normalize to unit vectors for cosine similarity
     vector_norm = vector / torch.norm(vector)
     unembed_norms = torch.clamp(torch.norm(unembed_matrix, dim=1, keepdim=True), min=1e-8)
