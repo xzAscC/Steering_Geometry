@@ -18,12 +18,24 @@ from pathlib import Path
 from typing import Protocol, cast
 
 import torch
+import torch.nn as nn
+from sklearn.metrics import accuracy_score, roc_auc_score  # type: ignore[import-untyped]
+from sklearn.model_selection import train_test_split  # type: ignore[import-untyped]
+from torch import Tensor
+from torch.nn import CrossEntropyLoss
+from torch.optim import Adam
+from torch.utils.data import DataLoader, TensorDataset
 from transformers import PreTrainedTokenizerBase
 
 from .config import ModelConfig, TokenAnalysisConfig
 from .extract import load_contrast_pairs
 from .models import HookedModel
-from .types import DiscriminativeTokenResult, TokenRecord
+from .types import (
+    DiscriminativeTokenResult,
+    ProbeExperimentResult,
+    ProbeLayerResult,
+    TokenRecord,
+)
 from .utils import ensure_dir, safe_model_name
 
 logger = logging.getLogger(__name__)
@@ -208,6 +220,78 @@ def select_top_k_tokens(
         layer=layer,
         top_positive=top_positive,
         top_negative=top_negative,
+    )
+
+
+def train_linear_probe(
+    train_activations: Tensor,
+    train_labels: Tensor,
+    hidden_dim: int,
+    epochs: int = 100,
+    lr: float = 0.01,
+) -> nn.Linear:
+    """Train a linear probe using PyTorch nn.Linear + CrossEntropyLoss + Adam.
+
+    Args:
+        train_activations: Training activations with shape (n_train, hidden_dim).
+        train_labels: Training labels with shape (n_train,), 0=negative, 1=positive.
+        hidden_dim: Dimension of the hidden layer activations.
+        epochs: Number of training epochs (default: 100).
+        lr: Learning rate for Adam optimizer (default: 0.01).
+
+    Returns:
+        Trained nn.Linear probe for binary classification.
+    """
+    probe = nn.Linear(hidden_dim, 2)
+    optimizer = Adam(probe.parameters(), lr=lr)
+    criterion = CrossEntropyLoss()
+
+    dataset = TensorDataset(train_activations, train_labels)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+
+    probe.train()
+    for _ in range(epochs):
+        for batch_acts, batch_labels in dataloader:
+            optimizer.zero_grad()
+            logits = probe(batch_acts)
+            loss = criterion(logits, batch_labels)
+            loss.backward()
+            optimizer.step()
+
+    return probe
+
+
+def evaluate_probe(
+    probe: nn.Linear,
+    test_activations: Tensor,
+    test_labels: Tensor,
+) -> ProbeLayerResult:
+    """Evaluate probe and return metrics: accuracy, auc_score.
+
+    Args:
+        probe: Trained linear probe.
+        test_activations: Test activations with shape (n_test, hidden_dim).
+        test_labels: Test labels with shape (n_test,), 0=negative, 1=positive.
+
+    Returns:
+        ProbeLayerResult with layer_idx=-1 (caller should set correct index),
+        train_accuracy=-1 (not computed here), test_accuracy, and auc_score.
+    """
+    probe.eval()
+    with torch.no_grad():
+        logits = probe(test_activations)
+        probs = torch.softmax(logits, dim=1)
+        predictions = torch.argmax(logits, dim=1)
+
+        test_accuracy = float(accuracy_score(test_labels.numpy(), predictions.numpy()))
+        pos_probs = probs[:, 1].numpy()
+        auc = float(roc_auc_score(test_labels.numpy(), pos_probs))
+
+    return ProbeLayerResult(
+        layer_idx=-1,
+        train_accuracy=-1.0,
+        test_accuracy=test_accuracy,
+        auc_score=auc,
     )
 
 
@@ -415,13 +499,135 @@ def run_visualize(args: _Args) -> None:
 def run_probe(args: _Args) -> None:
     """Run token probe subcommand.
 
-    Args:
-        args: Parsed CLI arguments.
+    Loads contrast pairs, extracts token activations, trains linear probes
+    on each layer using 80/20 stratified split, and saves metrics to JSON.
 
-    Raises:
-        NotImplementedError: Always, as this is a skeleton.
+    Args:
+        args: Parsed CLI arguments with concept, model, output, tokens_per_class.
     """
-    raise NotImplementedError("Token probe not yet implemented")
+    logger.info(f"Loading contrast pairs for concept: {args.concept}")
+    pairs = load_contrast_pairs(args.concept, num_pairs=500)
+
+    positive_texts = [p.positive for p in pairs]
+    negative_texts = [p.negative for p in pairs]
+
+    logger.info(f"Loading model: {args.model}")
+    model_config = ModelConfig(model_name=args.model)
+    model = HookedModel(model_config)
+
+    relative_layers = [i / 9 for i in range(10)]
+    absolute_layers = model.resolve_layers(relative_layers)
+    logger.info(f"Analyzing layers: {absolute_layers}")
+
+    config = TokenAnalysisConfig(
+        tokens_per_class=args.tokens_per_class,
+        batch_size=8,
+    )
+
+    logger.info("Extracting token activations for positive texts...")
+    pos_records = extract_all_token_activations(
+        model=model,
+        texts=positive_texts,
+        layers=absolute_layers,
+        label="positive",
+        config=config,
+    )
+
+    logger.info("Extracting token activations for negative texts...")
+    neg_records = extract_all_token_activations(
+        model=model,
+        texts=negative_texts,
+        layers=absolute_layers,
+        label="negative",
+        config=config,
+    )
+
+    experiment_result = ProbeExperimentResult(
+        concept=args.concept,
+        model_name=args.model,
+        tokens_per_class=args.tokens_per_class,
+    )
+
+    for layer in absolute_layers:
+        logger.info(f"Training probe for layer {layer}...")
+
+        layer_pos = pos_records[layer]
+        layer_neg = neg_records[layer]
+
+        pos_activations = torch.stack([r.activation for r in layer_pos])
+        neg_activations = torch.stack([r.activation for r in layer_neg])
+
+        pos_labels = torch.ones(len(layer_pos), dtype=torch.long)
+        neg_labels = torch.zeros(len(layer_neg), dtype=torch.long)
+
+        all_activations = torch.cat([pos_activations, neg_activations], dim=0)
+        all_labels = torch.cat([pos_labels, neg_labels], dim=0)
+
+        train_acts, test_acts, train_labels, test_labels = train_test_split(
+            all_activations.numpy(),
+            all_labels.numpy(),
+            test_size=config.test_size,
+            stratify=all_labels.numpy(),
+            random_state=config.random_seed,
+        )
+
+        train_acts = torch.from_numpy(train_acts)
+        test_acts = torch.from_numpy(test_acts)
+        train_labels = torch.from_numpy(train_labels)
+        test_labels_tensor = torch.from_numpy(test_labels)
+
+        hidden_dim = train_acts.shape[1]
+        probe = train_linear_probe(train_acts, train_labels, hidden_dim)
+
+        probe.eval()
+        with torch.no_grad():
+            train_logits = probe(train_acts)
+            train_preds = torch.argmax(train_logits, dim=1)
+            train_accuracy = float(accuracy_score(train_labels.numpy(), train_preds.numpy()))
+
+        test_result = evaluate_probe(probe, test_acts, test_labels_tensor)
+
+        layer_result = ProbeLayerResult(
+            layer_idx=layer,
+            train_accuracy=train_accuracy,
+            test_accuracy=test_result.test_accuracy,
+            auc_score=test_result.auc_score,
+        )
+        experiment_result.layer_results.append(layer_result)
+
+        print(f"\n=== Layer {layer} ===")
+        print(f"  Train accuracy: {train_accuracy:.4f}")
+        print(f"  Test accuracy:  {test_result.test_accuracy:.4f}")
+        print(f"  AUC score:      {test_result.auc_score:.4f}")
+
+        del probe, train_acts, test_acts, train_labels, test_labels_tensor
+        del pos_activations, neg_activations, all_activations, all_labels
+        torch.cuda.empty_cache()
+
+    output_dir = ensure_dir(Path(args.output))
+    model_slug = safe_model_name(args.model)
+    output_file = output_dir / f"{args.concept}_{model_slug}_probe.json"
+
+    output_data = {
+        "concept": experiment_result.concept,
+        "model_name": experiment_result.model_name,
+        "tokens_per_class": experiment_result.tokens_per_class,
+        "layer_results": [
+            {
+                "layer_idx": r.layer_idx,
+                "train_accuracy": r.train_accuracy,
+                "test_accuracy": r.test_accuracy,
+                "auc_score": r.auc_score,
+            }
+            for r in experiment_result.layer_results
+        ],
+    }
+
+    with output_file.open("w") as f:
+        json.dump(output_data, f, indent=2)
+
+    logger.info(f"Saved probe results to {output_file}")
+    print(f"\nProbe results saved to: {output_file}")
 
 
 def main() -> None:
@@ -445,6 +651,8 @@ __all__ = [
     "_detokenize_token",
     "compute_discriminative_scores",
     "select_top_k_tokens",
+    "train_linear_probe",
+    "evaluate_probe",
     "run_visualize",
     "run_probe",
 ]
