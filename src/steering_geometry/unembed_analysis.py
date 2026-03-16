@@ -4,10 +4,12 @@ Provides functions for projecting steering vectors through the unembedding matri
 to find tokens most similar to the steering direction.
 """
 
+import argparse
 import json
 import logging
+import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import torch
 from torch import Tensor
@@ -25,6 +27,8 @@ __all__ = [
     "analyze_steering_vector",
     "save_analysis_results",
     "run_unembed_experiment",
+    "plot_topk_heatmap",
+    "plot_topk_bar_chart",
 ]
 
 
@@ -257,6 +261,277 @@ def run_unembed_experiment(
     json_output_path = output_dir / "unembed_analysis" / "json" / f"{concept}_{method}.json"
     save_analysis_results(result, json_output_path)
 
+    plot_topk_heatmap(result, output_dir)
+    plot_topk_bar_chart(result, output_dir)
+
     logger.info("Completed unembed experiment for concept='%s', method='%s'", concept, method)
 
     return result
+
+
+def plot_topk_heatmap(
+    result: ConceptAnalysisResult,
+    output_dir: Path | str = "outputs",
+) -> Path:
+    """Generate and save a heatmap visualization of top-K tokens across layers.
+
+    X axis: Top-K positions (1, 2, 3, 4, 5)
+    Y axis: Layer fractions (0.1, 0.2, ..., 1.0)
+    Cell content: Token text (short, truncated if needed)
+    Color: Cells colored by similarity value.
+
+    Args:
+        result: ConceptAnalysisResult containing analysis results for all layers.
+        output_dir: Base output directory for plots. Defaults to "outputs".
+
+    Returns:
+        Path to the saved plot file (PDF format).
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from steering_geometry.utils import ensure_dir
+
+    output_dir = Path(output_dir)
+    plot_dir = output_dir / "unembed_analysis" / "plots"
+    ensure_dir(plot_dir)
+
+    output_path = plot_dir / f"{result.concept}_{result.method}_heatmap.pdf"
+
+    # Sort layers numerically
+    sorted_layer_keys = sorted(result.results.keys(), key=lambda x: float(x.split("_")[1]))
+    layers = [result.results[k].layer for k in sorted_layer_keys]
+
+    # Prepare data for heatmap (Top 5)
+    num_layers = len(layers)
+    num_k = 5
+    sim_matrix = np.zeros((num_layers, num_k))
+    token_matrix = []
+
+    for i, layer_key in enumerate(sorted_layer_keys):
+        layer_res = result.results[layer_key]
+        row_tokens = []
+        for j in range(num_k):
+            if j < len(layer_res.tokens):
+                sim_matrix[i, j] = layer_res.similarities[j]
+                token = layer_res.tokens[j].replace("\n", "\\n").replace("\t", "\\t")
+                if len(token) > 12:
+                    token = token[:9] + "..."
+                row_tokens.append(token)
+            else:
+                sim_matrix[i, j] = 0
+                row_tokens.append("")
+        token_matrix.append(row_tokens)
+
+    fig, ax = plt.subplots(figsize=(10, num_layers * 0.5 + 2))
+
+    im = ax.imshow(
+        sim_matrix, cmap="YlGnBu", aspect="auto", vmin=0, vmax=max(0.5, sim_matrix.max())
+    )
+
+    ax.set_xticks(np.arange(num_k))
+    ax.set_yticks(np.arange(num_layers))
+    ax.set_xticklabels([f"Top {k}" for k in range(1, num_k + 1)])
+    ax.set_yticklabels([f"{layer_val:.1f}" for layer_val in layers])
+
+    ax.set_xlabel("Top-K Position", fontsize=10, fontweight="bold")
+    ax.set_ylabel("Layer Fraction", fontsize=10, fontweight="bold")
+
+    for i in range(num_layers):
+        for j in range(num_k):
+            color = "white" if sim_matrix[i, j] > 0.6 * sim_matrix.max() else "black"
+            ax.text(j, i, token_matrix[i][j], ha="center", va="center", color=color, fontsize=8)
+
+    ax.set_title(
+        f"Top Unembedding Tokens: {result.concept} ({result.method})\nModel: {result.model}",
+        fontsize=12,
+        fontweight="bold",
+        pad=20,
+    )
+
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("Cosine Similarity", fontsize=10)
+
+    fig.tight_layout()
+    plt.savefig(output_path, format="pdf", bbox_inches="tight")
+    plt.close()
+
+    logger.info("Saved top-K heatmap to %s", output_path)
+    return output_path
+
+
+def plot_topk_bar_chart(
+    result: ConceptAnalysisResult,
+    output_dir: Path | str = "outputs",
+    layers_to_plot: list[float] | None = None,
+) -> list[Path]:
+    """Generate horizontal bar charts for top-k tokens most similar to steering vectors.
+
+    Args:
+        result: ConceptAnalysisResult containing analysis results for multiple layers.
+        output_dir: Base output directory for plots. Defaults to "outputs".
+        layers_to_plot: List of layer fractions to plot. If None, plots all layers.
+            Defaults to None.
+
+    Returns:
+        List of paths to the saved PDF plot files.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    from steering_geometry.utils import ensure_dir
+
+    output_dir = Path(output_dir)
+    plot_dir = output_dir / "unembed_analysis" / "plots"
+    ensure_dir(plot_dir)
+
+    if layers_to_plot is None:
+        sorted_layer_keys = sorted(result.results.keys(), key=lambda x: float(x.split("_")[1]))
+        layers_to_plot = [result.results[k].layer for k in sorted_layer_keys]
+    else:
+        layers_to_plot = sorted(layers_to_plot)
+
+    if not layers_to_plot:
+        logger.warning("No layers to plot")
+        return []
+
+    output_path = plot_dir / f"{result.concept}_{result.method}_bars.pdf"
+
+    with PdfPages(output_path) as pdf:
+        for layer_frac in layers_to_plot:
+            layer_key = f"layer_{layer_frac}"
+            if layer_key not in result.results:
+                logger.warning(f"Layer {layer_frac} not found in results, skipping")
+                continue
+
+            layer_result = result.results[layer_key]
+            tokens = layer_result.tokens
+            similarities = layer_result.similarities
+
+            if not tokens:
+                logger.warning(f"No tokens for layer {layer_frac}, skipping")
+                continue
+
+            tokens_rev = tokens[::-1]
+            similarities_rev = similarities[::-1]
+
+            fig, ax = plt.subplots(figsize=(10, 8))
+
+            import matplotlib as mpl
+
+            norm = mpl.colors.Normalize(min(similarities_rev), max(similarities_rev))
+            colors = mpl.colormaps["RdYlBu_r"](norm(similarities_rev))
+
+            bars = ax.barh(tokens_rev, similarities_rev, color=colors)
+
+            ax.set_xlabel("Cosine Similarity", fontsize=10)
+            ax.set_title(
+                f"Top Tokens for {result.concept} ({result.method})\nLayer {layer_frac}",
+                fontsize=12,
+                fontweight="bold",
+            )
+
+            for bar, sim in zip(bars, similarities_rev, strict=True):
+                ax.text(
+                    bar.get_width() + 0.005,
+                    bar.get_y() + bar.get_height() / 2,
+                    f"{sim:.4f}",
+                    va="center",
+                    fontsize=8,
+                )
+
+            fig.tight_layout()
+            pdf.savefig(fig, bbox_inches="tight")
+            plt.close(fig)
+
+    logger.info("Saved bar charts to %s", output_path)
+    return [output_path]
+
+
+# =============================================================================
+# CLI
+# =============================================================================
+
+VALID_CONCEPTS = ("honesty", "sentiment", "toxicity", "sycophancy", "refusal")
+VALID_METHODS = ("diff_means", "discriminative")
+DEFAULT_LAYERS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+
+class _Args(Protocol):
+    """Protocol defining CLI arguments for unembed analysis."""
+
+    concept: str
+    method: str
+    model: str
+    layers: list[float]
+    output: str
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build argument parser for unembed analysis CLI."""
+    parser = argparse.ArgumentParser(
+        prog="steering_geometry.unembed_analysis",
+        description="Analyze steering vectors by projecting through the unembedding matrix",
+    )
+    parser.add_argument(
+        "--concept",
+        required=True,
+        choices=VALID_CONCEPTS,
+        help="Concept to analyze (honesty, sentiment, toxicity, sycophancy, refusal)",
+    )
+    parser.add_argument(
+        "--method",
+        required=True,
+        choices=VALID_METHODS,
+        help="Extraction method (diff_means, discriminative)",
+    )
+    parser.add_argument(
+        "--model",
+        default="Qwen/Qwen3-1.7B",
+        help="HuggingFace model name (default: Qwen/Qwen3-1.7B)",
+    )
+    parser.add_argument(
+        "--layers",
+        type=lambda s: [float(x) for x in s.split(",")],
+        default=DEFAULT_LAYERS,
+        help="Comma-separated layer fractions (default: 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0)",
+    )
+    parser.add_argument(
+        "--output",
+        default="outputs",
+        help="Output directory (default: outputs)",
+    )
+    return parser
+
+
+def main() -> None:
+    """CLI entry point for unembedding analysis."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    args = cast(_Args, cast(object, _build_parser().parse_args()))
+
+    logger.info(
+        "Starting unembed analysis: concept='%s', method='%s', model='%s', layers=%s",
+        args.concept,
+        args.method,
+        args.model,
+        args.layers,
+    )
+
+    try:
+        run_unembed_experiment(
+            concept=args.concept,
+            model_name=args.model,
+            method=args.method,
+            layers=args.layers,
+            output_dir=args.output,
+        )
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

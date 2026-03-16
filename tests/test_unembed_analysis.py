@@ -1,15 +1,17 @@
 """Tests for unembedding analysis module."""
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 import torch
 from torch import Tensor
 
-from steering_geometry.types import UnembedAnalysisResult
+from steering_geometry.types import ConceptAnalysisResult, UnembedAnalysisResult
 from steering_geometry.unembed_analysis import (
     analyze_steering_vector,
     compute_topk_similar_tokens,
+    plot_topk_bar_chart,
 )
 
 
@@ -155,3 +157,30 @@ class TestAnalyzeSteeringVector:
         for sim in result.similarities:
             assert isinstance(sim, float)
             assert -1.0 <= sim <= 1.0
+
+
+class TestPlotTopkBarChart:
+    """Tests for plot_topk_bar_chart function."""
+
+    def test_plot_topk_bar_chart(self, tmp_path: Path) -> None:
+        """Function should create a PDF file and return its path."""
+        result = ConceptAnalysisResult(
+            concept="honesty",
+            model="test-model",
+            method="diff_means",
+            results={
+                "layer_0.5": UnembedAnalysisResult(
+                    layer=0.5,
+                    method="diff_means",
+                    tokens=["token1", "token2", "token3"],
+                    similarities=[0.9, 0.8, 0.7],
+                )
+            },
+        )
+
+        paths = plot_topk_bar_chart(result, output_dir=tmp_path)
+
+        assert len(paths) == 1
+        assert paths[0].exists()
+        assert paths[0].suffix == ".pdf"
+        assert "honesty_diff_means_bars.pdf" in str(paths[0])
