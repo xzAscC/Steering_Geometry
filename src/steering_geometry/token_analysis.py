@@ -163,8 +163,10 @@ def compute_discriminative_scores(
         msg = "Cannot compute discriminative scores with empty records"
         raise ValueError(msg)
 
-    pos_activations = torch.stack([r.activation for r in pos_records])
-    neg_activations = torch.stack([r.activation for r in neg_records])
+    # Convert to float32 to avoid overflow in squared distance computation
+    # (activations can have large values that overflow float16 when squared)
+    pos_activations = torch.stack([r.activation for r in pos_records]).float()
+    neg_activations = torch.stack([r.activation for r in neg_records]).float()
 
     pos_center = pos_activations.mean(dim=0)
     neg_center = neg_activations.mean(dim=0)
@@ -554,8 +556,8 @@ def run_probe(args: _Args) -> None:
         layer_pos = pos_records[layer]
         layer_neg = neg_records[layer]
 
-        pos_activations = torch.stack([r.activation for r in layer_pos])
-        neg_activations = torch.stack([r.activation for r in layer_neg])
+        pos_activations = torch.stack([r.activation for r in layer_pos]).float()
+        neg_activations = torch.stack([r.activation for r in layer_neg]).float()
 
         pos_labels = torch.ones(len(layer_pos), dtype=torch.long)
         neg_labels = torch.zeros(len(layer_neg), dtype=torch.long)
