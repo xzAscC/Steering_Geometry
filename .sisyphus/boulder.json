@@ -1,10 +1,10 @@
 {
-  "active_plan": "/home/xzascc/Documents/code/template_agent/.sisyphus/plans/agent-engineering-template.md",
-  "started_at": "2026-03-07T03:59:11.406Z",
-  "session_ids": [
-    "ses_3399d84e2ffeedYXX65GE5EsEq"
-  ],
-  "plan_name": "agent-engineering-template",
-  "agent": "atlas",
-  "worktree_path": "/home/xzascc/Documents/code/template_agent"
+  "active_plan": null,
+  "started_at": null,
+  "session_ids": [],
+  "plan_name": null,
+  "agent": null,
+  "worktree_path": null,
+  "last_completed": "apply-steering",
+  "completed_at": "2026-03-07T13:10:00.000Z"
 }

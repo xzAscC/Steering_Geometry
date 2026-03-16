@@ -1,4 +1,8 @@
-# AGENTS.md
+# PROJECT KNOWLEDGE BASE
+
+**Generated:** 2026-03-08
+**Commit:** 4aa68b2
+**Branch:** project-setup
 
 AI agents working in this repository MUST follow these rules.
 
@@ -6,8 +10,9 @@ AI agents working in this repository MUST follow these rules.
 
 - Package manager: `uv`
 - Python: 3.12+ (see `.python-version`)
-- Lint/Format: `ruff`
-- Type check: `mypy`
+- Build: `hatchling`
+- Lint/Format: `ruff` (line-length 100, double quotes)
+- Type check: `mypy --strict`
 - Test: `pytest`
 
 ## 2) Build & Verify Commands
@@ -89,8 +94,50 @@ Enforced by ruff (see pyproject.toml):
 - Line length: 100
 - Quote style: double
 - Naming: snake_case for functions/vars, PascalCase for classes
+- Lint rules: E, F, I (isort), UP (pyupgrade), B (bugbear), SIM (simplify), N (naming)
 
-## 9) Pipeline Workflow
+### Import Style
+- ESM-style imports: `from x import y`
+- Grouping: stdlib → third-party → local (enforced by isort)
+- Modern union syntax: `str | None` (enforced by pyupgrade)
+
+### Type System
+- `py.typed` marker present — package is typed
+- Dataclasses for domain objects, TypedDict for dict schemas
+- Modern syntax: `list[str]`, `dict[int, Tensor]`
+
+## 9) Where to Look
+
+| Task | Location | Notes |
+|------|----------|-------|
+| Extract steering vector | `src/steering_geometry/extract.py` | `extract_vector()`, `load_contrast_pairs()` |
+| Add new concept | `extract.py:_DATASET_LOADERS` | Add loader + prefix constants |
+| Load model with hooks | `src/steering_geometry/models.py` | `HookedModel` class |
+| Apply steering | `src/steering_geometry/apply_steering.py` | `apply_steering()` |
+| Evaluate steering | `src/steering_geometry/evaluation.py` | `JudgeEvaluator`, `MMLUEvaluator` |
+| Core types | `src/steering_geometry/types.py` | `ContrastPair`, `SteeringVector`, etc. |
+| Config classes | `src/steering_geometry/config.py` | `ModelConfig`, `ExtractionConfig`, etc. |
+| Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
+| Pipeline scripts | `scripts/run_pipeline.sh` | Full orchestration |
+| Quick scripts | `scripts/quick/` | Single-layer operations |
+
+## 10) Anti-Patterns
+
+### Forbidden in This Project
+- `typing.Any` — Use proper types or `unknown` patterns
+- `# type: ignore` — Avoid unless for untyped third-party libs
+- `print()` in production code — Use logging module
+- Bare `except:` — Always specify exception type
+- `from x import *` — Explicit imports only
+
+### Current Technical Debt
+| File | Issue | Fix |
+|------|-------|-----|
+| `models.py:133,187` | `Any` in hook params | Use Protocol or specific types |
+| `extract.py` + `tdnv.py` | `_select_token_activations` duplicated | Extract to utils.py |
+| `extract.py`, `apply_steering.py`, `tdnv.py` | `print()` for CLI | Use logging |
+
+## 11) Pipeline Workflow
 
 **ALWAYS follow this pipeline for every task:**
 
@@ -98,10 +145,49 @@ Enforced by ruff (see pyproject.toml):
 1. READ PLAN    → Read PLAN.md, parse tasks, understand requirements
 2. CODE         → Implement following conventions in this file
 3. VERIFY       → Run: ruff check, ruff format, mypy, pytest (ALL must pass)
-4. MOVE PLAN    → Complete → docs/exec-plans/completed/, In-progress → active/
+4. MOVE PLAN    → ./scripts/complete_plan.sh <plan_name>
 5. UPDATE DOCS  → PLANS.md, QUALITY_SCORE.md, ARCHITECTURE.md as needed
 6. COMMIT/PR    → When logical unit complete + all checks pass
 ```
+
+### Plan Completion
+
+When a plan from `.sisyphus/plans/` is complete:
+
+```bash
+# Move plan to docs/exec-plans/completed/
+./scripts/complete_plan.sh <plan_name>
+
+# Example:
+./scripts/complete_plan.sh steering-concepts-pipeline
+```
+
+### Extraction Scripts
+
+Run steering vector extractions:
+
+```bash
+# Single extraction via Python module
+uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
+uv run python -m steering_geometry.extract --concept toxicity --method pca
+
+# Full pipeline (extract → steer → evaluate)
+./scripts/run_pipeline.sh -c honesty,toxicity
+
+# Extraction only
+./scripts/run_pipeline.sh -c all --extract-only
+
+# Multiple models
+./scripts/run_pipeline.sh -c honesty -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
+
+# Quick single-layer extraction
+./scripts/quick/quick_extract.sh -c honesty -l 0.7
+```
+
+### Directory Rules
+
+- **scripts/** → Shell scripts (`.sh`) ONLY. No Python files.
+- **src/steering_geometry/** → All Python modules (`.py`).
 
 ### Commit Criteria
 
@@ -122,7 +208,7 @@ Open PR when feature complete:
 - Verification output included
 - Risks documented
 
-## 10) Architecture Cross-References
+## 12) Architecture Cross-References
 
 - System design: `ARCHITECTURE.md`
 - Design docs: `docs/design-docs/`

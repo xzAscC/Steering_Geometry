@@ -1,71 +1,53 @@
-# AI Research Template
+# Steering Geometry - AI Steering Vector Extraction Framework
 
-A Python template optimized for AI-assisted research projects. Designed for experiments, prototypes, and research codebases where AI agents handle implementation.
+A research framework for extracting and analyzing steering vectors in Large Language Models (LLMs) to understand and control model behavior.
 
 ## What This Is
 
-This template provides a complete foundation for **research projects** where AI agents (Claude Code, Opencode, Aider, etc.) handle implementation. It emphasizes:
+This project provides tools for extracting activation steering vectors from LLMs across five key behavioral concepts:
 
-- **Rapid experimentation** — Minimal boilerplate, quick iteration cycles
-- **Reproducibility** — Structured documentation for experiments and results
-- **AI-friendly structure** — Clear conventions that AI agents understand
-- **Quality tracking** — Built-in quality metrics for research code
+- **Honesty** - Encouraging truthful responses and reducing hallucinations
+- **Sycophancy** - Identifying and mitigating the tendency to agree with user misconceptions
+- **Toxicity** - Detecting and steering away from harmful or offensive content generation
+- **Sentiment** - Controlling the emotional tone and valence of model outputs
+- **Refusal** - Understanding the mechanisms behind model refusals and safety boundaries
 
 ## Quick Start
 
-1. **Use this template**
-   - Click "Use this template" on GitHub, or
-   - Clone: `git clone <repo-url>`
-
-2. **Rename the package**
-   ```bash
-   # Replace 'ai_research_template' with your project name
-   find . -type f -name "*.py" -o -name "*.toml" | xargs sed -i 's/ai_research_template/your_project_name/g'
-   mv src/ai_research_template src/your_project_name
-   ```
-
-3. **Install dependencies**
+1. **Install dependencies**
    ```bash
    uv sync
    ```
 
-4. **Verify everything works**
+2. **Verify installation**
    ```bash
    uv run ruff check src/ tests/
    uv run mypy src/
    uv run pytest
    ```
 
-## What's Included
+3. **Run extraction**
+   ```bash
+   # Example: Extract steering vectors for honesty with default model
+   uv run python -m steering_geometry.extract --concept honesty
+   
+   # Use specific models (Qwen, Gemma)
+   uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3-1.7B"
+   uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
+   uv run python -m steering_geometry.extract --concept honesty --model "google/gemma-2-2b"
+   
+   # Or use the batch script for multiple extractions
+   ./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
+   ```
+   
+   Supported concepts:
+   - `honesty` - Honesty steering vectors
+   - `sycophancy` - Sycophancy steering vectors
+   - `toxicity` - Toxicity steering vectors
+   - `sentiment` - Sentiment steering vectors
+   - `refusal` - Refusal steering vectors
 
-- **AGENTS.md** — AI agent operational policy (commands, escalation rules)
-- **ARCHITECTURE.md** — System design template
-- **docs/** — Documentation structure (design-docs, exec-plans, quality tracking)
-- **pyproject.toml** — Configured with ruff, mypy, pytest
-- **.github/** — CI workflow, PR template, issue templates
-
-## Research Workflow
-
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Define     │───▶│  Document   │───▶│  AI reads   │
-│  hypothesis │    │  experiment │    │    docs     │
-└─────────────┘    └─────────────┘    └─────────────┘
-                                             │
-                                             ▼
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Review     │◀───│  AI opens   │◀───│  AI codes,  │
-│  results    │    │     PR      │    │  tests,     │
-└─────────────┘    └─────────────┘    │  verifies   │
-       │                              └─────────────┘
-       ▼
-┌─────────────┐
-│  Document   │───▶ Repeat for next experiment
-│  findings   │
-└─────────────┘
-```
-
-## File Structure
+## Project Structure
 
 ```
 .
@@ -73,39 +55,102 @@ This template provides a complete foundation for **research projects** where AI 
 ├── ARCHITECTURE.md              # System design
 ├── README.md                    # This file
 ├── pyproject.toml               # Project config
-├── .python-version              # Python version
-├── src/ai_research_template/    # Source code
+├── .python-version              # Python version (3.12+)
+├── src/steering_geometry/       # Source code (Python modules ONLY)
+│   ├── types.py                 # Core type definitions
+│   ├── config.py                # Configuration management
+│   ├── models.py                # Model loading and activation hooks
+│   ├── extract.py               # Unified extraction (all concepts)
+│   └── apply_steering.py        # Apply steering vectors to model
 ├── tests/                       # Test files
-├── docs/
-│   ├── design-docs/             # Design documents
-│   ├── exec-plans/              # Execution plans
-│   ├── PLANS.md                 # Project roadmap
-│   └── QUALITY_SCORE.md         # Quality tracking
-└── .github/
-    ├── workflows/ci.yml         # CI pipeline
-    ├── pull_request_template.md
-    └── ISSUE_TEMPLATE/          # Issue templates
+├── scripts/                     # Shell scripts ONLY (no .py files)
+│   ├── run_extractions.sh       # Batch extraction orchestrator
+│   └── complete_plan.sh         # Plan completion utility
+├── data/                        # Raw datasets and contrast pairs
+├── plot/                        # Generated visualizations of activations
+├── assets/                      # Extracted steering vectors and results
+└── docs/
+    ├── design-docs/             # Design documents
+    ├── exec-plans/              # Execution plans
+    ├── PLANS.md                 # Project roadmap
+    └── QUALITY_SCORE.md         # Quality tracking
 ```
 
-## Renaming Guide
+## Directory Usage
 
-After cloning, replace all instances of `ai_research_template`:
+- **src/** - All Python modules (importable package)
+- **scripts/** - Shell scripts only (orchestration, not imported)
+- **data/** - Input datasets and contrast pairs for different concepts
+- **plot/** - Visualizations of activation spaces and steering effects
+- **assets/** - Saved steering vectors and evaluation reports
+- **docs/** - Design documents, execution plans, and quality tracking
 
-1. **pyproject.toml**: Change `name = "ai_research_template"`
-2. **src/ai_research_template/**: Rename directory
-3. **Imports**: Update all `from ai_research_template` imports
-4. **AGENTS.md**: Update package references
+## Supported Models
 
-## Research-Specific Features
+This framework works with any causal language model from HuggingFace Transformers. Recommended models for steering vector extraction:
 
-- **Experiment tracking**: Use `docs/design-docs/` for hypothesis and experiment documentation
-- **Quality metrics**: `docs/QUALITY_SCORE.md` tracks code quality over time
-- **Execution plans**: `docs/exec-plans/` structure your research iterations
+### Qwen Family
+- **Qwen/Qwen3-1.7B** - Lightweight Qwen3 model (~1.7B parameters)
+- **Qwen/Qwen3.5-2B** - Improved Qwen3.5 (~2B parameters)
+- **Qwen/Qwen3.5-4B** - Larger Qwen3.5 model (~4B parameters)
 
-## Related Templates
+### Gemma Family
+- **google/gemma-2-2b** - Gemma 2 model (~2B parameters)
 
-- **ai-general-template** — For general-purpose projects (coming soon)
+### Usage Example
+```bash
+# Extract with Qwen3.5
+uv run python -m steering_geometry.extract \
+    --concept honesty \
+    --model "Qwen/Qwen3.5-2B" \
+    --num-pairs 500 \
+    --output data/vectors/
+
+# Extract with Gemma 2
+uv run python -m steering_geometry.extract \
+    --concept toxicity \
+    --model "google/gemma-2-2b" \
+    --method pca \
+    --output data/vectors/
+
+# Batch extraction via shell script
+./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
+```
+
+## Development
+
+### Code Quality
+
+This project uses:
+- **ruff** for linting and formatting
+- **mypy** for type checking
+- **pytest** for testing
+
+### Running Checks
+
+```bash
+# Lint check
+uv run ruff check src/ tests/
+
+# Format check
+uv run ruff format --check src/ tests/
+
+# Format fix
+uv run ruff format src/ tests/
+
+# Type check
+uv run mypy src/
+
+# Run all tests
+uv run pytest
+
+# Run single test file
+uv run pytest tests/test_hello.py
+
+# Run test by name
+uv run pytest -k "test_name"
+```
 
 ## License
 
-[Add your license here]
+MIT License - see LICENSE file for details
