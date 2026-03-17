@@ -1,10 +1,10 @@
 {
-  "active_plan": null,
-  "started_at": null,
-  "session_ids": [],
-  "plan_name": null,
-  "agent": null,
-  "worktree_path": null,
-  "last_completed": "apply-steering",
-  "completed_at": "2026-03-07T13:10:00.000Z"
+  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/unembed-cosine-sim.md",
+  "started_at": "2026-03-16T22:45:09.309Z",
+  "session_ids": [
+    "ses_3073d10c3ffebxWFE8WF628j8H"
+  ],
+  "plan_name": "unembed-cosine-sim",
+  "agent": "atlas",
+  "worktree_path": "/home/xzascc/Documents/code/Steering_Geometry"
 }

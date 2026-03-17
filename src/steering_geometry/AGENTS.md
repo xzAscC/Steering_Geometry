@@ -1,5 +1,6 @@
 # src/steering_geometry/
 
+**Generated:** 2026-03-14
 **Package:** `steering_geometry` — Steering vector extraction for LLM representation engineering
 
 ## OVERVIEW

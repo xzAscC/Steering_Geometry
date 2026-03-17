@@ -1,6 +1,6 @@
 """Core type definitions for steering geometry package."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypedDict
 
 from torch import Tensor
@@ -213,6 +213,132 @@ class TDNVResult:
     layerwise_energy: list[float]
 
 
+@dataclass
+class TokenRecord:
+    """Record for a single token with its activation data.
+
+    Used to track individual tokens during discriminative token analysis,
+    capturing both the token identity and its activation pattern.
+
+    Attributes:
+        token_id: Integer token ID from the tokenizer vocabulary.
+        token_text: Decoded text representation of the token.
+        activation: Activation tensor for this token at a specific layer.
+        contrast_pair_idx: Index of the contrast pair this token belongs to.
+        position_in_sequence: Position of this token within its sequence.
+        label: Label indicating "positive" or "negative" class membership.
+        score: Discriminative score (higher = more discriminative for its class).
+    """
+
+    token_id: int
+    token_text: str
+    activation: Tensor
+    contrast_pair_idx: int
+    position_in_sequence: int
+    label: str
+    score: float = 0.0
+
+
+@dataclass
+class DiscriminativeTokenResult:
+    """Results from discriminative token selection at a single layer.
+
+    Contains the top-k most discriminative tokens for both positive and
+    negative classes, useful for visualization and analysis.
+
+    Attributes:
+        concept: The behavioral concept being analyzed.
+        layer: Layer index where tokens were extracted.
+        top_positive: Top tokens that discriminate toward positive class.
+        top_negative: Top tokens that discriminate toward negative class.
+    """
+
+    concept: str
+    layer: int
+    top_positive: list[TokenRecord] = field(default_factory=list)
+    top_negative: list[TokenRecord] = field(default_factory=list)
+
+
+@dataclass
+class ProbeLayerResult:
+    """Probe classification metrics for a single layer.
+
+    Contains accuracy and AUC scores from training a linear probe to
+    classify positive vs negative tokens at a specific layer.
+
+    Attributes:
+        layer_idx: Index of the layer where the probe was trained.
+        train_accuracy: Classification accuracy on training set.
+        test_accuracy: Classification accuracy on held-out test set.
+        auc_score: Area under ROC curve for binary classification.
+    """
+
+    layer_idx: int
+    train_accuracy: float
+    test_accuracy: float
+    auc_score: float
+
+
+@dataclass
+class ProbeExperimentResult:
+    """Complete probe experiment results across all layers.
+
+    Aggregates layer-wise probe metrics for analyzing how well different
+    layers encode the target concept.
+
+    Attributes:
+        concept: The behavioral concept being probed.
+        model_name: Name/identifier of the model analyzed.
+        tokens_per_class: Number of tokens sampled per class for probing.
+        layer_results: List of probe metrics for each analyzed layer.
+    """
+
+    concept: str
+    model_name: str
+    tokens_per_class: int
+    layer_results: list[ProbeLayerResult] = field(default_factory=list)
+
+
+@dataclass
+class UnembedAnalysisResult:
+    """Single steering vector unembedding analysis result.
+
+    Contains the top tokens and their cosine similarities when projecting
+    a steering vector through the unembedding matrix.
+
+    Attributes:
+        layer: Layer fraction where the steering vector was extracted (0.1-1.0).
+        method: Extraction method used (e.g., "diff_means", "discriminative").
+        tokens: Top-5 decoded tokens from unembedding projection.
+        similarities: Cosine similarity scores for each token.
+    """
+
+    layer: float
+    method: str
+    tokens: list[str]
+    similarities: list[float]
+
+
+@dataclass
+class ConceptAnalysisResult:
+    """Full concept analysis result across multiple layers.
+
+    Aggregates unembedding analysis results for a single concept and model,
+    organized by layer fraction for comparison across extraction methods.
+
+    Attributes:
+        concept: The behavioral concept analyzed (e.g., "honesty", "toxicity").
+        model: Name/identifier of the model.
+        method: Extraction method used for all results.
+        results: Mapping from layer key (e.g., "layer_0.5") to analysis result.
+    """
+
+    concept: str
+    model: str
+    method: str
+    results: dict[str, UnembedAnalysisResult]
+
+
 __all__ = [
     "ContrastPair",
     "ContrastPairMetadata",
@@ -225,4 +351,10 @@ __all__ = [
     "EvaluationMetadata",
     "TDNVLayerMetrics",
     "TDNVResult",
+    "TokenRecord",
+    "DiscriminativeTokenResult",
+    "ProbeLayerResult",
+    "ProbeExperimentResult",
+    "UnembedAnalysisResult",
+    "ConceptAnalysisResult",
 ]

@@ -178,3 +178,28 @@ def mock_hooked_model(monkeypatch: pytest.MonkeyPatch) -> HookedModel:
 
     config = ModelConfig(model_name="sshleifer/tiny-gpt2", device="cpu", dtype="float32")
     return HookedModel(config)
+
+
+# =============================================================================
+# Fixtures for unembedding analysis tests
+# =============================================================================
+
+
+@pytest.fixture
+def mock_unembedding_matrix() -> Tensor:
+    return torch.randn(100, 64, dtype=torch.float32)
+
+
+@pytest.fixture
+def sample_unembed_vector() -> Tensor:
+    return torch.randn(64, dtype=torch.float32)
+
+
+@pytest.fixture
+def mock_tokenizer() -> FakeTokenizer:
+    return FakeTokenizer()
+
+
+@pytest.fixture
+def mock_special_token_ids() -> set[int]:
+    return {0, 1, 2}

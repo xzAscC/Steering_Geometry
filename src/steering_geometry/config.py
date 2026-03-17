@@ -1,6 +1,7 @@
 """Configuration dataclasses for steering geometry package."""
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -141,6 +142,57 @@ class TDNVConfig:
     read_token_index: int = -1
 
 
+@dataclass
+class TokenAnalysisConfig:
+    """Configuration for discriminative token analysis experiments.
+
+    Attributes:
+        top_k: Number of top tokens to select per layer for analysis.
+        tokens_per_class: Number of tokens to sample per class (positive/negative).
+        test_size: Fraction of tokens to use for testing (0.0-1.0).
+        layers: Relative layer positions (0.0-1.0) to analyze.
+        batch_size: Batch size for processing activations.
+        random_seed: Random seed for reproducible token sampling.
+    """
+
+    top_k: int = 50
+    tokens_per_class: int = 10000
+    test_size: float = 0.2
+    layers: list[float] = field(default_factory=lambda: [i / 9 for i in range(10)])
+    batch_size: int = 8
+    random_seed: int = 42
+
+
+@dataclass
+class StabilityComparisonConfig:
+    """Configuration for steering vector stability comparison experiments.
+
+    Attributes:
+        concept: Name of the concept to analyze (e.g., "sentiment", "honesty").
+        num_tokens: Number of tokens to use for extraction.
+        num_runs: Number of extraction runs for comparison (must be >= 2).
+        layers: Relative layer positions (0.0-1.0) to extract activations from.
+        top_k: Number of top tokens for discriminative method.
+        model_name: Name or path of the model to load.
+        output_dir: Directory to save results.
+    """
+
+    concept: str = "sentiment"
+    num_tokens: int = 10000
+    num_runs: int = 3
+    layers: list[float] = field(
+        default_factory=lambda: [i / 10 for i in range(10)]
+    )  # 0.0, 0.1, ..., 0.9
+    top_k: int = 30
+    model_name: str = "Qwen/Qwen3-1.7B"
+    output_dir: Path = field(default_factory=lambda: Path("outputs"))
+
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        if self.num_runs < 2:
+            raise ValueError(f"num_runs must be at least 2 for comparison, got {self.num_runs}")
+
+
 __all__ = [
     "ModelConfig",
     "ExtractionConfig",
@@ -150,4 +202,6 @@ __all__ = [
     "MMLUConfig",
     "EvaluationConfig",
     "TDNVConfig",
+    "TokenAnalysisConfig",
+    "StabilityComparisonConfig",
 ]

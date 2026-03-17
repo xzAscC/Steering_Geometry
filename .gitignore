@@ -32,12 +32,11 @@ htmlcov/
 .env
 .env.local
 
-# Sisyphus evidence
-.sisyphus/
 
 # Project-specific directories
 data/
 # Uncomment to ignore generated files:
-# plot/*.png
-# plot/*.pdf
-# assets/*.json
+assets/
+plot/
+outputs/
+

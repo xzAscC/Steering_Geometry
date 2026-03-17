@@ -1,5 +1,6 @@
 # tests/
 
+**Generated:** 2026-03-14
 **Framework:** pytest — unit and integration tests for steering_geometry
 
 ## OVERVIEW

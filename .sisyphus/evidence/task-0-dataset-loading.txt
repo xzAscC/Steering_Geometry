@@ -1,0 +1,24 @@
+# Task 0 Validation: Dataset Loading
+
+**Date:** 2026-03-13
+**Status:** ✅ PASSED
+
+## Validation: All datasets load small samples (10 pairs) successfully
+
+### Test Results:
+
+```
+honesty: Loaded 10 pairs ✅
+sentiment: Loaded 10 pairs ✅
+toxicity: Loaded 10 pairs ✅
+sycophancy: Loaded 10 pairs ✅
+refusal: Loaded 10 pairs ✅
+```
+
+### Test Command Used:
+```bash
+uv run python -c "from steering_geometry.extract import load_contrast_pairs; pairs = load_contrast_pairs('CONCEPT', 10); print(f'CONCEPT: Loaded {len(pairs)} pairs')"
+```
+
+## Result:
+✅ All 5 concepts successfully load datasets with small samples (10 pairs)
