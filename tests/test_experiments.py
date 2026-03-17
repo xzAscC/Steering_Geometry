@@ -7,7 +7,7 @@ import pytest
 import torch
 from numpy import ndarray
 
-from steering_geometry.experiments import (
+from steering_geometry.vector_analysis import (
     cap_examples,
     compute_cosine_similarity_matrix,
     load_vector,

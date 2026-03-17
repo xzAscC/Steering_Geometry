@@ -1,6 +1,7 @@
 """Configuration dataclasses for steering geometry package."""
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -162,6 +163,36 @@ class TokenAnalysisConfig:
     random_seed: int = 42
 
 
+@dataclass
+class StabilityComparisonConfig:
+    """Configuration for steering vector stability comparison experiments.
+
+    Attributes:
+        concept: Name of the concept to analyze (e.g., "sentiment", "honesty").
+        num_tokens: Number of tokens to use for extraction.
+        num_runs: Number of extraction runs for comparison (must be >= 2).
+        layers: Relative layer positions (0.0-1.0) to extract activations from.
+        top_k: Number of top tokens for discriminative method.
+        model_name: Name or path of the model to load.
+        output_dir: Directory to save results.
+    """
+
+    concept: str = "sentiment"
+    num_tokens: int = 10000
+    num_runs: int = 3
+    layers: list[float] = field(
+        default_factory=lambda: [i / 10 for i in range(10)]
+    )  # 0.0, 0.1, ..., 0.9
+    top_k: int = 30
+    model_name: str = "Qwen/Qwen3-1.7B"
+    output_dir: Path = field(default_factory=lambda: Path("outputs"))
+
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        if self.num_runs < 2:
+            raise ValueError(f"num_runs must be at least 2 for comparison, got {self.num_runs}")
+
+
 __all__ = [
     "ModelConfig",
     "ExtractionConfig",
@@ -172,4 +203,5 @@ __all__ = [
     "EvaluationConfig",
     "TDNVConfig",
     "TokenAnalysisConfig",
+    "StabilityComparisonConfig",
 ]

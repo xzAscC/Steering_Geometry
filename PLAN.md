@@ -1,9 +1,9 @@
 # Current Task
 
-## Completed: Tdnv Metrics
+## Completed: Unembed Cosine Sim
 
 **Status**: Completed
-**Exec Plan**: [docs/exec-plans/completed/tdnv-metrics.md](docs/exec-plans/completed/tdnv-metrics.md)
+**Exec Plan**: [docs/exec-plans/completed/unembed-cosine-sim.md](docs/exec-plans/completed/unembed-cosine-sim.md)
 
 ### Summary
 
