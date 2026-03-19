@@ -6,7 +6,7 @@
 # cosine similarity heatmaps across varying example counts and layers.
 #
 # Usage:
-#   ./scripts/experiments/run_diff_means_heatmaps.sh
+#   ./scripts/vector_analysis/run_diff_means_heatmaps.sh
 #
 # Concepts: honesty, sentiment, toxicity, sycophancy, refusal
 # Example counts: [10, 30, 100, 300, 1000, 3000, 6000, 10000] (capped per concept)

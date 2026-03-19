@@ -6,7 +6,7 @@
 # cosine similarity heatmaps across varying K values and layers.
 #
 # Usage:
-#   ./scripts/experiments/run_discriminative_heatmaps.sh
+#   ./scripts/vector_analysis/run_discriminative_heatmaps.sh
 #
 # Concepts: honesty, sentiment, toxicity, sycophancy, refusal
 # K values: [16, 32, 64, 128, 256]

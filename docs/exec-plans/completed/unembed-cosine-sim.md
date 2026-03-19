@@ -55,7 +55,7 @@
 ### Concrete Deliverables
 - `src/steering_geometry/unembed_analysis.py` - 核心分析模块
 - `src/steering_geometry/models.py` - 扩展 `HookedModel.get_unembedding_matrix()`
-- `scripts/run_unembed_analysis.sh` - 批量分析脚本
+- `scripts/unembed_analysis/run_unembed_analysis.sh` - 批量分析脚本
 - `outputs/unembed_analysis/json/*.json` - 结果文件
 - `outputs/unembed_analysis/plots/*.pdf` - 可视化图表
 
@@ -698,11 +698,11 @@ Wave 4 (Integration - depends on Wave 3):
 - [x] 12. Create batch analysis script
 
   **What to do**:
-  - 创建 `scripts/run_unembed_analysis.sh`
+  - 创建 `scripts/unembed_analysis/run_unembed_analysis.sh`
   - 循环运行所有 5 concepts × 2 methods = 10 个分析
   - 参数：模型 Qwen/Qwen3-1.7B，10 层 (0.1-1.0)
   - 输出汇总信息到控制台
-  - 遵循 `scripts/run_extractions.sh` 的模式
+  - 遵循 `scripts/pipeline/run_pipeline.sh` 的模式
 
   **Must NOT do**:
   - 不要在脚本中放 Python 代码
@@ -719,8 +719,7 @@ Wave 4 (Integration - depends on Wave 3):
   - **Blocked By**: Tasks 8-11
 
   **References**:
-  - `scripts/run_extractions.sh` - 批量脚本模式
-  - `scripts/run_pipeline.sh` - 参数处理模式
+- `scripts/pipeline/run_pipeline.sh` - 批量脚本模式/参数处理模式
 
   **Acceptance Criteria**:
   - [ ] 脚本可执行 (`chmod +x`)
@@ -732,7 +731,7 @@ Wave 4 (Integration - depends on Wave 3):
   Scenario: Batch script runs all concepts
     Tool: Bash
     Steps:
-      1. Run `./scripts/run_unembed_analysis.sh -c all -m "Qwen/Qwen3-1.7B" -l "0.5"`
+      1. Run `./scripts/unembed_analysis/run_unembed_analysis.sh -c all -m "Qwen/Qwen3-1.7B" -l "0.5"`
       2. Wait for completion
       3. Count JSON files in outputs/unembed_analysis/json/
     Expected Result: 10 JSON files (5 concepts × 2 methods)

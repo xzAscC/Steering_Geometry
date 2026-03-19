@@ -118,10 +118,10 @@ Enforced by ruff (see pyproject.toml):
 | Core types | `src/steering_geometry/types.py` | `ContrastPair`, `SteeringVector`, etc. |
 | Config classes | `src/steering_geometry/config.py` | `ModelConfig`, `ExtractionConfig`, etc. |
 | Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
-| Pipeline scripts | `scripts/run_pipeline.sh` | Full orchestration |
+| Pipeline scripts | `scripts/pipeline/run_pipeline.sh` | Full orchestration |
 | Quick scripts | `scripts/quick/` | Single-layer operations |
 | Vector analysis | `src/steering_geometry/vector_analysis.py` | `run_diff_means_experiment()`, `run_discriminative_experiment()` |
-| Experiment scripts | `scripts/experiments/` | Cosine similarity heatmaps |
+| Vector analysis scripts | `scripts/vector_analysis/` | Cosine similarity heatmaps |
 
 ## 10) Anti-Patterns
 
@@ -174,13 +174,13 @@ uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3
 uv run python -m steering_geometry.extract --concept toxicity --method pca
 
 # Full pipeline (extract → steer → evaluate)
-./scripts/run_pipeline.sh -c honesty,toxicity
+./scripts/pipeline/run_pipeline.sh -c honesty,toxicity
 
 # Extraction only
-./scripts/run_pipeline.sh -c all --extract-only
+./scripts/pipeline/run_pipeline.sh -c all --extract-only
 
 # Multiple models
-./scripts/run_pipeline.sh -c honesty -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
+./scripts/pipeline/run_pipeline.sh -c honesty -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
 
 # Quick single-layer extraction
 scripts/quick/quick_extract.sh -c honesty -l 0.7
@@ -192,10 +192,10 @@ Run cosine similarity experiments to analyze steering vector stability:
 
 ```bash
 # Differential means experiment (varying example counts)
-./scripts/experiments/run_diff_means_heatmaps.sh
+./scripts/vector_analysis/run_diff_means_heatmaps.sh
 
 # Discriminative token selection experiment (varying K values)
-./scripts/experiments/run_discriminative_heatmaps.sh
+./scripts/vector_analysis/run_discriminative_heatmaps.sh
 ```
 
 **Parameters:**

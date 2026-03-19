@@ -37,7 +37,7 @@ This project provides tools for extracting activation steering vectors from LLMs
    uv run python -m steering_geometry.extract --concept honesty --model "google/gemma-2-2b"
    
    # Or use the batch script for multiple extractions
-   ./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
+   ./scripts/pipeline/run_pipeline.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
    ```
    
    Supported concepts:
@@ -64,7 +64,8 @@ This project provides tools for extracting activation steering vectors from LLMs
 │   └── apply_steering.py        # Apply steering vectors to model
 ├── tests/                       # Test files
 ├── scripts/                     # Shell scripts ONLY (no .py files)
-│   ├── run_extractions.sh       # Batch extraction orchestrator
+│   ├── pipeline/                # Pipeline scripts
+│   │   └── run_pipeline.sh     # Batch extraction orchestrator
 │   └── complete_plan.sh         # Plan completion utility
 ├── data/                        # Raw datasets and contrast pairs
 ├── plot/                        # Generated visualizations of activations
@@ -114,7 +115,7 @@ uv run python -m steering_geometry.extract \
     --output data/vectors/
 
 # Batch extraction via shell script
-./scripts/run_extractions.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
+./scripts/pipeline/run_pipeline.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
 ```
 
 ## Development

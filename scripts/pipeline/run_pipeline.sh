@@ -5,11 +5,11 @@
 # Orchestrates the full pipeline: Extract → Steer → Evaluate
 #
 # Usage:
-#   ./scripts/run_pipeline.sh                                    # Full pipeline, default model
-#   ./scripts/run_pipeline.sh -c honesty,toxicity                # Specific concepts
-#   ./scripts/run_pipeline.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
-#   ./scripts/run_pipeline.sh --skip-extract                     # Skip extraction step
-#   ./scripts/run_pipeline.sh --eval-only                        # Only run evaluation
+#   ./scripts/pipeline/run_pipeline.sh                                    # Full pipeline, default model
+#   ./scripts/pipeline/run_pipeline.sh -c honesty,toxicity                # Specific concepts
+#   ./scripts/pipeline/run_pipeline.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
+#   ./scripts/pipeline/run_pipeline.sh --skip-extract                     # Skip extraction step
+#   ./scripts/pipeline/run_pipeline.sh --eval-only                        # Only run evaluation
 #
 # Pipeline Steps:
 #   1. Extract steering vectors from contrast pairs
@@ -20,7 +20,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Available options
 ALL_CONCEPTS=("honesty" "sycophancy" "toxicity" "sentiment" "refusal")
