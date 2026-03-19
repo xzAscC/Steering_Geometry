@@ -1,10 +1,11 @@
 {
-  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/unembed-cosine-sim.md",
-  "started_at": "2026-03-16T22:45:09.309Z",
+  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/refactor-scripts-structure.md",
+  "started_at": "2026-03-19T03:29:51.252Z",
+  "completed_at": "2026-03-19T04:15:00.000Z",
   "session_ids": [
-    "ses_3073d10c3ffebxWFE8WF628j8H"
+    "ses_2fbf0820cffeKpLoG2xUinZF1j"
   ],
-  "plan_name": "unembed-cosine-sim",
-  "agent": "atlas",
-  "worktree_path": "/home/xzascc/Documents/code/Steering_Geometry"
+  "plan_name": "refactor-scripts-structure",
+  "status": "completed",
+  "agent": "atlas"
 }
