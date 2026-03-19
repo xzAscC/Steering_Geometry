@@ -12,10 +12,10 @@
 #   (+ Layerwise Energy)
 #
 # Usage:
-#   ./scripts/run_tdnv.sh                                    # All concepts, default model
-#   ./scripts/run_tdnv.sh -c honesty,toxicity                # Specific concepts
-#   ./scripts/run_tdnv.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
-#   ./scripts/run_tdnv.sh -c honesty --dry-run               # Dry run (no model loading)
+#   ./scripts/tdnv/run_tdnv.sh                                    # All concepts, default model
+#   ./scripts/tdnv/run_tdnv.sh -c honesty,toxicity                # Specific concepts
+#   ./scripts/tdnv/run_tdnv.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
+#   ./scripts/tdnv/run_tdnv.sh -c honesty --dry-run               # Dry run (no model loading)
 #
 # Output:
 #   - JSON: data/tdnv/{concept}_{model}.json
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 ALL_CONCEPTS=("honesty" "sycophancy" "toxicity" "sentiment" "refusal")
 ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3.5-2B" "Qwen/Qwen3.5-4B" "google/gemma-2-2b")

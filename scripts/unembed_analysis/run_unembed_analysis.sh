@@ -5,10 +5,10 @@
 # Runs unembedding analysis across all concept × method combinations
 #
 # Usage:
-#   ./scripts/run_unembed_analysis.sh                          # All concepts × all methods
-#   ./scripts/run_unembed_analysis.sh -c honesty,toxicity      # Specific concepts
-#   ./scripts/run_unembed_analysis.sh -m "Qwen/Qwen3.5-2B"     # Specific model
-#   ./scripts/run_unembed_analysis.sh -l "0.5,0.6,0.7"         # Specific layers
+#   ./scripts/unembed_analysis/run_unembed_analysis.sh                          # All concepts × all methods
+#   ./scripts/unembed_analysis/run_unembed_analysis.sh -c honesty,toxicity      # Specific concepts
+#   ./scripts/unembed_analysis/run_unembed_analysis.sh -m "Qwen/Qwen3.5-2B"     # Specific model
+#   ./scripts/unembed_analysis/run_unembed_analysis.sh -l "0.5,0.6,0.7"         # Specific layers
 #
 # Analysis Matrix:
 #   Concepts:  honesty, sentiment, toxicity, sycophancy, refusal
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Available options
 ALL_CONCEPTS=("honesty" "sentiment" "toxicity" "sycophancy" "refusal")
