@@ -27,8 +27,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-ALL_CONCEPTS=("honesty" "sycophancy" "toxicity" "sentiment" "refusal")
-ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3.5-2B" "Qwen/Qwen3.5-4B" "google/gemma-2-2b")
+ALL_CONCEPTS=("honesty" "sycophancy")
+ALL_MODELS=("Qwen/Qwen3-1.7B")
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -87,8 +87,8 @@ list_available() {
     exit 0
 }
 
-CONCEPTS=""
-MODELS="Qwen/Qwen3.5-2B"
+CONCEPTS="honesty"
+MODELS="Qwen/Qwen3-1.7B"
 NUM_PAIRS=500
 OUTPUT_DIR="$PROJECT_ROOT/data/tdnv"
 PLOT_DIR="$PROJECT_ROOT/plot/tdnv"
@@ -167,14 +167,15 @@ echo -e "  ${GREEN}2. NormNum${NC}  - Normalized within-topic variance"
 echo -e "  ${GREEN}3. NormDen${NC}  - Normalized between-topic distance"
 echo ""
 
-DRY_RUN_FLAG=""
+# Build optional args array for safe interpolation
+TDNV_ARGS=()
 if [[ "$DRY_RUN" == true ]]; then
-    DRY_RUN_FLAG="--dry-run"
+    TDNV_ARGS+=(--dry-run)
 fi
 
 for model in "${MODEL_ARRAY[@]}"; do
     for concept in "${CONCEPT_ARRAY[@]}"; do
-        ((current++))
+        ((++current))
         echo -e "${GREEN}[$current/$total] Analyzing: $concept × $model${NC}"
         echo "----------------------------------------"
         
@@ -184,7 +185,7 @@ for model in "${MODEL_ARRAY[@]}"; do
             --num-pairs "$NUM_PAIRS" \
             --output "$OUTPUT_DIR" \
             --plot-dir "$PLOT_DIR" \
-            $DRY_RUN_FLAG 2>&1 | while read -r line; do
+            "${TDNV_ARGS[@]}" 2>&1 | while read -r line; do
                 echo "  $line"
             done
         

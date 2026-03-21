@@ -349,9 +349,11 @@ def run_discriminative_experiment(
 
     output_dir = Path(output_dir)
 
+    # Use 100x max(k_values) for sufficient token diversity when varying top_k
+    num_pairs = max(k_values) * 100
+
     logger.info("Loading contrast pairs for concept '%s'", concept)
-    # Use a large num_pairs since we're varying K (top_k), not the number of examples
-    all_pairs = load_contrast_pairs(concept, num_pairs=1000)
+    all_pairs = load_contrast_pairs(concept, num_pairs=num_pairs)
     logger.info("Loaded %d contrast pairs for concept '%s'", len(all_pairs), concept)
 
     logger.info("Loading model '%s'", model_name)
@@ -562,7 +564,7 @@ def save_results_json(
 
 
 def generate_stability_heatmap(
-    similarity_matrix: ndarray,
+    similarity_matrix: ndarray | list[list[float]],
     layer: float,
     method: str,
     output_path: Path,
@@ -570,18 +572,20 @@ def generate_stability_heatmap(
     """Generate heatmap visualization for stability results.
 
     Args:
-        similarity_matrix: Pairwise cosine similarity matrix.
+        similarity_matrix: Pairwise cosine similarity matrix (ndarray or list from JSON).
         layer: Layer fraction for title.
         method: Method name for title.
         output_path: Path to save PDF.
     """
     ensure_dir(output_path.parent)
 
-    n_runs = similarity_matrix.shape[0]
+    # Convert to numpy array if coming from JSON (list of lists)
+    sim_array = np.array(similarity_matrix)
+    n_runs = sim_array.shape[0]
     labels = [f"Run {i + 1}" for i in range(n_runs)]
     title = f"Stability: {method} - Layer {layer:.2f}"
 
-    plot_heatmap(similarity_matrix, labels, title, output_path)
+    plot_heatmap(sim_array, labels, title, output_path)
 
 
 def run_stability_comparison_experiment(
