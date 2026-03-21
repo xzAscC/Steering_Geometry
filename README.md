@@ -53,23 +53,44 @@ This project provides tools for extracting activation steering vectors from LLMs
 .
 ├── AGENTS.md                    # AI agent instructions
 ├── ARCHITECTURE.md              # System design
+├── SPEC.md                      # Technical specification
 ├── README.md                    # This file
 ├── pyproject.toml               # Project config
 ├── .python-version              # Python version (3.12+)
 ├── src/steering_geometry/       # Source code (Python modules ONLY)
+│   ├── __init__.py              # Package exports
 │   ├── types.py                 # Core type definitions
 │   ├── config.py                # Configuration management
 │   ├── models.py                # Model loading and activation hooks
-│   ├── extract.py               # Unified extraction (all concepts)
-│   └── apply_steering.py        # Apply steering vectors to model
+│   ├── extract.py               # Steering vector extraction
+│   ├── apply_steering.py        # Apply steering + evaluation (JudgeEvaluator, MMLUEvaluator)
+│   ├── stability_comparison.py  # Vector stability experiments
+│   ├── token_analysis.py        # Token-level analysis
+│   ├── unembed_analysis.py      # Unembedding analysis
+│   ├── tdnv.py                  # TDNV separability metrics
+│   └── utils.py                 # Shared utilities
 ├── tests/                       # Test files
+│   ├── conftest.py              # Pytest fixtures
+│   ├── test_apply_steering.py   # Steering integration tests
+│   └── unit/                    # Unit tests
 ├── scripts/                     # Shell scripts ONLY (no .py files)
 │   ├── pipeline/                # Pipeline scripts
 │   │   └── run_pipeline.sh     # Batch extraction orchestrator
+│   ├── quick/                   # Single-operation shortcuts
+│   ├── vector_analysis/         # Stability experiment scripts
+│   ├── token_analysis/          # Token analysis scripts
+│   ├── tdnv/                    # TDNV metric scripts
+│   ├── unembed_analysis/        # Unembedding scripts
+│   ├── stability_comparison/    # Stability comparison scripts
 │   └── complete_plan.sh         # Plan completion utility
+├── outputs/                     # Generated artifacts (vectors, heatmaps)
+│   ├── vectors/                 # Steering vectors (.pt files)
+│   ├── heatmaps/                # Cosine similarity heatmaps (.pdf)
+│   ├── probes/                  # Probe experiment results
+│   ├── token_analysis/          # Token analysis outputs
+│   ├── token_viz/               # Token visualizations
+│   └── unembed_analysis/        # Unembed analysis outputs
 ├── data/                        # Raw datasets and contrast pairs
-├── plot/                        # Generated visualizations of activations
-├── assets/                      # Extracted steering vectors and results
 └── docs/
     ├── design-docs/             # Design documents
     ├── exec-plans/              # Execution plans
@@ -82,9 +103,46 @@ This project provides tools for extracting activation steering vectors from LLMs
 - **src/** - All Python modules (importable package)
 - **scripts/** - Shell scripts only (orchestration, not imported)
 - **data/** - Input datasets and contrast pairs for different concepts
-- **plot/** - Visualizations of activation spaces and steering effects
-- **assets/** - Saved steering vectors and evaluation reports
+- **outputs/** - Generated artifacts (vectors, heatmaps, analysis results)
 - **docs/** - Design documents, execution plans, and quality tracking
+
+## Entry Points
+
+This framework uses `python -m` invocation pattern:
+
+```bash
+# Extract steering vectors
+uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
+
+# Apply steering vectors
+uv run python -m steering_geometry.apply_steering --vector outputs/vectors/honesty/layer0.7.pt
+
+# Token analysis (visualize or probe subcommands)
+uv run python -m steering_geometry.token_analysis visualize --concept honesty
+uv run python -m steering_geometry.token_analysis probe --concept toxicity
+
+# TDNV metrics
+uv run python -m steering_geometry.tdnv --concept honesty
+
+# Unembed analysis
+uv run python -m steering_geometry.unembed_analysis --concept honesty
+```
+
+Or use shell scripts for orchestration:
+
+```bash
+# Full pipeline (extract → steer → evaluate)
+./scripts/pipeline/run_pipeline.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
+
+# Quick single-operation scripts
+./scripts/quick/quick_extract.sh -c honesty -l 0.7
+./scripts/quick/quick_steering.sh -c honesty -l 0.7
+./scripts/quick/quick_eval.sh -c honesty
+
+# Vector stability experiments
+./scripts/vector_analysis/run_diff_means_heatmaps.sh
+./scripts/vector_analysis/run_discriminative_heatmaps.sh
+```
 
 ## Supported Models
 
