@@ -88,7 +88,7 @@ class TestJudgeEvaluator:
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
-            result = evaluator.evaluate_concept("honesty", "I always tell the truth.")
+            result = evaluator.evaluate_concept("sentiment", "I always tell the truth.")
 
         assert isinstance(result, JudgeScore)
         assert result.concept_score == 8
@@ -130,7 +130,7 @@ class TestJudgeEvaluator:
             new_callable=AsyncMock,
             side_effect=[concept_response, fluency_response],
         ):
-            result = evaluator.evaluate_dual("honesty", "Test text.")
+            result = evaluator.evaluate_dual("sentiment", "Test text.")
 
         assert result.concept_score == 8
         assert result.fluency_score == 6
@@ -254,7 +254,7 @@ class TestGenerateHtmlReport:
             predictions=[],
         )
         metadata = {
-            "concept": "honesty",
+            "concept": "sentiment",
             "model": "test-model",
             "layer": 10,
             "multiplier": 1.0,
@@ -272,7 +272,7 @@ class TestGenerateHtmlReport:
         content = output_path.read_text()
         assert "<html" in content
         assert "Steering Evaluation Report" in content
-        assert "honesty" in content
+        assert "sentiment" in content
         assert "test-model" in content
         assert "70.00%" in content or "70%" in content
 

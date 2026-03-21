@@ -6,7 +6,7 @@
 #
 # Usage:
 #   ./scripts/pipeline/run_pipeline.sh                                    # Full pipeline, default model
-#   ./scripts/pipeline/run_pipeline.sh -c honesty,toxicity                # Specific concepts
+#   ./scripts/pipeline/run_pipeline.sh -c sentiment,refusal                # Specific concepts
 #   ./scripts/pipeline/run_pipeline.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
 #   ./scripts/pipeline/run_pipeline.sh --skip-extract                     # Skip extraction step
 #   ./scripts/pipeline/run_pipeline.sh --eval-only                        # Only run evaluation
@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Available options
-ALL_CONCEPTS=("honesty" "sycophancy" "toxicity" "sentiment" "refusal")
+ALL_CONCEPTS=("sentiment" "refusal" "polite")
 ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3.5-2B" "Qwen/Qwen3.5-4B" "google/gemma-2-2b")
 
 # Colors for output
@@ -46,7 +46,7 @@ Pipeline Steps:
 
 Options:
     -c, --concepts LIST    Comma-separated list of concepts (default: all)
-                           Available: honesty, sycophancy, toxicity, sentiment, refusal
+                           Available: sentiment, refusal, polite
     -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3.5-2B)
     
     # Extraction options
@@ -78,7 +78,7 @@ Options:
 
 Examples:
     $(basename "$0")                                    # Full pipeline, all concepts
-    $(basename "$0") -c honesty,toxicity                # Specific concepts
+    $(basename "$0") -c sentiment,refusal                # Specific concepts
     $(basename "$0") -m Qwen/Qwen3.5-2B --evaluate      # With evaluation
     $(basename "$0") --skip-extract                     # Skip extraction
     $(basename "$0") -c all -m all                      # All concepts × all models

@@ -74,19 +74,19 @@ class TestDiscriminativeTokenResult:
             label="negative",
         )
         result = DiscriminativeTokenResult(
-            concept="honesty",
+            concept="sentiment",
             layer=5,
             top_positive=[pos_record],
             top_negative=[neg_record],
         )
-        assert result.concept == "honesty"
+        assert result.concept == "sentiment"
         assert result.layer == 5
         assert len(result.top_positive) == 1
         assert len(result.top_negative) == 1
 
     def test_default_empty_lists(self) -> None:
         """DiscriminativeTokenResult should default to empty lists."""
-        result = DiscriminativeTokenResult(concept="toxicity", layer=3)
+        result = DiscriminativeTokenResult(concept="polite", layer=3)
         assert result.top_positive == []
         assert result.top_negative == []
 
@@ -120,12 +120,12 @@ class TestProbeExperimentResult:
             auc_score=0.92,
         )
         result = ProbeExperimentResult(
-            concept="honesty",
+            concept="sentiment",
             model_name="test-model",
             tokens_per_class=1000,
             layer_results=[layer_result],
         )
-        assert result.concept == "honesty"
+        assert result.concept == "sentiment"
         assert result.model_name == "test-model"
         assert result.tokens_per_class == 1000
         assert len(result.layer_results) == 1
@@ -133,7 +133,7 @@ class TestProbeExperimentResult:
     def test_default_empty_layer_results(self) -> None:
         """ProbeExperimentResult should default to empty layer_results."""
         result = ProbeExperimentResult(
-            concept="toxicity",
+            concept="polite",
             model_name="test-model",
             tokens_per_class=500,
         )
@@ -304,9 +304,11 @@ class TestSelectTopKTokens:
         pos_records = self._create_scored_records(10, "positive")
         neg_records = self._create_scored_records(10, "negative")
 
-        result = select_top_k_tokens(pos_records, neg_records, top_k=5, concept="honesty", layer=7)
+        result = select_top_k_tokens(
+            pos_records, neg_records, top_k=5, concept="sentiment", layer=7
+        )
 
-        assert result.concept == "honesty"
+        assert result.concept == "sentiment"
         assert result.layer == 7
 
     def test_handles_empty_lists_gracefully(self) -> None:

@@ -4,13 +4,11 @@ A research framework for extracting and analyzing steering vectors in Large Lang
 
 ## What This Is
 
-This project provides tools for extracting activation steering vectors from LLMs across five key behavioral concepts:
+This project provides tools for extracting activation steering vectors from LLMs across three key behavioral concepts:
 
-- **Honesty** - Encouraging truthful responses and reducing hallucinations
-- **Sycophancy** - Identifying and mitigating the tendency to agree with user misconceptions
-- **Toxicity** - Detecting and steering away from harmful or offensive content generation
 - **Sentiment** - Controlling the emotional tone and valence of model outputs
 - **Refusal** - Understanding the mechanisms behind model refusals and safety boundaries
+- **Polite** - Steering model outputs toward more courteous and respectful language
 
 ## Quick Start
 
@@ -28,24 +26,22 @@ This project provides tools for extracting activation steering vectors from LLMs
 
 3. **Run extraction**
    ```bash
-   # Example: Extract steering vectors for honesty with default model
-   uv run python -m steering_geometry.extract --concept honesty
+   # Example: Extract steering vectors for sentiment with default model
+   uv run python -m steering_geometry.extract --concept sentiment
    
    # Use specific models (Qwen, Gemma)
-   uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3-1.7B"
-   uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
-   uv run python -m steering_geometry.extract --concept honesty --model "google/gemma-2-2b"
+   uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3-1.7B"
+   uv run python -m steering_geometry.extract --concept refusal --model "Qwen/Qwen3.5-2B"
+   uv run python -m steering_geometry.extract --concept polite --model "google/gemma-2-2b"
    
    # Or use the batch script for multiple extractions
-   ./scripts/pipeline/run_pipeline.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
+   ./scripts/pipeline/run_pipeline.sh -c sentiment,refusal,polite -m "Qwen/Qwen3.5-2B"
    ```
    
    Supported concepts:
-   - `honesty` - Honesty steering vectors
-   - `sycophancy` - Sycophancy steering vectors
-   - `toxicity` - Toxicity steering vectors
    - `sentiment` - Sentiment steering vectors
    - `refusal` - Refusal steering vectors
+   - `polite` - Politeness steering vectors
 
 ## Project Structure
 
@@ -112,32 +108,32 @@ This framework uses `python -m` invocation pattern:
 
 ```bash
 # Extract steering vectors
-uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
+uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3.5-2B"
 
 # Apply steering vectors
-uv run python -m steering_geometry.apply_steering --vector outputs/vectors/honesty/layer0.7.pt
+uv run python -m steering_geometry.apply_steering --vector outputs/vectors/sentiment/layer0.7.pt
 
 # Token analysis (visualize or probe subcommands)
-uv run python -m steering_geometry.token_analysis visualize --concept honesty
-uv run python -m steering_geometry.token_analysis probe --concept toxicity
+uv run python -m steering_geometry.token_analysis visualize --concept polite
+uv run python -m steering_geometry.token_analysis probe --concept refusal
 
 # TDNV metrics
-uv run python -m steering_geometry.tdnv --concept honesty
+uv run python -m steering_geometry.tdnv --concept sentiment
 
 # Unembed analysis
-uv run python -m steering_geometry.unembed_analysis --concept honesty
+uv run python -m steering_geometry.unembed_analysis --concept polite
 ```
 
 Or use shell scripts for orchestration:
 
 ```bash
 # Full pipeline (extract → steer → evaluate)
-./scripts/pipeline/run_pipeline.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B"
+./scripts/pipeline/run_pipeline.sh -c sentiment,refusal,polite -m "Qwen/Qwen3.5-2B"
 
 # Quick single-operation scripts
-./scripts/quick/quick_extract.sh -c honesty -l 0.7
-./scripts/quick/quick_steering.sh -c honesty -l 0.7
-./scripts/quick/quick_eval.sh -c honesty
+./scripts/quick/quick_extract.sh -c polite -l 0.7
+./scripts/quick/quick_steering.sh -c sentiment -l 0.7
+./scripts/quick/quick_eval.sh -c refusal
 
 # Vector stability experiments
 ./scripts/vector_analysis/run_diff_means_heatmaps.sh
@@ -160,20 +156,20 @@ This framework works with any causal language model from HuggingFace Transformer
 ```bash
 # Extract with Qwen3.5
 uv run python -m steering_geometry.extract \
-    --concept honesty \
+    --concept sentiment \
     --model "Qwen/Qwen3.5-2B" \
     --num-pairs 500 \
     --output data/vectors/
 
 # Extract with Gemma 2
 uv run python -m steering_geometry.extract \
-    --concept toxicity \
+    --concept polite \
     --model "google/gemma-2-2b" \
     --method pca \
     --output data/vectors/
 
 # Batch extraction via shell script
-./scripts/pipeline/run_pipeline.sh -c honesty,toxicity -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
+./scripts/pipeline/run_pipeline.sh -c sentiment,refusal,polite -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
 ```
 
 ## Development

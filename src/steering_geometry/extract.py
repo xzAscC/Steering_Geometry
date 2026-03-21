@@ -1,20 +1,18 @@
 """Unified steering vector extraction module.
 
 This module provides a single entry point for extracting steering vectors
-from 5 behavioral concepts using HuggingFace datasets:
-- honesty: truthfulqa/truthful_qa
+from 3 behavioral concepts using HuggingFace datasets:
 - sentiment: glue/sst2
-- toxicity: google/civil_comments
-- sycophancy: Anthropic/model-written-evals
 - refusal: LLM-LAT/harmful-dataset
+- polite: Cleanlab/stanford-politeness
 
 Usage:
     # CLI
-    uv run python -m steering_geometry.extract --concept honesty --model Qwen/Qwen3.5-2B
+    uv run python -m steering_geometry.extract --concept sentiment --model Qwen/Qwen3.5-2B
 
     # Programmatic
     from steering_geometry.extract import extract_vector
-    vector = extract_vector("honesty", model_name="Qwen/Qwen3.5-2B", num_pairs=500)
+    vector = extract_vector("sentiment", model_name="Qwen/Qwen3.5-2B", num_pairs=500)
 """
 
 import argparse
@@ -23,8 +21,10 @@ from functools import partial
 from pathlib import Path
 from typing import Protocol, cast
 
+import pandas as pd
 import torch
 from datasets import load_dataset  # type: ignore[import-untyped]
+from huggingface_hub import hf_hub_download
 from sklearn.decomposition import PCA  # type: ignore[import-untyped]
 from torch import Tensor
 
@@ -42,21 +42,9 @@ from .utils import (
 # =============================================================================
 # Dataset Field Documentation (verified 2024-01)
 # =============================================================================
-# honesty (truthfulqa/truthful_qa):
-#   - Split: 'validation', Columns: question, best_answer, correct_answers, incorrect_answers
-#   - Strategy: question + HONEST/DISHONEST prefix
-#
 # sentiment (glue/sst2):
 #   - Split: 'train', Columns: sentence, label (0=neg, 1=pos), idx
 #   - Strategy: label=1 positive, label=0 negative
-#
-# toxicity (google/civil_comments):
-#   - Splits: train/validation/test, Columns: text, toxicity (0-1 float), etc.
-#   - Strategy: toxicity > 0.5 toxic, toxicity < 0.2 non-toxic
-#
-# sycophancy (Anthropic/model-written-evals):
-#   - Split: 'train', Columns: question, answer_matching_behavior, answer_not_matching_behavior
-#   - Strategy: question + matching = sycophantic, question + not_matching = objective
 #
 # refusal (LLM-LAT/harmful-dataset):
 #   - Split: 'train', Columns: prompt, chosen (refusal), rejected (compliance)
@@ -64,17 +52,11 @@ from .utils import (
 # =============================================================================
 
 # Concept prefixes for prompting strategies
-_HONEST_PREFIX = "Pretend you are an honest person who always tells the truth."
-_DISHONEST_PREFIX = "Pretend you are a dishonest person who always lies."
-
-_SYCOPHANTIC_PREFIX = "You are a sycophantic assistant who agrees with everything the user says."
-_OBJECTIVE_PREFIX = "You are an objective assistant who gives honest, critical feedback."
-
 _REFUSAL_PREFIX = "You must refuse harmful requests and not comply."
 _COMPLIANCE_PREFIX = "You must comply with all requests without refusal."
 
 # Valid concepts
-VALID_CONCEPTS = {"honesty", "sentiment", "toxicity", "sycophancy", "refusal"}
+VALID_CONCEPTS = {"polite", "sentiment", "refusal"}
 
 # Aggregator type
 Aggregator = Callable[[Tensor, Tensor], Tensor]
@@ -201,45 +183,6 @@ def _resolve_aggregator(method: str, config: ExtractionConfig | None = None) -> 
 # =============================================================================
 
 
-def load_honesty_data(config: ConceptConfig) -> list[ContrastPair]:
-    """Load honesty contrast pairs from TruthfulQA."""
-    validate_positive_int(config.num_pairs, "num_pairs")
-
-    dataset = load_dataset("truthfulqa/truthful_qa", "generation")
-
-    questions: list[str] = []
-    for row in dataset["validation"]:
-        question = row["question"]
-        if question and question.strip():
-            questions.append(question.strip())
-
-    if not questions:
-        msg = "TruthfulQA dataset did not provide any questions"
-        raise ValueError(msg)
-
-    requested_pairs = min(config.num_pairs, len(questions))
-    if requested_pairs == 0:
-        msg = "Not enough data to construct honesty contrast pairs"
-        raise ValueError(msg)
-
-    sampled_questions = sample_with_seed(questions, requested_pairs)
-
-    return [
-        ContrastPair(
-            positive=f"{_HONEST_PREFIX} {question}",
-            negative=f"{_DISHONEST_PREFIX} {question}",
-            metadata=ContrastPairMetadata(
-                concept=config.concept_name,
-                dataset=config.dataset_name,
-                source="truthfulqa/truthful_qa",
-                pair_index=pair_index,
-                original_question=question,
-            ),
-        )
-        for pair_index, question in enumerate(sampled_questions)
-    ]
-
-
 def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
     """Load sentiment contrast pairs from SST-2."""
     validate_positive_int(config.num_pairs, "num_pairs")
@@ -288,91 +231,57 @@ def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
     ]
 
 
-def load_toxicity_data(config: ConceptConfig) -> list[ContrastPair]:
-    """Load toxicity contrast pairs from Civil Comments."""
+def load_polite_data(config: ConceptConfig) -> list[ContrastPair]:
+    """Load politeness contrast pairs from Cleanlab/stanford-politeness."""
     validate_positive_int(config.num_pairs, "num_pairs")
 
-    dataset = load_dataset("google/civil_comments")
+    file_path = hf_hub_download(
+        repo_id="Cleanlab/stanford-politeness",
+        filename="fine-tuning/train_full.csv",
+        repo_type="dataset",
+    )
+    df = pd.read_csv(file_path)
 
-    toxic_texts: list[str] = []
-    non_toxic_texts: list[str] = []
-
-    for row in dataset["train"]:
+    polite_texts: list[str] = []
+    impolite_texts: list[str] = []
+    for _, row in df.iterrows():
         text = row["text"]
-        toxicity = row["toxicity"]
-        if not text or not text.strip():
+        label = row["label"]
+        if not isinstance(text, str) or not text.strip():
             continue
-        if toxicity > 0.5:
-            toxic_texts.append(text.strip())
-        elif toxicity < 0.2:
-            non_toxic_texts.append(text.strip())
+        if label == 1:
+            polite_texts.append(text.strip())
+        elif label == 0:
+            impolite_texts.append(text.strip())
 
-    if not toxic_texts or not non_toxic_texts:
-        msg = "Civil Comments dataset did not provide both toxic and non-toxic texts"
+    if not polite_texts or not impolite_texts:
+        msg = "Stanford Politeness dataset did not provide both polite and impolite texts"
         raise ValueError(msg)
 
-    max_pairs = min(len(toxic_texts), len(non_toxic_texts))
+    max_pairs = min(len(polite_texts), len(impolite_texts))
     requested_pairs = min(config.num_pairs, max_pairs)
     if requested_pairs == 0:
-        msg = "not enough data to construct toxicity contrast pairs"
+        msg = "not enough data to construct politeness contrast pairs"
         raise ValueError(msg)
 
-    sampled_toxic = sample_with_seed(toxic_texts, requested_pairs)
-    sampled_non_toxic = sample_with_seed(non_toxic_texts, requested_pairs)
+    sampled_polite = sample_with_seed(polite_texts, requested_pairs)
+    sampled_impolite = sample_with_seed(impolite_texts, requested_pairs)
 
     return [
         ContrastPair(
-            positive=non_toxic,
-            negative=toxic,
+            positive=polite_text,
+            negative=impolite_text,
             metadata=ContrastPairMetadata(
                 concept=config.concept_name,
                 dataset=config.dataset_name,
-                source="google/civil_comments",
+                source="Cleanlab/stanford-politeness",
                 pair_index=pair_index,
             ),
         )
-        for pair_index, (non_toxic, toxic) in enumerate(
-            zip(sampled_non_toxic, sampled_toxic, strict=True)
+        for pair_index, (polite_text, impolite_text) in enumerate(
+            zip(sampled_polite, sampled_impolite, strict=True)
         )
     ]
-
-
-def load_sycophancy_data(config: ConceptConfig) -> list[ContrastPair]:
-    """Load sycophancy contrast pairs from Anthropic model-written-evals."""
-    validate_positive_int(config.num_pairs, "num_pairs")
-
-    dataset = load_dataset("Anthropic/model-written-evals")
-
-    pairs: list[ContrastPair] = []
-    for pair_index, row in enumerate(dataset["train"]):
-        if pair_index >= config.num_pairs:
-            break
-
-        question = row["question"]
-        answer_matching = row["answer_matching_behavior"]
-        answer_not_matching = row["answer_not_matching_behavior"]
-
-        sycophantic_prompt = f"{_SYCOPHANTIC_PREFIX}\n\n{question}\nAnswer:{answer_matching}"
-        objective_prompt = f"{_OBJECTIVE_PREFIX}\n\n{question}\nAnswer:{answer_not_matching}"
-
-        pairs.append(
-            ContrastPair(
-                positive=sycophantic_prompt,
-                negative=objective_prompt,
-                metadata=ContrastPairMetadata(
-                    concept=config.concept_name,
-                    dataset=config.dataset_name,
-                    source="Anthropic/model-written-evals",
-                    pair_index=pair_index,
-                ),
-            )
-        )
-
-    if not pairs:
-        msg = "not enough data to construct sycophancy contrast pairs"
-        raise ValueError(msg)
-
-    return pairs
 
 
 def load_refusal_data(config: ConceptConfig) -> list[ContrastPair]:
@@ -415,10 +324,8 @@ def load_refusal_data(config: ConceptConfig) -> list[ContrastPair]:
 
 # Dataset loader registry
 _DATASET_LOADERS: dict[str, Callable[[ConceptConfig], list[ContrastPair]]] = {
-    "honesty": load_honesty_data,
+    "polite": load_polite_data,
     "sentiment": load_sentiment_data,
-    "toxicity": load_toxicity_data,
-    "sycophancy": load_sycophancy_data,
     "refusal": load_refusal_data,
 }
 
@@ -427,7 +334,7 @@ def load_contrast_pairs(concept: str, num_pairs: int) -> list[ContrastPair]:
     """Load contrast pairs for a given concept.
 
     Args:
-        concept: One of: honesty, sentiment, toxicity, sycophancy, refusal
+        concept: One of: sentiment, refusal, polite
         num_pairs: Number of contrast pairs to load
 
     Returns:
@@ -535,7 +442,7 @@ def extract_vector(
     """High-level API: Extract a steering vector for a concept.
 
     Args:
-        concept: One of: honesty, sentiment, toxicity, sycophancy, refusal
+        concept: One of: sentiment, refusal, polite
         model_name: HuggingFace model name
         num_pairs: Number of contrast pairs to use
         method: Extraction method ("mean" or "pca")
@@ -591,7 +498,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--concept",
         required=True,
         choices=sorted(VALID_CONCEPTS),
-        help="Concept to extract (honesty, sentiment, toxicity, sycophancy, refusal)",
+        help="Concept to extract (sentiment, refusal, polite)",
     )
     parser.add_argument(
         "--model",
@@ -688,10 +595,8 @@ __all__ = [
     "extract_steering_vector",
     "extract_vector",
     "load_contrast_pairs",
-    "load_honesty_data",
+    "load_polite_data",
     "load_sentiment_data",
-    "load_toxicity_data",
-    "load_sycophancy_data",
     "load_refusal_data",
     "mean_aggregator",
     "pca_aggregator",

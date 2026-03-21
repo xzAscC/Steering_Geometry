@@ -165,7 +165,7 @@ class TestPlotTopkBarChart:
     def test_plot_topk_bar_chart(self, tmp_path: Path) -> None:
         """Function should create a PDF file and return its path."""
         result = ConceptAnalysisResult(
-            concept="honesty",
+            concept="sentiment",
             model="test-model",
             method="diff_means",
             results={
@@ -183,4 +183,4 @@ class TestPlotTopkBarChart:
         assert len(paths) == 1
         assert paths[0].exists()
         assert paths[0].suffix == ".pdf"
-        assert "honesty_diff_means_bars.pdf" in str(paths[0])
+        assert "sentiment_diff_means_bars.pdf" in str(paths[0])
