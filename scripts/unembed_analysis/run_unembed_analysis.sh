@@ -110,7 +110,7 @@ echo ""
 current=0
 for concept in "${CONCEPT_ARRAY[@]}"; do
     for method in "${ALL_METHODS[@]}"; do
-        ((current++))
+        ((++current))
         echo -e "\n${GREEN}[$current/$total] Analyzing: $concept × $method${NC}"
         echo "----------------------------------------"
         

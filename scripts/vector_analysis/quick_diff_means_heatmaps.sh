@@ -26,8 +26,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Experiment configuration
 CONCEPTS=("honesty" "sentiment" "toxicity" "sycophancy" "refusal")
-N_EXAMPLES=(10 30 100 300 1000 3000 6000 10000)
-LAYERS=(0.4 0.5 0.6 0.7 0.8)
+N_EXAMPLES=(10 30)
+LAYERS=(0.4 0.8)
 MODEL="Qwen/Qwen3-1.7B"
 OUTPUT_DIR="$PROJECT_ROOT/outputs"
 

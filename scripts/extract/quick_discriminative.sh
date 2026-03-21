@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
-# run_weighted_mean.sh - Weighted Mean Steering Vector Extraction
+# run_discriminative.sh - Discriminative Token Steering Vector Extraction
 # =============================================================================
-# Extracts steering vectors using the weighted_mean method.
+# Extracts steering vectors using the discriminative token selection method.
 #
-# Weighted Mean Method:
-#   - Computes distance-based weights for tokens relative to class center
-#   - Tokens closer to class center receive larger weights
-#   - Formula: w_i = exp(-||h_i - h̄||² / τ²)
-#   - Steering direction: v = μ_+^w - μ_-^w
+# Discriminative Method:
+#   - Selects top-k tokens that best discriminate between classes
+#   - Score: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+#   - Higher scores = closer to own class, farther from other class
+#   - Steering direction: v = μ_+^disc - μ_-^disc
 #
 # Usage:
-#   ./scripts/extract/run_weighted_mean.sh                                    # All concepts, default model
-#   ./scripts/extract/run_weighted_mean.sh -c honesty,toxicity                # Specific concepts
-#   ./scripts/extract/run_weighted_mean.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
+#   ./scripts/extract/run_discriminative.sh                                    # All concepts, default model
+#   ./scripts/extract/run_discriminative.sh -c honesty,toxicity                # Specific concepts
+#   ./scripts/extract/run_discriminative.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
+#   ./scripts/extract/run_discriminative.sh --top-k 50                         # Custom top-k value
 #
 # Output:
-#   data/vectors/{concept}_{model}_weighted_mean.pt
+#   data/vectors/{concept}_{model}_discriminative.pt
 # =============================================================================
 
 set -euo pipefail
@@ -38,24 +39,24 @@ usage() {
     cat << EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Extract steering vectors using the WEIGHTED MEAN method.
+Extract steering vectors using the DISCRIMINATIVE token selection method.
 
-The weighted mean method computes distance-based weights for tokens,
-giving larger weights to tokens closer to the class center. This reduces
-the influence of outliers and noise in the extraction process.
+The discriminative method selects the top-k tokens that best separate
+positive and negative classes, focusing on the most informative activations.
 
-Formula:
-  - Center: h̄_c = (1/n_c) Σ h_i^(c)
-  - Variance: τ_c² = (1/n_c) Σ ||h_i^(c) - h̄_c||²
-  - Weights: w_i^(c) = exp(-||h_i^(c) - h̄_c||² / τ_c²)
-  - Weighted mean: μ_c^w = Σ w_i^(c) h_i^(c) / Σ w_i^(c)
-  - Steering direction: v = μ_+^w - μ_-^w
+Scoring Formula:
+  - Score: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+  - Higher score = token is closer to own class center
+  - Lower score = token is closer to other class center
+  - Select top-k tokens per class and compute prototype vectors
+  - Steering direction: v = μ_+^disc - μ_-^disc
 
 Options:
     -c, --concepts LIST    Comma-separated list of concepts (default: all)
                            Available: honesty, sycophancy, toxicity, sentiment, refusal
     -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3.5-2B)
     -p, --pairs N          Number of contrast pairs (default: 500)
+    -k, --top-k N          Number of top tokens to select (default: 100)
     -o, --output DIR       Output directory (default: data/vectors)
     -l, --list             List available concepts and models
     -h, --help             Show this help
@@ -64,11 +65,11 @@ Examples:
     $(basename "$0")                                    # All concepts, default model
     $(basename "$0") -c honesty,toxicity                # Specific concepts
     $(basename "$0") -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
-    $(basename "$0") -c sentiment -p 100                # Custom params
+    $(basename "$0") -c sentiment -p 100 --top-k 50    # Custom params
     $(basename "$0") -c all -m all                      # All concepts × all models
 
 Output Files:
-    data/vectors/{concept}_{model}_weighted_mean.pt
+    data/vectors/{concept}_{model}_discriminative.pt
 
 EOF
     exit 0
@@ -84,9 +85,10 @@ list_available() {
 }
 
 # Default values
-CONCEPTS=""
+CONCEPTS="honesty"
 MODELS="Qwen/Qwen3.5-2B"
 NUM_PAIRS=500
+TOP_K=10
 OUTPUT_DIR="$PROJECT_ROOT/data/vectors"
 
 while [[ $# -gt 0 ]]; do
@@ -101,6 +103,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--pairs)
             NUM_PAIRS="$2"
+            shift 2
+            ;;
+        -k|--top-k)
+            TOP_K="$2"
             shift 2
             ;;
         -o|--output)
@@ -137,25 +143,26 @@ total=$((${#CONCEPT_ARRAY[@]} * ${#MODEL_ARRAY[@]}))
 current=0
 
 echo -e "${BLUE}============================================${NC}"
-echo -e "${BLUE}Weighted Mean Extraction Pipeline${NC}"
+echo -e "${BLUE}Discriminative Token Extraction Pipeline${NC}"
 echo -e "${BLUE}============================================${NC}"
-echo -e "Method:    ${GREEN}weighted_mean${NC}"
+echo -e "Method:    ${GREEN}discriminative${NC}"
 echo -e "Concepts:  ${GREEN}${CONCEPT_ARRAY[*]}${NC}"
 echo -e "Models:    ${GREEN}${MODEL_ARRAY[*]}${NC}"
 echo -e "Pairs:     ${GREEN}$NUM_PAIRS${NC}"
+echo -e "Top-k:     ${GREEN}$TOP_K${NC}"
 echo -e "Output:    ${YELLOW}$OUTPUT_DIR${NC}"
 echo -e "Total:     ${GREEN}$total extraction(s)${NC}"
 echo -e "${BLUE}============================================${NC}"
 echo ""
 echo -e "Method Details:"
-echo -e "  ${GREEN}•${NC} Distance-based weighting"
-echo -e "  ${GREEN}•${NC} Reduces outlier influence"
-echo -e "  ${GREEN}•${NC} Robust to noise"
+echo -e "  ${GREEN}•${NC} Selects top-k most discriminative tokens"
+echo -e "  ${GREEN}•${NC} Focuses on informative activations"
+echo -e "  ${GREEN}•${NC} Reduces noise from uninformative tokens"
 echo ""
 
 for model in "${MODEL_ARRAY[@]}"; do
     for concept in "${CONCEPT_ARRAY[@]}"; do
-        ((current++))
+        ((++current))
         echo -e "${GREEN}[$current/$total] Extracting: $concept × $model${NC}"
         echo "----------------------------------------"
         
@@ -163,7 +170,8 @@ for model in "${MODEL_ARRAY[@]}"; do
             --concept "$concept" \
             --model "$model" \
             --num-pairs "$NUM_PAIRS" \
-            --method "weighted_mean" \
+            --method "discriminative" \
+            --top-k "$TOP_K" \
             --output "$OUTPUT_DIR" 2>&1 | while read -r line; do
                 echo "  $line"
             done
@@ -173,7 +181,7 @@ for model in "${MODEL_ARRAY[@]}"; do
 done
 
 echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}✓ All weighted_mean extractions complete!${NC}"
+echo -e "${GREEN}✓ All discriminative extractions complete!${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo -e "  Vectors saved to: ${YELLOW}$OUTPUT_DIR${NC}"
 echo -e "${GREEN}============================================${NC}"

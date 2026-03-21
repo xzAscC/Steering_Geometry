@@ -209,7 +209,7 @@ if [[ "$CONCEPTS" == "all" || -z "$CONCEPTS" ]]; then
 fi
 
 if [[ "$MODELS" == "all" ]]; then
-    MODEL_ARRAY=("${ALL_MODELS[@]")
+    MODEL_ARRAY=("${ALL_MODELS[@]}")
 fi
 
 # Set up output directories
@@ -294,7 +294,7 @@ run_steer() {
     for model in "${MODEL_ARRAY[@]}"; do
         safe_model="${model//\//_}"
         for concept in "${CONCEPT_ARRAY[@]}"; do
-            ((current++))
+            ((++current))
             vector_file="$VECTOR_DIR/${concept}_${safe_model}_${METHOD}.pt"
             
             echo -e "\n${GREEN}[$current/$total] Steering: $concept × $model${NC}"
@@ -342,7 +342,7 @@ run_evaluate() {
     for model in "${MODEL_ARRAY[@]}"; do
         safe_model="${model//\//_}"
         for concept in "${CONCEPT_ARRAY[@]}"; do
-            ((current++))
+            ((++current))
             vector_file="$VECTOR_DIR/${concept}_${safe_model}_${METHOD}.pt"
             
             echo -e "\n${GREEN}[$current/$total] Evaluating: $concept × $model${NC}"

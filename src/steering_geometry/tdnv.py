@@ -25,7 +25,7 @@ from .config import ModelConfig, TDNVConfig
 from .extract import VALID_CONCEPTS, load_contrast_pairs
 from .models import HookedModel
 from .types import TDNVLayerMetrics, TDNVResult
-from .utils import ensure_dir, safe_model_name, select_token_activations
+from .utils import ensure_dir, safe_model_name
 
 EPS = 1e-8
 
@@ -168,16 +168,12 @@ def compute_tdnv_for_concept(
         neg_activations = model.get_activations(neg_texts, layers)
 
         for layer in layers:
-            pos_selected = select_token_activations(
-                pos_activations[layer],
-                config.read_token_index,
-            )
-            neg_selected = select_token_activations(
-                neg_activations[layer],
-                config.read_token_index,
-            )
-            pos_per_layer[layer].append(pos_selected)
-            neg_per_layer[layer].append(neg_selected)
+            pos_flat = pos_activations[layer].reshape(-1, pos_activations[layer].shape[-1])
+            neg_flat = neg_activations[layer].reshape(-1, neg_activations[layer].shape[-1])
+            pos_non_zero = pos_flat[pos_flat.abs().sum(dim=-1) > 0]
+            neg_non_zero = neg_flat[neg_flat.abs().sum(dim=-1) > 0]
+            pos_per_layer[layer].append(pos_non_zero)
+            neg_per_layer[layer].append(neg_non_zero)
 
     tdnv_values: list[float] = []
     norm_num_values: list[float] = []
