@@ -1,8 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-03-14
-**Commit:** 32ab292
-**Branch:** experiment/test-steering
+**Generated:** 2026-03-19
+**Commit:** e36bd3f
+**Branch:** refactor/architecture
 
 AI agents working in this repository MUST follow these rules.
 
@@ -13,7 +13,7 @@ AI agents working in this repository MUST follow these rules.
 - Build: `hatchling`
 - Lint/Format: `ruff` (line-length 100, double quotes)
 - Type check: `mypy --strict`
-- Test: `pytest`
+- Test: `pytest` (21 tests)
 
 ## 2) Build & Verify Commands
 
@@ -114,14 +114,18 @@ Enforced by ruff (see pyproject.toml):
 | Add new concept | `extract.py:_DATASET_LOADERS` | Add loader + prefix constants |
 | Load model with hooks | `src/steering_geometry/models.py` | `HookedModel` class |
 | Apply steering | `src/steering_geometry/apply_steering.py` | `apply_steering()` |
-| Evaluate steering | `src/steering_geometry/evaluation.py` | `JudgeEvaluator`, `MMLUEvaluator` |
+| Evaluate steering | `src/steering_geometry/apply_steering.py` | `JudgeEvaluator`, `MMLUEvaluator` (merged into apply_steering) |
 | Core types | `src/steering_geometry/types.py` | `ContrastPair`, `SteeringVector`, etc. |
 | Config classes | `src/steering_geometry/config.py` | `ModelConfig`, `ExtractionConfig`, etc. |
 | Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
 | Pipeline scripts | `scripts/pipeline/run_pipeline.sh` | Full orchestration |
 | Quick scripts | `scripts/quick/` | Single-layer operations |
-| Vector analysis | `src/steering_geometry/vector_analysis.py` | `run_diff_means_experiment()`, `run_discriminative_experiment()` |
+| Vector stability experiments | `src/steering_geometry/stability_comparison.py` | `run_diff_means_experiment()`, `run_discriminative_experiment()` |
 | Vector analysis scripts | `scripts/vector_analysis/` | Cosine similarity heatmaps |
+| Token analysis | `src/steering_geometry/token_analysis.py` | `visualize()`, `probe()` subcommands |
+| Unembed analysis | `src/steering_geometry/unembed_analysis.py` | `analyze_unembed_cosine()` |
+| TDNV metrics | `src/steering_geometry/tdnv.py` | `compute_tdnv()`, `compute_tdnv_for_concept()` |
+| Shared utilities | `src/steering_geometry/utils.py` | `ensure_dir()`, `safe_model_name()`, `sample_with_seed()` |
 
 ## 10) Anti-Patterns
 
@@ -135,9 +139,17 @@ Enforced by ruff (see pyproject.toml):
 ### Current Technical Debt
 | File | Issue | Fix |
 |------|-------|-----|
-| `models.py:133,187` | `Any` in hook params | Use Protocol or specific types |
+| `models.py:90,174,229,240` | `Any` in hook params | Use Protocol or specific types |
+| `stability_comparison.py:17,543,589,618` | `Any` in result dicts | Use TypedDict |
+| `unembed_analysis.py:12,38` | `Any` for tokenizer | Use Protocol |
+| `apply_steering.py:32,328,607` | `Any` for model/config | Use specific types |
+| `extract.py`, `tdnv.py`, `token_analysis.py`, `apply_steering.py` | `print()` for CLI | Use logging |
 | `extract.py` + `tdnv.py` | `_select_token_activations` duplicated | Extract to utils.py |
-| `extract.py`, `apply_steering.py`, `tdnv.py` | `print()` for CLI | Use logging |
+
+### Known Violations (from audit)
+- `typing.Any`: 15 instances across 4 files
+- `print()`: 35 instances across 4 files (CLI output)
+- `scripts/validate_analysis_json.py`: Python file violates "scripts/ = shell only" rule
 
 ## 11) Pipeline Workflow
 

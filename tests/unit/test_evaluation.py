@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import torch
 
-from steering_geometry.config import JudgeConfig, MMLUConfig
-from steering_geometry.evaluation import (
+from steering_geometry.apply_steering import (
     JudgeEvaluator,
     MMLUEvaluator,
     generate_html_report,
 )
+from steering_geometry.config import JudgeConfig, MMLUConfig
 from steering_geometry.types import EvaluationResult, JudgeScore, MMLUResult
 
 
@@ -216,7 +216,7 @@ class TestMMLUEvaluator:
             {"question": "Q2?", "options": ["A", "B", "C", "D"], "answer": "A"},
         ]
 
-        with patch("steering_geometry.evaluation.load_dataset") as mock_load_dataset:
+        with patch("steering_geometry.apply_steering.load_dataset") as mock_load_dataset:
             mock_load_dataset.return_value = mock_dataset
             evaluator = MMLUEvaluator(config, mock_model)
 
