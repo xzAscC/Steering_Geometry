@@ -61,6 +61,8 @@ Options:
     # Evaluation options
     --evaluate             Run LLM-as-judge and MMLU evaluation
     --judge-model MODEL    Judge model (default: google/gemini-3.1-flash-lite-preview)
+    --judge-api-base URL   Judge API base URL (default: https://openrouter.ai/api/v1)
+                           For local vLLM, use: http://localhost:8000/v1
     --mmlu-questions N     Number of MMLU questions (default: 10)
     
     # Pipeline control
@@ -107,6 +109,7 @@ TEMPERATURE=0.0
 BASE_OUTPUT="$PROJECT_ROOT/data"
 EVALUATE=false
 JUDGE_MODEL="google/gemini-3.1-flash-lite-preview"
+JUDGE_API_BASE="https://openrouter.ai/api/v1"
 MMLU_QUESTIONS=10
 
 # Pipeline control flags
@@ -156,6 +159,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --judge-model)
             JUDGE_MODEL="$2"
+            shift 2
+            ;;
+        --judge-api-base)
+            JUDGE_API_BASE="$2"
             shift 2
             ;;
         --mmlu-questions)
@@ -240,6 +247,7 @@ echo -e "  Samples:        $NUM_SAMPLES"
 echo -e "  Multipliers:    $MULTIPLIERS"
 echo -e "  Max tokens:     $MAX_TOKENS"
 echo -e "  Temperature:    $TEMPERATURE"
+echo -e "  Judge API Base: $JUDGE_API_BASE"
 echo -e "${BLUE}============================================${NC}"
 echo ""
 
@@ -335,7 +343,7 @@ run_evaluate() {
     echo -e "${BLUE}STEP 3: EVALUATING STEERING EFFECTIVENESS${NC}"
     echo -e "${BLUE}============================================${NC}"
     
-    EVAL_FLAGS="--evaluate --judge-model $JUDGE_MODEL --mmlu-questions $MMLU_QUESTIONS"
+    EVAL_FLAGS="--evaluate --judge-model $JUDGE_MODEL --judge-api-base $JUDGE_API_BASE --mmlu-questions $MMLU_QUESTIONS"
     
     current=0
     for model in "${MODEL_ARRAY[@]}"; do
