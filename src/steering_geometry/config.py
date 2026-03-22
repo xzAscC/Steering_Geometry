@@ -3,6 +3,28 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# =============================================================================
+# Canonical Constants
+# =============================================================================
+
+SUPPORTED_MODELS: tuple[str, ...] = (
+    "Qwen/Qwen3-1.7B",
+    "Qwen/Qwen3-4B",
+    "Qwen/Qwen3.5-4B",
+    "Qwen/Qwen3.5-9B",
+    "google/gemma-2-2b",
+    "google/gemma-2-9b",
+    "allenai/OLMo-2-1124-7B",
+)
+
+SUPPORTED_CONCEPTS: tuple[str, ...] = (
+    "refusal",
+    "polite",
+    "sentiment",
+)
+
+DEFAULT_MODEL: str = "Qwen/Qwen3-1.7B"
+
 
 @dataclass
 class ModelConfig:
@@ -194,6 +216,9 @@ class StabilityComparisonConfig:
 
 
 __all__ = [
+    "SUPPORTED_MODELS",
+    "SUPPORTED_CONCEPTS",
+    "DEFAULT_MODEL",
     "ModelConfig",
     "ExtractionConfig",
     "ConceptConfig",

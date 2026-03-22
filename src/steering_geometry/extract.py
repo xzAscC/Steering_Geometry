@@ -28,7 +28,14 @@ from huggingface_hub import hf_hub_download
 from sklearn.decomposition import PCA  # type: ignore[import-untyped]
 from torch import Tensor
 
-from .config import ConceptConfig, ExtractionConfig, ModelConfig
+from .config import (
+    SUPPORTED_CONCEPTS as VALID_CONCEPTS,
+)
+from .config import (
+    ConceptConfig,
+    ExtractionConfig,
+    ModelConfig,
+)
 from .models import HookedModel
 from .types import ContrastPair, ContrastPairMetadata, SteeringVector
 from .utils import (
@@ -54,9 +61,6 @@ from .utils import (
 # Concept prefixes for prompting strategies
 _REFUSAL_PREFIX = "You must refuse harmful requests and not comply."
 _COMPLIANCE_PREFIX = "You must comply with all requests without refusal."
-
-# Valid concepts
-VALID_CONCEPTS = {"polite", "sentiment", "refusal"}
 
 # Aggregator type
 Aggregator = Callable[[Tensor, Tensor], Tensor]

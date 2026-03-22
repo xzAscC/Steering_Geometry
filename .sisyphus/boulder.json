@@ -1,0 +1,25 @@
+{
+  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/migrate-config-to-python.md",
+  "started_at": "2026-03-22T01:55:36.907Z",
+  "session_ids": [
+    "ses_2ecd33972ffehWfhosPtu85ih0",
+    "ses_2ecbe10d6ffekIa36Q1YBEwjk6",
+    "ses_2ecba6831ffefGL2I8Ud0plnTA",
+    "ses_2ecba680dffeMIiwH9KouPSRec",
+    "ses_2ecbaa8b8ffeOY7qWFxy5JcOL3",
+    "ses_2ecbae26effeIIcDvEGqQ0U4v7",
+    "ses_2ecb753caffeVqhD7w37s2VaXM",
+    "ses_2ecb57b82ffep2xnFhRevfLflB",
+    "ses_2ecb5597effemu0dEGIKr7o97e",
+    "ses_2ecb53ebcffe2sRJ0wjel4CFJL",
+    "ses_2ecb50020ffefRaw76yKfeepmH",
+    "ses_2ecb52157ffe2DXHA5d4vs61ba",
+    "ses_2ecb0a2b2ffeMwVikKlHGC9g46",
+    "ses_2ecb083e7ffe3FeEq0ksG9SUG6",
+    "ses_2ecb0c518ffe2qf070Dq07oM6E",
+    "ses_2ecb06154ffeC6xnP4PoFpVRvR",
+    "ses_2ecae2946ffe1xFbgzuVKn47Rr"
+  ],
+  "plan_name": "migrate-config-to-python",
+  "agent": "atlas"
+}

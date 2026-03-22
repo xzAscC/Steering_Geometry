@@ -22,9 +22,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Available options
-ALL_CONCEPTS=("sentiment" "refusal" "polite")
-ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3.5-2B" "Qwen/Qwen3.5-4B" "google/gemma-2-2b")
+# Available options (loaded from centralized config)
+eval $(uv run python -m steering_geometry --shell)
 
 # Colors for output
 RED='\033[0;31m'

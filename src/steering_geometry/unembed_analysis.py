@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 import torch
 from torch import Tensor
 
+from steering_geometry.config import SUPPORTED_CONCEPTS as VALID_CONCEPTS
 from steering_geometry.config import ModelConfig
 from steering_geometry.types import ConceptAnalysisResult, UnembedAnalysisResult
 
@@ -455,7 +456,6 @@ def plot_topk_bar_chart(
 # CLI
 # =============================================================================
 
-VALID_CONCEPTS = ("honesty", "sentiment", "toxicity", "sycophancy", "refusal")
 VALID_METHODS = ("diff_means", "discriminative")
 DEFAULT_LAYERS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
@@ -480,7 +480,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--concept",
         required=True,
         choices=VALID_CONCEPTS,
-        help="Concept to analyze (honesty, sentiment, toxicity, sycophancy, refusal)",
+        help="Concept to analyze (polite, refusal, sentiment)",
     )
     parser.add_argument(
         "--method",
