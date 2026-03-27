@@ -8,8 +8,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 description = "Steering vector extraction and evaluation framework for LLM representation engineering"
 dependencies = [
-    "torch>=2.1,<3.0",
-    "transformers>=4.36,<5.0",
+    "transformers>=5.3.0",
     "datasets>=2.16,<3.0",
     "numpy>=1.26,<3.0",
     "pandas>=2.0,<3.0",
@@ -18,6 +17,13 @@ dependencies = [
     "openai>=1.0.0,<2.0",
     "jinja2>=3.0.0,<4.0",
     "matplotlib>=3.8.0,<4.0",
+    "flash-linear-attention>=0.4.2",
+    "torch>=2.10.0",
+]
+
+[project.optional-dependencies]
+cuda = [
+    "flash-linear-attention>=0.3.0",
 ]
 
 [dependency-groups]
@@ -36,6 +42,9 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/steering_geometry/extract.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
