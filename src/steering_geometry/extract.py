@@ -15,6 +15,10 @@ Usage:
     vector = extract_vector("sentiment", model_name="Qwen/Qwen3.5-2B", num_pairs=500)
 """
 
+import warnings
+
+warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=RuntimeWarning)
+
 import argparse
 from collections.abc import Callable
 from functools import partial
@@ -590,8 +594,13 @@ def main() -> None:
     print(f"Saved steering vector to {output_file}")
 
 
-if __name__ == "__main__":
+def _run_cli() -> None:
+    """Run CLI when invoked as entry point."""
     main()
+
+
+if __name__ == "__main__":
+    _run_cli()
 
 
 __all__ = [
