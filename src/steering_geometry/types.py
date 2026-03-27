@@ -67,11 +67,13 @@ class MMLUQuestion(TypedDict):
         question: The question text.
         options: List of answer choices.
         answer: The correct answer letter.
+        category: Subject category (e.g., math, physics, chemistry).
     """
 
     question: str
     options: list[str]
     answer: str
+    category: str
 
 
 @dataclass
