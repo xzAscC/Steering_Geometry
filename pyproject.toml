@@ -11,7 +11,6 @@ dependencies = [
     "transformers>=5.3.0",
     "datasets>=2.16,<3.0",
     "numpy>=1.26,<3.0",
-    "pandas>=2.0,<3.0",
     "scikit-learn>=1.4,<2.0",
     "accelerate>=1.13.0",
     "openai>=1.0.0,<2.0",
@@ -32,7 +31,6 @@ dev = [
     "mypy>=1.13.0",
     "pytest>=8.0.0",
     "pyyaml>=6.0.3",
-    "pandas-stubs>=2.0,<3.0",
 ]
 
 [tool.ruff]

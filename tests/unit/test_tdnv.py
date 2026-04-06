@@ -404,7 +404,7 @@ class TestSelectTopKDiscriminative:
         assert result.shape[1] == 2  # hidden_dim preserved
 
     def test_scoring_formula(self) -> None:
-        """Verify discriminative score: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²."""
+        """Verify discriminative score: Σ_{c≠own} ||h_i - μ_c||² - ||h_i - μ_same||²."""
         # Create two classes with known means
         # Class 0: mean = [2, 0]
         class_0 = torch.tensor(
@@ -419,16 +419,14 @@ class TestSelectTopKDiscriminative:
         activations = torch.cat([class_0, class_1], dim=0)
         labels = [0, 0, 1, 1]
 
-        # For class 0 token [2, 0]:
-        # μ_same = [2, 0], μ_other = [0, 2]
-        # ||h - μ_other||² = ||[2, -2]||² = 4 + 4 = 8
+        # For class 0 token [2, 0] (binary case, sum over 1 other class):
+        # μ_same = [2, 0], μ_class1 = [0, 2]
+        # Σ ||h - μ_c||² = ||[2, -2]||² = 8
         # ||h - μ_same||² = 0
         # score = 8 - 0 = 8
-        # Higher scores = more discriminative
 
         result = select_top_k_discriminative(activations, labels, k=2)
 
-        # All tokens have same score within class, so all should be selected
         assert result.shape[0] == 4
 
     def test_k_larger_than_class(self) -> None:
@@ -444,6 +442,38 @@ class TestSelectTopKDiscriminative:
         # Should return all 5 tokens (3 + 2)
         assert result.shape[0] == 5
         assert result.shape[1] == 4
+
+    def test_multi_class_sum_scoring(self) -> None:
+        """With 3+ classes, score = Σ_{c≠own} ||h-μ_c||² - ||h-μ_same||²."""
+        # Class 0 at [4, 0], class 1 at [0, 4], class 2 at [-4, 0]
+        class_0 = torch.tensor([[4.0, 0.0]], dtype=torch.float32)
+        class_1 = torch.tensor([[0.0, 4.0]], dtype=torch.float32)
+        class_2 = torch.tensor([[-4.0, 0.0]], dtype=torch.float32)
+        activations = torch.cat([class_0, class_1, class_2], dim=0)
+        labels = [0, 1, 2]
+
+        result = select_top_k_discriminative(activations, labels, k=1)
+
+        # Each class has 1 token, so result = 3 tokens total
+        assert result.shape[0] == 3
+
+    def test_three_class_prefers_central_token(self) -> None:
+        """Token far from all other classes scores higher."""
+        # Class 0: [5, 0] and [0.1, 0] — [5,0] far from others
+        # Class 1: [0, 5] and [0, 0.1]
+        # Class 2: [-5, 0] and [-0.1, 0]
+        class_0 = torch.tensor([[5.0, 0.0], [0.1, 0.0]], dtype=torch.float32)
+        class_1 = torch.tensor([[0.0, 5.0], [0.0, 0.1]], dtype=torch.float32)
+        class_2 = torch.tensor([[-5.0, 0.0], [-0.1, 0.0]], dtype=torch.float32)
+        activations = torch.cat([class_0, class_1, class_2], dim=0)
+        labels = [0, 0, 1, 1, 2, 2]
+
+        result = select_top_k_discriminative(activations, labels, k=1)
+
+        # Top-1 per class should pick [5,0], [0,5], [-5,0] (far outliers)
+        assert result.shape[0] == 3
+        # Verify class 0's selected token is [5, 0] not [0.1, 0]
+        assert result[0, 0].item() == 5.0
 
 
 class TestComputeTDNVMMLU:

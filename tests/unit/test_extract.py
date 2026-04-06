@@ -134,18 +134,18 @@ class TestPoliteLoader:
     """Tests for polite data loader."""
 
     def test_load_polite_data(self) -> None:
-        """Polite data should load from Cleanlab/stanford-politeness."""
+        """Polite data should load from Intel/polite-guard."""
         config = ConceptConfig(
             concept_name="polite",
-            dataset_name="politeness",
+            dataset_name="polite",
             num_pairs=10,
         )
         pairs = load_polite_data(config)
         assert len(pairs) == 10
         for pair in pairs:
             assert pair.metadata["concept"] == "polite"
-            assert pair.metadata["dataset"] == "politeness"
-            assert pair.metadata["source"] == "Cleanlab/stanford-politeness"
+            assert pair.metadata["dataset"] == "polite"
+            assert pair.metadata["source"] == "Intel/polite-guard"
             assert pair.positive  # polite text (label=1)
             assert pair.negative  # impolite text (label=0)
 
@@ -153,7 +153,7 @@ class TestPoliteLoader:
         """Polite data should return the requested number of pairs."""
         config = ConceptConfig(
             concept_name="polite",
-            dataset_name="politeness",
+            dataset_name="polite",
             num_pairs=5,
         )
         pairs = load_polite_data(config)
@@ -163,7 +163,7 @@ class TestPoliteLoader:
         """Polite loader should use original text directly, no prefix."""
         config = ConceptConfig(
             concept_name="polite",
-            dataset_name="politeness",
+            dataset_name="polite",
             num_pairs=3,
         )
         pairs = load_polite_data(config)

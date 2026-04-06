@@ -86,9 +86,9 @@ list_available() {
     exit 0
 }
 
-CONCEPTS="honesty"
+CONCEPTS="polite,sentiment,refusal"
 MODELS="Qwen/Qwen3-1.7B"
-NUM_PAIRS=500
+NUM_PAIRS=100
 OUTPUT_DIR="$PROJECT_ROOT/data/tdnv"
 PLOT_DIR="$PROJECT_ROOT/plot/tdnv"
 DRY_RUN=false

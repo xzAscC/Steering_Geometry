@@ -4,16 +4,24 @@ Computes separability metrics for positive/negative contrast pairs across
 all model layers to analyze steering vector effectiveness.
 
 Usage:
-    # CLI
+    # CLI - concept mode (default)
     uv run python -m steering_geometry.tdnv --concept honesty --model Qwen/Qwen3.5-2B
+
+    # CLI - MMLU mode
+    uv run python -m steering_geometry.tdnv --mode mmlu --model Qwen/Qwen3.5-2B --num-questions 100
 
     # Programmatic
     from steering_geometry.tdnv import compute_tdnv_for_concept
     result = compute_tdnv_for_concept("honesty", "Qwen/Qwen3.5-2B", num_pairs=500)
+
+    from steering_geometry.tdnv import compute_tdnv_for_mmlu
+    result = compute_tdnv_for_mmlu("Qwen/Qwen3.5-2B", num_questions=100)
 """
 
 import argparse
 import json
+import random
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, cast
@@ -21,10 +29,10 @@ from typing import Protocol, cast
 import torch
 from torch import Tensor
 
-from .config import ModelConfig, TDNVConfig
+from .config import MMLUConfig, ModelConfig, TDNVConfig
 from .extract import VALID_CONCEPTS, load_contrast_pairs
 from .models import HookedModel
-from .types import TDNVLayerMetrics, TDNVResult
+from .types import MMLUQuestion, TDNVLayerMetrics, TDNVResult
 from .utils import ensure_dir, safe_model_name
 
 EPS = 1e-8
@@ -55,8 +63,10 @@ def select_top_k_discriminative(
 ) -> Tensor:
     """Select top-k discriminative tokens per class.
 
-    Scoring formula: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
-    Higher score = token is closer to own class, farther from other class.
+    Scoring formula: s_i = Σ_{c ≠ own} ||h_i - μ_c||² - ||h_i - μ_same||²
+    For binary: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+    For multi-class: sums distance to ALL other class centroids.
+    Higher score = token is closer to own class, farther from all other classes.
 
     Args:
         activations: Tensor of shape (total_tokens, hidden_dim)
@@ -82,18 +92,17 @@ def select_top_k_discriminative(
         class_activations = activations[mask]
         own_centroid = centroids[label]
 
-        # Compute other centroid (mean of all other classes)
-        other_centroids = [centroids[other] for other in unique_labels if other != label]
-        if other_centroids:
-            other_centroid = torch.stack(other_centroids).mean(dim=0)
-        else:
-            # Single class case: no other centroid, use zero
-            other_centroid = torch.zeros_like(own_centroid)
+        # Score: Σ_{c ≠ own} ||h - μ_c||² - ||h - μ_same||²
+        # Sum distances to ALL other class centroids (not averaged)
+        dist_to_others = torch.zeros(class_activations.shape[0], dtype=class_activations.dtype)
+        for other_label in unique_labels:
+            if other_label == label:
+                continue
+            other_centroid = centroids[other_label]
+            dist_to_others = dist_to_others + ((class_activations - other_centroid) ** 2).sum(dim=1)
 
-        # Score: ||h - μ_other||² - ||h - μ_same||²
-        dist_to_other = ((class_activations - other_centroid) ** 2).sum(dim=1)
         dist_to_own = ((class_activations - own_centroid) ** 2).sum(dim=1)
-        scores = dist_to_other - dist_to_own
+        scores = dist_to_others - dist_to_own
 
         # Select top-k
         k_actual = min(k, class_activations.shape[0])
@@ -490,6 +499,173 @@ def compute_tdnv_for_concept(
     )
 
 
+def compute_tdnv_for_mmlu(
+    model_name: str,
+    mmlu_config: MMLUConfig | None = None,
+    tdnv_config: TDNVConfig | None = None,
+    categories: list[str] | None = None,
+    last_n: int | None = None,
+    top_k: int | None = None,
+) -> TDNVResult:
+    """Compute TDNV metrics across MMLU-Pro categories for all layers.
+
+    Loads MMLU-Pro validation set, groups questions by category, extracts
+    activations, and computes TDNV metrics for every layer in the model.
+    Each MMLU category (e.g., math, physics, chemistry) is treated as a
+    separate group for multi-class separability analysis.
+
+    Args:
+        model_name: HuggingFace model name.
+        mmlu_config: MMLU configuration (uses defaults if None).
+        tdnv_config: TDNV configuration (uses defaults if None).
+        categories: Optional list of category names to include.
+                    None means include all categories from the dataset.
+        last_n: If provided, use only last n tokens from activations.
+                None means use all tokens. Must be positive.
+        top_k: If provided, use only top-k discriminative tokens per class.
+               Uses scoring: s_i = Σ_{c ≠ own} ||h_i - μ_c||² - ||h_i - μ_same||².
+               Mutually exclusive with last_n.
+
+    Returns:
+        TDNVResult with layer-wise TDNV metrics across MMLU categories.
+
+    Raises:
+        ValueError: If last_n or top_k is not positive, or both are specified,
+                    or no categories have data.
+    """
+    if last_n is not None and last_n <= 0:
+        msg = f"last_n must be positive, got {last_n}"
+        raise ValueError(msg)
+
+    if top_k is not None and top_k <= 0:
+        msg = f"top_k must be positive, got {top_k}"
+        raise ValueError(msg)
+
+    if last_n is not None and top_k is not None:
+        msg = "Cannot specify both last_n and top_k"
+        raise ValueError(msg)
+
+    if mmlu_config is None:
+        mmlu_config = MMLUConfig()
+
+    if tdnv_config is None:
+        tdnv_config = TDNVConfig()
+
+    from datasets import load_dataset  # type: ignore[import-untyped]
+
+    print("Loading MMLU-Pro dataset...")
+    ds = load_dataset("TIGER-Lab/MMLU-Pro", split="validation")
+    questions: list[MMLUQuestion] = list(ds)
+    random.seed(mmlu_config.seed)
+    random.shuffle(questions)
+    questions = questions[: mmlu_config.num_questions]
+    print(f"Loaded {len(questions)} MMLU questions")
+
+    category_texts: dict[str, list[str]] = defaultdict(list)
+    for q in questions:
+        cat = q.get("category", "unknown")
+        if categories is not None and cat not in categories:
+            continue
+        parts = [f"Question: {q.get('question', '')}"]
+        labels = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+        opts = q.get("options", [])
+        for i, opt in enumerate(opts[:10]):
+            if i < len(labels):
+                parts.append(f"{labels[i]}. {opt}")
+        parts.append("Answer:")
+        category_texts[cat].append("\n".join(parts))
+
+    if not category_texts:
+        msg = "No MMLU categories found after filtering"
+        raise ValueError(msg)
+
+    sorted_categories = sorted(category_texts.keys())
+    print(f"Categories ({len(sorted_categories)}): {', '.join(sorted_categories)}")
+
+    model = HookedModel(ModelConfig(model_name=model_name))
+    layers = list(range(model.num_layers))
+    print(f"Model has {model.num_layers} layers")
+    if top_k is not None:
+        print(f"Using top-{top_k} discriminative tokens per category")
+
+    cat_activations_per_layer: dict[int, dict[str, list[Tensor]]] = {
+        layer: {cat: [] for cat in sorted_categories} for layer in layers
+    }
+
+    for cat in sorted_categories:
+        texts = category_texts[cat]
+        print(f"Processing category '{cat}' ({len(texts)} questions)...")
+
+        for start in range(0, len(texts), tdnv_config.batch_size):
+            batch = texts[start : start + tdnv_config.batch_size]
+            activations = model.get_activations(batch, layers)
+
+            for layer in layers:
+                flat = activations[layer].reshape(-1, activations[layer].shape[-1])
+                non_zero = flat[flat.abs().sum(dim=-1) > 0]
+
+                if last_n is not None:
+                    non_zero = select_last_n_tokens(non_zero, last_n)
+
+                cat_activations_per_layer[layer][cat].append(non_zero)
+
+    tdnv_values: list[float] = []
+    norm_num_values: list[float] = []
+    norm_den_values: list[float] = []
+    layerwise_energy: list[float] = []
+
+    for layer in layers:
+        category_acts: dict[str, Tensor] = {}
+        for cat in sorted_categories:
+            tensors = cat_activations_per_layer[layer][cat]
+            if tensors:
+                category_acts[cat] = torch.cat(tensors, dim=0)
+
+        if top_k is not None and len(category_acts) >= 2:
+            combined_list: list[Tensor] = []
+            cat_labels: list[int] = []
+            for cat_idx, cat in enumerate(sorted_categories):
+                if cat in category_acts:
+                    combined_list.append(category_acts[cat])
+                    cat_labels.extend([cat_idx] * category_acts[cat].shape[0])
+
+            combined = torch.cat(combined_list, dim=0)
+            selected = select_top_k_discriminative(combined, cat_labels, top_k)
+
+            selected_per_cat: dict[str, Tensor] = {}
+            offset = 0
+            for _cat_idx, cat in enumerate(sorted_categories):
+                if cat not in category_acts:
+                    continue
+                cat_count = category_acts[cat].shape[0]
+                k_actual = min(top_k, cat_count)
+                selected_per_cat[cat] = selected[offset : offset + k_actual]
+                offset += k_actual
+
+            category_acts = selected_per_cat
+
+        metrics = compute_tdnv_mmlu(category_acts)
+
+        tdnv_values.append(metrics.tdnv)
+        norm_num_values.append(metrics.norm_num)
+        norm_den_values.append(metrics.norm_den)
+        layerwise_energy.append(metrics.energy)
+
+        print(f"Layer {layer}: TDNV={metrics.tdnv:.4f}, energy={metrics.energy:.4f}")
+
+    total_used = sum(len(texts) for texts in category_texts.values())
+    return TDNVResult(
+        concept="mmlu",
+        model_name=model_name,
+        num_pairs=total_used,
+        layers=layers,
+        tdnv_values=tdnv_values,
+        norm_num_values=norm_num_values,
+        norm_den_values=norm_den_values,
+        layerwise_energy=layerwise_energy,
+    )
+
+
 def save_tdnv_result(result: TDNVResult, output_dir: Path) -> Path:
     """Save TDNV result to JSON file.
 
@@ -682,9 +858,13 @@ def plot_stability_trend(
 
 
 class _Args(Protocol):
+    mode: str
     concept: str
     model: str
     num_pairs: int
+    num_questions: int
+    mmlu_seed: int
+    categories: str
     output: str
     plot_dir: str
     dry_run: bool
@@ -695,13 +875,22 @@ class _Args(Protocol):
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="steering_geometry.tdnv",
-        description="Compute TDNV metrics for behavioral concepts",
+        description="Compute TDNV metrics for behavioral concepts or MMLU categories",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["concept", "mmlu"],
+        default="concept",
+        help=(
+            "Analysis mode: 'concept' for contrast-pair TDNV, "
+            "'mmlu' for MMLU category TDNV (default: concept)"
+        ),
     )
     parser.add_argument(
         "--concept",
-        required=True,
+        default=None,
         choices=sorted(VALID_CONCEPTS),
-        help="Concept to analyze (honesty, sentiment, toxicity, sycophancy, refusal)",
+        help="Concept to analyze (required for --mode concept)",
     )
     parser.add_argument(
         "--model",
@@ -712,7 +901,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "--num-pairs",
         type=int,
         default=500,
-        help="Number of contrast pairs (default: 500)",
+        help="Number of contrast pairs for --mode concept (default: 500)",
+    )
+    parser.add_argument(
+        "--num-questions",
+        type=int,
+        default=100,
+        help="Number of MMLU questions for --mode mmlu (default: 100)",
+    )
+    parser.add_argument(
+        "--mmlu-seed",
+        type=int,
+        default=42,
+        help="Random seed for MMLU question sampling (default: 42)",
+    )
+    parser.add_argument(
+        "--categories",
+        default=None,
+        help="Comma-separated MMLU categories to include (default: all categories)",
     )
     parser.add_argument(
         "--output",
@@ -747,6 +953,17 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = cast(_Args, cast(object, _build_parser().parse_args()))
 
+    if args.mode == "mmlu":
+        _run_mmlu(args)
+    else:
+        _run_concept(args)
+
+
+def _run_concept(args: _Args) -> None:
+    if args.concept is None:
+        print("Error: --concept is required for --mode concept")
+        raise SystemExit(1)
+
     pairs = load_contrast_pairs(args.concept, args.num_pairs)
     print(f"Loaded {len(pairs)} contrast pairs for {args.concept}")
 
@@ -772,6 +989,57 @@ def main() -> None:
     plot_tdnv_trends(result, Path(args.plot_dir))
 
 
+def _run_mmlu(args: _Args) -> None:
+    print("MMLU TDNV analysis mode")
+
+    if args.dry_run:
+        print("Dry run complete")
+        return
+
+    mmlu_config = MMLUConfig(num_questions=args.num_questions, seed=args.mmlu_seed)
+    tdnv_config = TDNVConfig(output_dir=args.output, plot_dir=args.plot_dir)
+
+    parsed_categories: list[str] | None = None
+    if args.categories:
+        parsed_categories = [c.strip() for c in args.categories.split(",") if c.strip()]
+
+    result = compute_tdnv_for_mmlu(
+        model_name=args.model,
+        mmlu_config=mmlu_config,
+        tdnv_config=tdnv_config,
+        categories=parsed_categories,
+        last_n=args.last_n,
+        top_k=args.top_k,
+    )
+
+    output_dir = Path(args.output)
+    plot_dir = Path(args.plot_dir)
+
+    model_slug = safe_model_name(result.model_name)
+    output_file = ensure_dir(output_dir) / f"mmlu_{model_slug}.json"
+    with output_file.open("w") as f:
+        json.dump(
+            {
+                "concept": result.concept,
+                "model_name": result.model_name,
+                "num_pairs": result.num_pairs,
+                "layers": result.layers,
+                "tdnv_values": result.tdnv_values,
+                "norm_num_values": result.norm_num_values,
+                "norm_den_values": result.norm_den_values,
+                "layerwise_energy": result.layerwise_energy,
+                "num_questions": args.num_questions,
+                "mmlu_seed": args.mmlu_seed,
+                "categories": parsed_categories,
+            },
+            f,
+            indent=2,
+        )
+    print(f"Saved MMLU TDNV results to {output_file}")
+
+    plot_tdnv_trends(result, plot_dir)
+
+
 if __name__ == "__main__":
     main()
 
@@ -781,6 +1049,7 @@ __all__ = [
     "select_top_k_discriminative",
     "compute_tdnv",
     "compute_tdnv_for_concept",
+    "compute_tdnv_for_mmlu",
     "compute_tdnv_multi_concept",
     "compute_tdnv_mmlu",
     "save_tdnv_result",
