@@ -63,8 +63,10 @@ def select_top_k_discriminative(
 ) -> Tensor:
     """Select top-k discriminative tokens per class.
 
-    Scoring formula: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
-    Higher score = token is closer to own class, farther from other class.
+    Scoring formula: s_i = Σ_{c ≠ own} ||h_i - μ_c||² - ||h_i - μ_same||²
+    For binary: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+    For multi-class: sums distance to ALL other class centroids.
+    Higher score = token is closer to own class, farther from all other classes.
 
     Args:
         activations: Tensor of shape (total_tokens, hidden_dim)
@@ -90,18 +92,17 @@ def select_top_k_discriminative(
         class_activations = activations[mask]
         own_centroid = centroids[label]
 
-        # Compute other centroid (mean of all other classes)
-        other_centroids = [centroids[other] for other in unique_labels if other != label]
-        if other_centroids:
-            other_centroid = torch.stack(other_centroids).mean(dim=0)
-        else:
-            # Single class case: no other centroid, use zero
-            other_centroid = torch.zeros_like(own_centroid)
+        # Score: Σ_{c ≠ own} ||h - μ_c||² - ||h - μ_same||²
+        # Sum distances to ALL other class centroids (not averaged)
+        dist_to_others = torch.zeros(class_activations.shape[0], dtype=class_activations.dtype)
+        for other_label in unique_labels:
+            if other_label == label:
+                continue
+            other_centroid = centroids[other_label]
+            dist_to_others = dist_to_others + ((class_activations - other_centroid) ** 2).sum(dim=1)
 
-        # Score: ||h - μ_other||² - ||h - μ_same||²
-        dist_to_other = ((class_activations - other_centroid) ** 2).sum(dim=1)
         dist_to_own = ((class_activations - own_centroid) ** 2).sum(dim=1)
-        scores = dist_to_other - dist_to_own
+        scores = dist_to_others - dist_to_own
 
         # Select top-k
         k_actual = min(k, class_activations.shape[0])
@@ -504,6 +505,7 @@ def compute_tdnv_for_mmlu(
     tdnv_config: TDNVConfig | None = None,
     categories: list[str] | None = None,
     last_n: int | None = None,
+    top_k: int | None = None,
 ) -> TDNVResult:
     """Compute TDNV metrics across MMLU-Pro categories for all layers.
 
@@ -520,15 +522,27 @@ def compute_tdnv_for_mmlu(
                     None means include all categories from the dataset.
         last_n: If provided, use only last n tokens from activations.
                 None means use all tokens. Must be positive.
+        top_k: If provided, use only top-k discriminative tokens per class.
+               Uses scoring: s_i = Σ_{c ≠ own} ||h_i - μ_c||² - ||h_i - μ_same||².
+               Mutually exclusive with last_n.
 
     Returns:
         TDNVResult with layer-wise TDNV metrics across MMLU categories.
 
     Raises:
-        ValueError: If last_n is not positive, or no categories have data.
+        ValueError: If last_n or top_k is not positive, or both are specified,
+                    or no categories have data.
     """
     if last_n is not None and last_n <= 0:
         msg = f"last_n must be positive, got {last_n}"
+        raise ValueError(msg)
+
+    if top_k is not None and top_k <= 0:
+        msg = f"top_k must be positive, got {top_k}"
+        raise ValueError(msg)
+
+    if last_n is not None and top_k is not None:
+        msg = "Cannot specify both last_n and top_k"
         raise ValueError(msg)
 
     if mmlu_config is None:
@@ -571,6 +585,8 @@ def compute_tdnv_for_mmlu(
     model = HookedModel(ModelConfig(model_name=model_name))
     layers = list(range(model.num_layers))
     print(f"Model has {model.num_layers} layers")
+    if top_k is not None:
+        print(f"Using top-{top_k} discriminative tokens per category")
 
     cat_activations_per_layer: dict[int, dict[str, list[Tensor]]] = {
         layer: {cat: [] for cat in sorted_categories} for layer in layers
@@ -605,6 +621,29 @@ def compute_tdnv_for_mmlu(
             if tensors:
                 category_acts[cat] = torch.cat(tensors, dim=0)
 
+        if top_k is not None and len(category_acts) >= 2:
+            combined_list: list[Tensor] = []
+            cat_labels: list[int] = []
+            for cat_idx, cat in enumerate(sorted_categories):
+                if cat in category_acts:
+                    combined_list.append(category_acts[cat])
+                    cat_labels.extend([cat_idx] * category_acts[cat].shape[0])
+
+            combined = torch.cat(combined_list, dim=0)
+            selected = select_top_k_discriminative(combined, cat_labels, top_k)
+
+            selected_per_cat: dict[str, Tensor] = {}
+            offset = 0
+            for _cat_idx, cat in enumerate(sorted_categories):
+                if cat not in category_acts:
+                    continue
+                cat_count = category_acts[cat].shape[0]
+                k_actual = min(top_k, cat_count)
+                selected_per_cat[cat] = selected[offset : offset + k_actual]
+                offset += k_actual
+
+            category_acts = selected_per_cat
+
         metrics = compute_tdnv_mmlu(category_acts)
 
         tdnv_values.append(metrics.tdnv)
@@ -614,10 +653,11 @@ def compute_tdnv_for_mmlu(
 
         print(f"Layer {layer}: TDNV={metrics.tdnv:.4f}, energy={metrics.energy:.4f}")
 
+    total_used = sum(len(texts) for texts in category_texts.values())
     return TDNVResult(
         concept="mmlu",
         model_name=model_name,
-        num_pairs=len(questions),
+        num_pairs=total_used,
         layers=layers,
         tdnv_values=tdnv_values,
         norm_num_values=norm_num_values,
@@ -969,6 +1009,7 @@ def _run_mmlu(args: _Args) -> None:
         tdnv_config=tdnv_config,
         categories=parsed_categories,
         last_n=args.last_n,
+        top_k=args.top_k,
     )
 
     output_dir = Path(args.output)
