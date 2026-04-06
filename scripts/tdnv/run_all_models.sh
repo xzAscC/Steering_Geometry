@@ -5,11 +5,14 @@
 # Runs TDNV analysis on 8 models (4 families, 2 scales each) across 3 concepts.
 # Hyperparameters are fixed to match quick_tdnv.sh defaults.
 #
-# Models:
+# Active models:
 #   Qwen3:   1.7B, 4B
-#   Qwen3.5: 9B, 27B
+#   Qwen3.5: 9B
 #   Gemma-2: 2B, 9B
-#   OLMo-3:  7B, 32B
+#   OLMo-3:  7B
+#
+# Commented out (large, need more GPU):
+#   Qwen3.5: 27B, OLMo-3: 32B
 #
 # Concepts: polite, sentiment, refusal
 #
@@ -62,8 +65,8 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $(basename "$0") [--dry-run] [-h|--help]"
             echo ""
-            echo "Run TDNV analysis on 8 models × 3 concepts."
-            echo "Models: Qwen3 (1.7B, 4B), Qwen3.5 (9B, 27B), Gemma-2 (2B, 9B), OLMo-3 (7B, 32B)"
+            echo "Run TDNV analysis on 6 models × 3 concepts."
+            echo "Models: Qwen3 (1.7B, 4B), Qwen3.5 (9B), Gemma-2 (2B, 9B), OLMo-3 (7B)"
             echo "Concepts: polite, sentiment, refusal"
             exit 0
             ;;
@@ -83,7 +86,7 @@ echo -e "${BLUE}============================================${NC}"
 echo -e "${BLUE}TDNV All-Models Analysis${NC}"
 echo -e "${BLUE}============================================${NC}"
 echo -e "Concepts:   ${GREEN}${CONCEPTS[*]}${NC}"
-echo -e "Models:     ${GREEN}${#MODELS[@]} models (Qwen3×2, Qwen3.5×2, Gemma-2×2, OLMo-3×2)${NC}"
+echo -e "Models:     ${GREEN}${#MODELS[@]} models (Qwen3×2, Qwen3.5×1, Gemma-2×2, OLMo-3×1)${NC}"
 echo -e "Pairs:      ${GREEN}$NUM_PAIRS${NC}"
 echo -e "Output:     ${YELLOW}$OUTPUT_DIR${NC}"
 echo -e "Plots:      ${YELLOW}$PLOT_DIR${NC}"

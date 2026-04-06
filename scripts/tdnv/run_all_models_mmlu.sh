@@ -5,11 +5,13 @@
 # Runs TDNV MMLU analysis on all models, treating each MMLU subject category
 # as a separate group and computing separability across all layers.
 #
-# Models:
+# Active models:
 #   Qwen3:   1.7B, 4B
-#   Qwen3.5: 9B, 27B
-#   Gemma-2: 2B, 9B
-#   OLMo-3:  7B, 32B
+#   Gemma-2: 2B
+#   OLMo-3:  7B
+#
+# Commented out (large, need more GPU):
+#   Qwen3.5: 9B, 27B, Gemma-2: 9B, OLMo-3: 32B
 #
 # Usage:
 #   ./scripts/tdnv/run_all_models_mmlu.sh                  # All models, 100 questions
@@ -83,7 +85,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --dry-run           Dry run (no model loading)"
             echo "  -h, --help          Show this help"
             echo ""
-            echo "Models: Qwen3 (1.7B, 4B), Qwen3.5 (9B, 27B), Gemma-2 (2B, 9B), OLMo-3 (7B, 32B)"
+            echo "Models: Qwen3 (1.7B, 4B), Gemma-2 (2B), OLMo-3 (7B)"
             exit 0
             ;;
         *)
