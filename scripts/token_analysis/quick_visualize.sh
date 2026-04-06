@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Default values (match token_analysis.py defaults)
-MODEL="sshleifer/tiny-gpt2"
+MODEL="Qwen/Qwen3-1.7B"
 TOP_K=50
 OUTPUT_DIR="$PROJECT_ROOT/outputs/token_analysis/"
 
