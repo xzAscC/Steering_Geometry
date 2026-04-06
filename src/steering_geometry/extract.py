@@ -4,7 +4,7 @@ This module provides a single entry point for extracting steering vectors
 from 3 behavioral concepts using HuggingFace datasets:
 - sentiment: glue/sst2
 - refusal: LLM-LAT/harmful-dataset
-- polite: Cleanlab/stanford-politeness
+- polite: Intel/polite-guard
 
 Usage:
     # CLI
@@ -25,10 +25,8 @@ from functools import partial
 from pathlib import Path
 from typing import Protocol, cast
 
-import pandas as pd
 import torch
 from datasets import load_dataset  # type: ignore[import-untyped]
-from huggingface_hub import hf_hub_download
 from sklearn.decomposition import PCA  # type: ignore[import-untyped]
 from torch import Tensor
 
@@ -240,30 +238,25 @@ def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
 
 
 def load_polite_data(config: ConceptConfig) -> list[ContrastPair]:
-    """Load politeness contrast pairs from Cleanlab/stanford-politeness."""
+    """Load politeness contrast pairs from Intel/polite-guard."""
     validate_positive_int(config.num_pairs, "num_pairs")
 
-    file_path = hf_hub_download(
-        repo_id="Cleanlab/stanford-politeness",
-        filename="fine-tuning/train_full.csv",
-        repo_type="dataset",
-    )
-    df = pd.read_csv(file_path)
+    dataset = load_dataset("Intel/polite-guard", split="train")
 
     polite_texts: list[str] = []
     impolite_texts: list[str] = []
-    for _, row in df.iterrows():
+    for row in dataset:
         text = row["text"]
         label = row["label"]
-        if not isinstance(text, str) or not text.strip():
+        if not text or not text.strip():
             continue
-        if label == 1:
+        if label == "polite":
             polite_texts.append(text.strip())
-        elif label == 0:
+        elif label == "impolite":
             impolite_texts.append(text.strip())
 
     if not polite_texts or not impolite_texts:
-        msg = "Stanford Politeness dataset did not provide both polite and impolite texts"
+        msg = "Intel/polite-guard dataset did not provide both polite and impolite texts"
         raise ValueError(msg)
 
     max_pairs = min(len(polite_texts), len(impolite_texts))
@@ -282,7 +275,7 @@ def load_polite_data(config: ConceptConfig) -> list[ContrastPair]:
             metadata=ContrastPairMetadata(
                 concept=config.concept_name,
                 dataset=config.dataset_name,
-                source="Cleanlab/stanford-politeness",
+                source="Intel/polite-guard",
                 pair_index=pair_index,
             ),
         )
