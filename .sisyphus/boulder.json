@@ -1,75 +1,54 @@
 {
-  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/tdnv-stability-analysis.md",
-  "started_at": "2026-03-26T18:59:48.807Z",
+  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/switch-polite-dataset.md",
+  "started_at": "2026-04-06T03:27:54.647Z",
   "session_ids": [
-    "ses_2d496f97effeUGh7R76GN9yNJs",
-    "ses_2d47a060dffeBvpdl7jH3IIUM3",
-    "ses_2d47a0620ffeWv15incVvgtgTw",
-    "ses_2d479d183ffe22MYU7UA1Eplib",
-    "ses_2d479d196ffecYgbr5zr0FaspJ",
-    "ses_2d46265feffeHTNGebiHFmoZTx",
-    "ses_2d45c768cffe6TBd5gN9eIyglE",
-    "ses_2d45cb6b5ffeWEA5nOvhXaBN8G",
-    "ses_2d4566866ffeKIUJVRgNtjg0pI",
-    "ses_2d452c768ffeyjuPeoRkAbEXeQ",
-    "ses_2d4524cfeffeJVMA0rUme132Hj",
-    "ses_2d452c79afferd7UxAhS1pdSsI",
-    "ses_2d452a1d0ffecRxsECxdV9APR7",
-    "ses_2d4527ea3ffez7g442z8tXjodu",
-    "ses_2d44d5093ffe1JW2nTNyLbt930",
-    "ses_2d44d7cd6ffeDXzyUAKC4q7hZu",
-    "ses_2d44d649affeud1WrbE67moPhT",
-    "ses_2d44d3b62ffe3o5Z3d26HsIVMS",
-    "ses_2d44bca7affefvdj5sR12h7Dpp",
-    "ses_2d4450792ffe2aiHbsJBEVYeai",
-    "ses_2d444dd15ffeGigwRDTd2Rh3l4",
-    "ses_2d4453bd4ffeR70uI7ptheGDWr",
-    "ses_2d4449910ffevBVSj5phL3WZjT",
-    "ses_2d2ac1815ffeMZgKiURKZ1NGc5",
-    "ses_2d2a98791ffeKWzdMjrMJjYCLK",
-    "ses_2d2a9879affeT6ZhC7TCBYI22g",
-    "ses_2d29fde69ffeaXbjrCQzGTz9Py",
-    "ses_2d2a987a6ffeChFL28eeiRqgku",
-    "ses_2d282f237ffe1FpXyvGWfsm58i"
+    "ses_29f2adb0bffeihQGYKgl4Jf6jx",
+    "ses_29f290042ffeez2lAdsnsuUA50",
+    "ses_29f24cba2ffe49A032s2tMUHrD",
+    "ses_29f201a06ffepfvnd8ZaPQGhgj",
+    "ses_29f1c6d3cffenbliwuoqIXX8o2",
+    "ses_29f1c6c87ffeNhvPop7fZ07Jhf",
+    "ses_29f1c6d01ffeCKdLCpjw6nHKJ4",
+    "ses_29f1c6cc2ffeuQXJj85XeiZL3d"
   ],
-  "plan_name": "tdnv-stability-analysis",
+  "plan_name": "switch-polite-dataset",
   "agent": "atlas",
   "task_sessions": {
     "todo:1": {
       "task_key": "todo:1",
       "task_label": "1",
-      "task_title": "Add `category` field to MMLUQuestion TypedDict",
-      "session_id": "ses_2d46265feffeHTNGebiHFmoZTx",
+      "task_title": "Update Tests for New Polite Loader (TDD: RED phase)",
+      "session_id": "ses_29f290042ffeez2lAdsnsuUA50",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-03-26T19:29:11.742Z"
+      "updated_at": "2026-04-06T03:31:09.741Z"
     },
-    "todo:5": {
-      "task_key": "todo:5",
-      "task_label": "5",
-      "task_title": "Implement compute_tdnv_multi_concept",
-      "session_id": "ses_2d45cb6b5ffeWEA5nOvhXaBN8G",
-      "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-03-26T19:39:09.950Z"
-    },
-    "todo:8": {
-      "task_key": "todo:8",
-      "task_label": "8",
-      "task_title": "Implement stability trend plotting functions",
-      "session_id": "ses_2d4566866ffeKIUJVRgNtjg0pI",
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Rewrite load_polite_data + Remove Dead Imports (TDD: GREEN phase)",
+      "session_id": "ses_29f24cba2ffe49A032s2tMUHrD",
       "agent": "Sisyphus-Junior",
       "category": "quick",
-      "updated_at": "2026-03-26T19:43:03.695Z"
+      "updated_at": "2026-04-06T03:36:58.420Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Remove pandas from pyproject.toml",
+      "session_id": "ses_29f201a06ffepfvnd8ZaPQGhgj",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-06T03:40:07.759Z"
     },
     "final-wave:f1": {
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "**Plan Compliance Audit** — `oracle`",
-      "session_id": "ses_2d282f237ffe1FpXyvGWfsm58i",
+      "session_id": "ses_29f1c6d01ffeCKdLCpjw6nHKJ4",
       "agent": "Sisyphus-Junior",
-      "category": "quick",
-      "updated_at": "2026-03-27T04:13:19.221Z"
+      "category": "unspecified-high",
+      "updated_at": "2026-04-06T03:46:28.311Z"
     }
   }
 }
