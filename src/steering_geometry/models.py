@@ -38,16 +38,16 @@ class HookedModel:
             config: Model configuration specifying model name, device, dtype, etc.
         """
         self.config = config
-        torch_dtype = _DTYPE_MAP.get(config.dtype, torch.float16)
+        dtype = _DTYPE_MAP.get(config.dtype, torch.float16)
 
         self.model = AutoModelForCausalLM.from_pretrained(
             config.model_name,
             device_map="auto",
-            torch_dtype=torch_dtype,
+            dtype=dtype,
             trust_remote_code=config.trust_remote_code,
         )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
+        self.tokenizer = AutoTokenizer.from_pretrained(
             config.model_name,
             trust_remote_code=config.trust_remote_code,
         )
@@ -248,10 +248,11 @@ class HookedModel:
             with torch.no_grad():
                 output_ids = self.model.generate(**inputs, **gen_kwargs)
 
-            generated_text: str = self.tokenizer.decode(
+            generated_text = self.tokenizer.decode(
                 output_ids[0][inputs["input_ids"].shape[1] :],
                 skip_special_tokens=True,
             )
+            assert isinstance(generated_text, str)
             return generated_text
         finally:
             handle.remove()

@@ -88,7 +88,7 @@ class TestJudgeEvaluator:
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
-            result = evaluator.evaluate_concept("honesty", "I always tell the truth.")
+            result = evaluator.evaluate_concept("sentiment", "I always tell the truth.")
 
         assert isinstance(result, JudgeScore)
         assert result.concept_score == 8
@@ -130,7 +130,7 @@ class TestJudgeEvaluator:
             new_callable=AsyncMock,
             side_effect=[concept_response, fluency_response],
         ):
-            result = evaluator.evaluate_dual("honesty", "Test text.")
+            result = evaluator.evaluate_dual("sentiment", "Test text.")
 
         assert result.concept_score == 8
         assert result.fluency_score == 6
@@ -159,6 +159,65 @@ class TestJudgeEvaluator:
                 evaluator.evaluate_fluency("Test text.")
 
             assert call_count == 2
+
+    def test_judge_config_with_custom_api_base(self) -> None:
+        """Test that JudgeConfig accepts custom api_base."""
+        config = JudgeConfig(api_base="http://localhost:8000/v1")
+        assert config.api_base == "http://localhost:8000/v1"
+        default_config = JudgeConfig()
+        assert default_config.api_base == "https://openrouter.ai/api/v1"
+
+    def test_judge_evaluator_uses_custom_api_base(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that JudgeEvaluator passes custom api_base to AsyncOpenAI."""
+        import steering_geometry.apply_steering as apply_steering_module
+
+        captured_base_url: str = ""
+
+        def mock_async_openai_init(*, base_url: str, api_key: str) -> MagicMock:
+            nonlocal captured_base_url
+            captured_base_url = base_url
+            mock_client = MagicMock()
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="Rating: [[5]]"))]
+                )
+            )
+            return mock_client
+
+        with patch.object(apply_steering_module, "AsyncOpenAI", side_effect=mock_async_openai_init):
+            config = JudgeConfig(api_base="http://localhost:8000/v1")
+            JudgeEvaluator(config)
+
+        assert captured_base_url == "http://localhost:8000/v1"
+
+    def test_judge_evaluator_localhost_uses_dummy_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that localhost URLs use dummy API key 'local-vllm'."""
+        import steering_geometry.apply_steering as apply_steering_module
+
+        captured_api_key: str = ""
+
+        def mock_async_openai_init(*, base_url: str, api_key: str) -> MagicMock:
+            nonlocal captured_api_key
+            captured_api_key = api_key
+            mock_client = MagicMock()
+            mock_client.chat = MagicMock()
+            mock_client.chat.completions = MagicMock()
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="Rating: [[5]]"))]
+                )
+            )
+            return mock_client
+
+        with patch.object(apply_steering_module, "AsyncOpenAI", side_effect=mock_async_openai_init):
+            config = JudgeConfig(api_base="http://localhost:8000/v1")
+            JudgeEvaluator(config)
+
+        assert captured_api_key == "local-vllm"
 
 
 class TestMMLUEvaluator:
@@ -254,7 +313,7 @@ class TestGenerateHtmlReport:
             predictions=[],
         )
         metadata = {
-            "concept": "honesty",
+            "concept": "sentiment",
             "model": "test-model",
             "layer": 10,
             "multiplier": 1.0,
@@ -272,7 +331,7 @@ class TestGenerateHtmlReport:
         content = output_path.read_text()
         assert "<html" in content
         assert "Steering Evaluation Report" in content
-        assert "honesty" in content
+        assert "sentiment" in content
         assert "test-model" in content
         assert "70.00%" in content or "70%" in content
 

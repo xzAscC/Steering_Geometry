@@ -210,12 +210,12 @@ class TestDatasetSizeCapping:
     def test_requested_greater_than_max(self, caplog: pytest.LogCaptureFixture) -> None:
         """When requested > max, should return max with warning."""
         caplog.set_level("WARNING")
-        result = cap_examples(500, 200, "honesty")
+        result = cap_examples(500, 200, "sentiment")
 
         assert result == 200
         # Check warning was logged
         assert "Requested 500 examples" in caplog.text
-        assert "honesty" in caplog.text
+        assert "sentiment" in caplog.text
         assert "200 available" in caplog.text
 
     def test_capping_with_zero_max(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -242,7 +242,7 @@ class TestGPUPlaceholders:
     def test_single_extraction_experiment1(self, tmp_path: Path) -> None:
         """Run single extraction with real model, verify vector shape and file creation."""
         result = run_diff_means_experiment(
-            concept="honesty",
+            concept="sentiment",
             n_examples_list=[10],
             layers=[0.5],
             model_name="Qwen/Qwen3-1.7B",

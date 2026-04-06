@@ -6,7 +6,7 @@
 #
 # Usage:
 #   ./scripts/pipeline/run_pipeline.sh                                    # Full pipeline, default model
-#   ./scripts/pipeline/run_pipeline.sh -c honesty,toxicity                # Specific concepts
+#   ./scripts/pipeline/run_pipeline.sh -c sentiment,refusal                # Specific concepts
 #   ./scripts/pipeline/run_pipeline.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
 #   ./scripts/pipeline/run_pipeline.sh --skip-extract                     # Skip extraction step
 #   ./scripts/pipeline/run_pipeline.sh --eval-only                        # Only run evaluation
@@ -22,9 +22,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Available options
-ALL_CONCEPTS=("honesty" "sycophancy" "toxicity" "sentiment" "refusal")
-ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3.5-2B" "Qwen/Qwen3.5-4B" "google/gemma-2-2b")
+# Available options (loaded from centralized config)
+eval $(uv run python -m steering_geometry --shell)
 
 # Colors for output
 RED='\033[0;31m'
@@ -46,7 +45,7 @@ Pipeline Steps:
 
 Options:
     -c, --concepts LIST    Comma-separated list of concepts (default: all)
-                           Available: honesty, sycophancy, toxicity, sentiment, refusal
+                           Available: sentiment, refusal, polite
     -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3.5-2B)
     
     # Extraction options
@@ -62,6 +61,8 @@ Options:
     # Evaluation options
     --evaluate             Run LLM-as-judge and MMLU evaluation
     --judge-model MODEL    Judge model (default: google/gemini-3.1-flash-lite-preview)
+    --judge-api-base URL   Judge API base URL (default: https://openrouter.ai/api/v1)
+                           For local vLLM, use: http://localhost:8000/v1
     --mmlu-questions N     Number of MMLU questions (default: 10)
     
     # Pipeline control
@@ -78,7 +79,7 @@ Options:
 
 Examples:
     $(basename "$0")                                    # Full pipeline, all concepts
-    $(basename "$0") -c honesty,toxicity                # Specific concepts
+    $(basename "$0") -c sentiment,refusal                # Specific concepts
     $(basename "$0") -m Qwen/Qwen3.5-2B --evaluate      # With evaluation
     $(basename "$0") --skip-extract                     # Skip extraction
     $(basename "$0") -c all -m all                      # All concepts × all models
@@ -99,15 +100,16 @@ list_available() {
 # Default values
 CONCEPTS=""
 MODELS="Qwen/Qwen3.5-2B"
-NUM_PAIRS=500
+NUM_PAIRS=100
 METHOD="mean"
 NUM_SAMPLES=10
-MULTIPLIERS="0.01,0.1,1.0,10.0"
-MAX_TOKENS=100
+MULTIPLIERS="0.01"
+MAX_TOKENS=10
 TEMPERATURE=0.0
 BASE_OUTPUT="$PROJECT_ROOT/data"
 EVALUATE=false
 JUDGE_MODEL="google/gemini-3.1-flash-lite-preview"
+JUDGE_API_BASE="https://openrouter.ai/api/v1"
 MMLU_QUESTIONS=10
 
 # Pipeline control flags
@@ -157,6 +159,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --judge-model)
             JUDGE_MODEL="$2"
+            shift 2
+            ;;
+        --judge-api-base)
+            JUDGE_API_BASE="$2"
             shift 2
             ;;
         --mmlu-questions)
@@ -241,6 +247,7 @@ echo -e "  Samples:        $NUM_SAMPLES"
 echo -e "  Multipliers:    $MULTIPLIERS"
 echo -e "  Max tokens:     $MAX_TOKENS"
 echo -e "  Temperature:    $TEMPERATURE"
+echo -e "  Judge API Base: $JUDGE_API_BASE"
 echo -e "${BLUE}============================================${NC}"
 echo ""
 
@@ -336,7 +343,7 @@ run_evaluate() {
     echo -e "${BLUE}STEP 3: EVALUATING STEERING EFFECTIVENESS${NC}"
     echo -e "${BLUE}============================================${NC}"
     
-    EVAL_FLAGS="--evaluate --judge-model $JUDGE_MODEL --mmlu-questions $MMLU_QUESTIONS"
+    EVAL_FLAGS="--evaluate --judge-model $JUDGE_MODEL --judge-api-base $JUDGE_API_BASE --mmlu-questions $MMLU_QUESTIONS"
     
     current=0
     for model in "${MODEL_ARRAY[@]}"; do

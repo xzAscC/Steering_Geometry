@@ -19,8 +19,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Load centralized configuration
+eval $(uv run python -m steering_geometry --shell)
+
 # Experiment configuration
-CONCEPTS=("honesty" "sentiment" "toxicity" "sycophancy" "refusal")
 K_VALUES=(16 32)
 LAYERS=(0.4 0.5)
 MODEL="Qwen/Qwen3-1.7B"
@@ -41,7 +43,7 @@ layers_str=$(IFS=,; echo "[${LAYERS[*]}]")
 echo -e "${BLUE}============================================${NC}"
 echo -e "${BLUE}Discriminative Token Selection Experiment${NC}"
 echo -e "${BLUE}============================================${NC}"
-echo -e "Concepts:      ${GREEN}${CONCEPTS[*]}${NC}"
+echo -e "Concepts:      ${GREEN}${ALL_CONCEPTS[*]}${NC}"
 echo -e "Model:         ${GREEN}${MODEL}${NC}"
 echo -e "K values:      ${GREEN}${k_values_str}${NC}"
 echo -e "Layers:        ${GREEN}${layers_str}${NC}"
@@ -53,10 +55,10 @@ echo ""
 mkdir -p "$OUTPUT_DIR"
 
 # Run experiments sequentially
-total=${#CONCEPTS[@]}
+total=${#ALL_CONCEPTS[@]}
 current=0
 
-for concept in "${CONCEPTS[@]}"; do
+for concept in "${ALL_CONCEPTS[@]}"; do
     ((++current))
     echo -e "\n${GREEN}[$current/$total] Running discriminative experiment: $concept${NC}"
     echo "----------------------------------------"

@@ -192,7 +192,11 @@ class JudgeEvaluator:
             config: Configuration for the judge model.
         """
         self.config = config
-        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        # Detect localhost and use dummy API key
+        if "localhost" in config.api_base or "127.0.0.1" in config.api_base:
+            api_key = "local-vllm"
+        else:
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self.client = AsyncOpenAI(
             base_url=config.api_base,
             api_key=api_key,
@@ -540,6 +544,7 @@ def apply_steering(
     config: SteeringConfig,
     evaluate: bool = False,
     judge_model: str = "google/gemini-3.1-flash-lite-preview",
+    judge_api_base: str = "https://openrouter.ai/api/v1",
     mmlu_questions: int = 10,
 ) -> None:
     """Apply steering vector to model and save results as JSONL.
@@ -560,6 +565,7 @@ def apply_steering(
         config: Steering configuration.
         evaluate: Whether to run evaluation on steered outputs.
         judge_model: Judge model for LLM-as-judge evaluation.
+        judge_api_base: Base URL for judge API endpoint.
         mmlu_questions: Number of MMLU questions for evaluation.
     """
     if config.num_samples <= 0:
@@ -637,7 +643,7 @@ def apply_steering(
 
         if evaluate and len(results) > 0:
             print(f"  Running evaluation for layer {layer_idx}...")
-            judge_config = JudgeConfig(model=judge_model)
+            judge_config = JudgeConfig(model=judge_model, api_base=judge_api_base)
             mmlu_config = MMLUConfig(num_questions=mmlu_questions)
 
             judge = JudgeEvaluator(judge_config)
@@ -714,6 +720,7 @@ class _Args(Protocol):
     temperature: float
     evaluate: bool
     judge_model: str
+    judge_api_base: str
     mmlu_questions: int
 
 
@@ -772,6 +779,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Judge model for LLM-as-judge evaluation",
     )
     parser.add_argument(
+        "--judge-api-base",
+        default="https://openrouter.ai/api/v1",
+        help="Base URL for judge API endpoint. For local vLLM, use: http://localhost:8000/v1",
+    )
+    parser.add_argument(
         "--mmlu-questions",
         type=int,
         default=10,
@@ -801,6 +813,7 @@ def main() -> None:
         config=config,
         evaluate=args.evaluate,
         judge_model=args.judge_model,
+        judge_api_base=args.judge_api_base,
         mmlu_questions=args.mmlu_questions,
     )
 

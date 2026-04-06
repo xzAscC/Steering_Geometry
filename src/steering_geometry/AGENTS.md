@@ -45,7 +45,7 @@ steering_geometry/
 
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
-| `VALID_CONCEPTS` | const | extract.py:77 | ["honesty", "sycophancy", "toxicity", "sentiment", "refusal"] |
+| `VALID_CONCEPTS` | const | extract.py:77 | ["polite", "sentiment", "refusal"] |
 | `ContrastPair` | dataclass | types.py:77 | Positive/negative text + metadata |
 | `SteeringVector` | dataclass | types.py:94 | Layer activations + model/concept/method |
 | `HookedModel` | class | models.py:20 | Model wrapper with activation hooks |

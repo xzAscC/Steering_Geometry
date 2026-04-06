@@ -30,6 +30,79 @@ from .utils import ensure_dir, safe_model_name
 EPS = 1e-8
 
 
+def select_last_n_tokens(activations: Tensor, n: int) -> Tensor:
+    """Select last n tokens from activations tensor.
+
+    Args:
+        activations: Tensor of shape (num_tokens, hidden_dim)
+        n: Number of tokens to select from the end
+
+    Returns:
+        Tensor of shape (min(n, num_tokens), hidden_dim)
+    """
+    if n <= 0:
+        return activations.new_zeros((0, activations.shape[1]))
+    num_tokens = activations.shape[0]
+    if n >= num_tokens:
+        return activations.clone()
+    return activations[-n:].clone()
+
+
+def select_top_k_discriminative(
+    activations: Tensor,
+    labels: list[int],
+    k: int,
+) -> Tensor:
+    """Select top-k discriminative tokens per class.
+
+    Scoring formula: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+    Higher score = token is closer to own class, farther from other class.
+
+    Args:
+        activations: Tensor of shape (total_tokens, hidden_dim)
+        labels: Class label for each token (same length as activations)
+        k: Number of tokens to select per class
+
+    Returns:
+        Concatenated tensor of selected tokens from all classes
+    """
+    unique_labels = sorted(set(labels))
+    selected_tokens: list[Tensor] = []
+
+    # Compute centroids for all classes
+    centroids: dict[int, Tensor] = {}
+    for label in unique_labels:
+        mask = [i for i, lbl in enumerate(labels) if lbl == label]
+        class_activations = activations[mask]
+        centroids[label] = class_activations.mean(dim=0)
+
+    # For each class, compute scores and select top-k
+    for label in unique_labels:
+        mask = [i for i, lbl in enumerate(labels) if lbl == label]
+        class_activations = activations[mask]
+        own_centroid = centroids[label]
+
+        # Compute other centroid (mean of all other classes)
+        other_centroids = [centroids[other] for other in unique_labels if other != label]
+        if other_centroids:
+            other_centroid = torch.stack(other_centroids).mean(dim=0)
+        else:
+            # Single class case: no other centroid, use zero
+            other_centroid = torch.zeros_like(own_centroid)
+
+        # Score: ||h - μ_other||² - ||h - μ_same||²
+        dist_to_other = ((class_activations - other_centroid) ** 2).sum(dim=1)
+        dist_to_own = ((class_activations - own_centroid) ** 2).sum(dim=1)
+        scores = dist_to_other - dist_to_own
+
+        # Select top-k
+        k_actual = min(k, class_activations.shape[0])
+        _, top_indices = torch.topk(scores, k_actual)
+        selected_tokens.append(class_activations[top_indices])
+
+    return torch.cat(selected_tokens, dim=0)
+
+
 @dataclass
 class _TopicStats:
     mean: Tensor
@@ -68,6 +141,98 @@ def _compute_per_topic_stats(
         stats[topic] = _TopicStats(mean=mean, variance=variance, count=count)
 
     return stats
+
+
+def compute_tdnv_multi_concept(
+    concepts: dict[str, tuple[Tensor, Tensor]],
+) -> TDNVLayerMetrics:
+    """Compute TDNV across multiple binary concepts.
+
+    TDNV measures separability across all groups from multiple binary concepts.
+    Lower TDNV = better overall separability.
+
+    Formula: TDNV = (1/M(M-1)) * Σ (var_g + var_g') / (2||mean_g - mean_g'||²)
+    Where:
+        - M = total number of groups (2T for T binary concepts)
+        - var_g = within-group variance for group g
+        - mean_g = centroid for group g
+
+    Args:
+        concepts: Dict mapping concept name to (pos_activations, neg_activations).
+                  e.g., {"polite": (pos_tensor, neg_tensor), "sentiment": (pos_tensor, neg_tensor)}
+
+    Returns:
+        TDNVLayerMetrics with tdnv, norm_num, norm_den, energy.
+    """
+    if not concepts:
+        return TDNVLayerMetrics(tdnv=float("inf"), norm_num=0.0, norm_den=0.0, energy=0.0)
+
+    all_groups: list[Tensor] = []
+    for _concept_name, (pos_acts, neg_acts) in concepts.items():
+        pos_acts = pos_acts.float()
+        neg_acts = neg_acts.float()
+        all_groups.append(pos_acts)
+        all_groups.append(neg_acts)
+
+    combined = torch.cat(all_groups, dim=0)
+    energy = float((combined**2).sum(dim=1).mean().item())
+
+    M = len(all_groups)  # noqa: N806  # Mathematical notation for TDNV formula
+
+    if M < 2:
+        return TDNVLayerMetrics(tdnv=float("inf"), norm_num=0.0, norm_den=0.0, energy=energy)
+
+    topic_labels = []
+    for group_idx, group in enumerate(all_groups):
+        topic_labels.extend([group_idx] * group.shape[0])
+
+    stats = _compute_per_topic_stats(combined, topic_labels)
+
+    total_pairwise_tdnv = 0.0
+    total_norm_num = 0.0
+    total_norm_den = 0.0
+    pair_count = 0
+
+    for g_idx in range(M):
+        if g_idx not in stats:
+            continue
+        for g_prime_idx in range(M):
+            if g_prime_idx <= g_idx:
+                continue
+            if g_prime_idx not in stats:
+                continue
+
+            g_stats = stats[g_idx]
+            g_prime_stats = stats[g_prime_idx]
+
+            mean_diff = g_stats.mean - g_prime_stats.mean
+            mean_diff_sq = float((mean_diff**2).sum().item())
+
+            avg_variance = (g_stats.variance + g_prime_stats.variance) / 2.0
+
+            pairwise_tdnv = avg_variance / (2.0 * mean_diff_sq + EPS)
+            total_pairwise_tdnv += pairwise_tdnv
+
+            total_norm_num += avg_variance / (energy + EPS) if energy > 0 else 0.0
+            total_norm_den += mean_diff_sq / (energy + EPS) if energy > 0 else 0.0
+
+            pair_count += 1
+
+    if pair_count == 0:
+        return TDNVLayerMetrics(tdnv=float("inf"), norm_num=0.0, norm_den=0.0, energy=energy)
+
+    # Normalize by M(M-1) as per formula
+    normalization_factor = M * (M - 1)
+    tdnv = total_pairwise_tdnv / normalization_factor
+    norm_num = total_norm_num / normalization_factor
+    norm_den = total_norm_den / normalization_factor
+
+    return TDNVLayerMetrics(
+        tdnv=tdnv,
+        norm_num=norm_num,
+        norm_den=norm_den,
+        energy=energy,
+    )
 
 
 def compute_tdnv(
@@ -121,10 +286,92 @@ def compute_tdnv(
     )
 
 
+def compute_tdnv_mmlu(
+    category_activations: dict[str, Tensor],
+) -> TDNVLayerMetrics:
+    """Compute TDNV across MMLU-Pro categories.
+
+    Each category is treated as a separate group (multi-class, not binary).
+    Formula: TDNV = (1/M(M-1)) * Σ (var_g + var_g') / (2||mean_g - mean_g'||²)
+
+    Args:
+        category_activations: Dict mapping category name to activations tensor
+                        e.g., {"math": tensor(10, 64), "physics": tensor(10, 64)}
+
+    Returns:
+        TDNVLayerMetrics with tdnv, norm_num, norm_den, energy
+    """
+    if not category_activations:
+        return TDNVLayerMetrics(tdnv=float("inf"), norm_num=0.0, norm_den=0.0, energy=0.0)
+
+    # Collect all activations and compute energy
+    all_activations: list[Tensor] = []
+    category_names = list(category_activations.keys())
+
+    for name in category_names:
+        all_activations.append(category_activations[name].float())
+
+    combined = torch.cat(all_activations, dim=0)
+    energy = float((combined**2).sum(dim=1).mean().item())
+
+    topic_labels: list[int] = []
+    for i, name in enumerate(category_names):
+        topic_labels.extend([i] * category_activations[name].shape[0])
+
+    stats = _compute_per_topic_stats(combined, topic_labels)
+    M = len(stats)  # noqa: N806  # Mathematical notation for TDNV formula
+
+    if M < 2:
+        single_variance = stats[0].variance if 0 in stats else 0.0
+        norm_num = single_variance / (energy + EPS) if energy > 0 else 0.0
+        return TDNVLayerMetrics(
+            tdnv=norm_num,
+            norm_num=norm_num,
+            norm_den=0.0,
+            energy=energy,
+        )
+
+    tdnv_sum = 0.0
+    norm_num_sum = 0.0
+    norm_den_sum = 0.0
+    pair_count = 0
+
+    topic_ids = sorted(stats.keys())
+    for i, topic_i in enumerate(topic_ids):
+        for topic_j in topic_ids[i + 1 :]:
+            stats_i = stats[topic_i]
+            stats_j = stats[topic_j]
+
+            mean_diff = stats_i.mean - stats_j.mean
+            mean_diff_sq = float((mean_diff**2).sum().item())
+
+            avg_within_variance = (stats_i.variance + stats_j.variance) / 2.0
+
+            pair_tdnv = avg_within_variance / (2.0 * mean_diff_sq + EPS)
+            tdnv_sum += pair_tdnv
+
+            norm_num_sum += avg_within_variance
+            norm_den_sum += mean_diff_sq
+            pair_count += 1
+
+    tdnv_avg = tdnv_sum / pair_count if pair_count > 0 else float("inf")
+    norm_num_avg = norm_num_sum / pair_count if pair_count > 0 else 0.0
+    norm_den_avg = norm_den_sum / pair_count if pair_count > 0 else 0.0
+
+    return TDNVLayerMetrics(
+        tdnv=tdnv_avg,
+        norm_num=norm_num_avg / (energy + EPS) if energy > 0 else 0.0,
+        norm_den=norm_den_avg / (energy + EPS) if energy > 0 else 0.0,
+        energy=energy,
+    )
+
+
 def compute_tdnv_for_concept(
     concept: str,
     model_name: str,
     config: TDNVConfig | None = None,
+    last_n: int | None = None,
+    top_k: int | None = None,
 ) -> TDNVResult:
     """Compute TDNV metrics for all layers of a concept.
 
@@ -135,15 +382,33 @@ def compute_tdnv_for_concept(
         concept: Behavioral concept (honesty, sentiment, toxicity, sycophancy, refusal).
         model_name: HuggingFace model name.
         config: TDNV configuration (uses defaults if None).
+        last_n: If provided, use only last n tokens from activations.
+                None means use all tokens. Must be positive.
+        top_k: If provided, use only top-k discriminative tokens per class.
+               Uses scoring: s_i = ||h_i - μ_other||² - ||h_i - μ_same||².
+               Mutually exclusive with last_n.
 
     Returns:
         TDNVResult with layer-wise metrics.
 
     Raises:
-        ValueError: If concept is invalid.
+        ValueError: If concept is invalid, last_n is not positive, or both
+                    last_n and top_k are specified.
     """
     if concept not in VALID_CONCEPTS:
         msg = f"Invalid concept: {concept}. Valid concepts: {sorted(VALID_CONCEPTS)}"
+        raise ValueError(msg)
+
+    if last_n is not None and last_n <= 0:
+        msg = f"last_n must be positive, got {last_n}"
+        raise ValueError(msg)
+
+    if top_k is not None and top_k <= 0:
+        msg = f"top_k must be positive, got {top_k}"
+        raise ValueError(msg)
+
+    if last_n is not None and top_k is not None:
+        msg = "Cannot specify both last_n and top_k"
         raise ValueError(msg)
 
     if config is None:
@@ -151,6 +416,10 @@ def compute_tdnv_for_concept(
 
     pairs = load_contrast_pairs(concept, config.num_pairs)
     print(f"Loaded {len(pairs)} contrast pairs for {concept}")
+    if last_n is not None:
+        print(f"Using last {last_n} tokens per sample")
+    if top_k is not None:
+        print(f"Using top-{top_k} discriminative tokens per class")
 
     model = HookedModel(ModelConfig(model_name=model_name))
     layers = list(range(model.num_layers))
@@ -172,6 +441,12 @@ def compute_tdnv_for_concept(
             neg_flat = neg_activations[layer].reshape(-1, neg_activations[layer].shape[-1])
             pos_non_zero = pos_flat[pos_flat.abs().sum(dim=-1) > 0]
             neg_non_zero = neg_flat[neg_flat.abs().sum(dim=-1) > 0]
+
+            # Apply last_n token selection if specified
+            if last_n is not None:
+                pos_non_zero = select_last_n_tokens(pos_non_zero, last_n)
+                neg_non_zero = select_last_n_tokens(neg_non_zero, last_n)
+
             pos_per_layer[layer].append(pos_non_zero)
             neg_per_layer[layer].append(neg_non_zero)
 
@@ -183,6 +458,16 @@ def compute_tdnv_for_concept(
     for layer in layers:
         pos_batch = torch.cat(pos_per_layer[layer], dim=0)
         neg_batch = torch.cat(neg_per_layer[layer], dim=0)
+
+        if top_k is not None:
+            combined = torch.cat([pos_batch, neg_batch], dim=0)
+            labels = [0] * pos_batch.shape[0] + [1] * neg_batch.shape[0]
+            selected = select_top_k_discriminative(combined, labels, top_k)
+            selected_labels = [0] * min(top_k, pos_batch.shape[0]) + [1] * min(
+                top_k, neg_batch.shape[0]
+            )
+            pos_batch = selected[[i for i, lbl in enumerate(selected_labels) if lbl == 0]]
+            neg_batch = selected[[i for i, lbl in enumerate(selected_labels) if lbl == 1]]
 
         metrics = compute_tdnv(pos_batch, neg_batch)
 
@@ -312,6 +597,85 @@ def plot_tdnv_trends(result: TDNVResult, plot_dir: Path) -> Path:
     return output_file
 
 
+def plot_stability_trend(
+    results: list[TDNVResult],
+    param_name: str,
+    param_values: list[float | int],
+    output_path: Path,
+) -> Path:
+    """Plot TDNV stability trends across parameter values.
+
+    Args:
+        results: List of TDNVResult objects (one per parameter value)
+        param_name: Name of the parameter being varied (e.g., "Dataset Size", "Seed")
+        param_values: List of parameter values corresponding to each result
+        output_path: Path to save the PDF plot
+
+    Returns:
+        Path to the saved PDF file
+
+    Creates:
+        - PDF plot with:
+          - X-axis: parameter values
+          - Y-axis: TDNV values (log scale)
+          - Multiple lines (one per layer, different colors)
+          - Legend showing layer indices
+          - Title: "TDNV vs {param_name}"
+    """
+    import matplotlib.pyplot as plt
+
+    if not results:
+        raise ValueError("Results list cannot be empty")
+
+    if len(results) != len(param_values):
+        msg = (
+            f"Number of results ({len(results)}) must match "
+            f"number of param_values ({len(param_values)})"
+        )
+        raise ValueError(msg)
+
+    layers = results[0].layers
+    num_layers = len(layers)
+    cmap = plt.get_cmap("viridis")
+    colors = [cmap(i / max(num_layers - 1, 1)) for i in range(num_layers)]
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    for layer_idx, layer in enumerate(layers):
+        tdnv_across_params = []
+        for result in results:
+            if layer in result.layers:
+                layer_pos = result.layers.index(layer)
+                tdnv_across_params.append(result.tdnv_values[layer_pos])
+            else:
+                tdnv_across_params.append(float("nan"))
+
+        ax.plot(
+            param_values,
+            tdnv_across_params,
+            "-o",
+            color=colors[layer_idx],
+            label=f"Layer {layer}",
+            markersize=4,
+        )
+
+    ax.set_xlabel(param_name)
+    ax.set_ylabel("TDNV")
+    ax.set_title(f"TDNV vs {param_name}")
+    ax.set_yscale("log")
+    ax.legend(loc="best", ncol=2, fontsize="small")
+    ax.grid(True, alpha=0.3)
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    plt.savefig(output_path, bbox_inches="tight")
+    plt.close()
+
+    print(f"Saved stability trend plot to {output_path}")
+    return output_path
+
+
 # =============================================================================
 # CLI
 # =============================================================================
@@ -324,6 +688,8 @@ class _Args(Protocol):
     output: str
     plot_dir: str
     dry_run: bool
+    last_n: int | None
+    top_k: int | None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -363,6 +729,18 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Load data only, skip model loading and computation",
     )
+    parser.add_argument(
+        "--last-n",
+        type=int,
+        default=None,
+        help="Use only last N tokens from activations (default: all tokens)",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=None,
+        help="Use only top-K discriminative tokens per class (default: all tokens)",
+    )
     return parser
 
 
@@ -386,6 +764,8 @@ def main() -> None:
         concept=args.concept,
         model_name=args.model,
         config=config,
+        last_n=args.last_n,
+        top_k=args.top_k,
     )
 
     save_tdnv_result(result, Path(args.output))
@@ -397,10 +777,15 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "select_last_n_tokens",
+    "select_top_k_discriminative",
     "compute_tdnv",
     "compute_tdnv_for_concept",
+    "compute_tdnv_multi_concept",
+    "compute_tdnv_mmlu",
     "save_tdnv_result",
     "plot_tdnv_trends",
+    "plot_stability_trend",
     "TDNVConfig",
     "TDNVLayerMetrics",
     "TDNVResult",

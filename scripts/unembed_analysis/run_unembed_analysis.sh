@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Available options
-ALL_CONCEPTS=("honesty" "sentiment" "toxicity" "sycophancy" "refusal")
+eval $(uv run python -m steering_geometry --shell)
 ALL_METHODS=("diff_means" "discriminative")
 
 # Colors for output

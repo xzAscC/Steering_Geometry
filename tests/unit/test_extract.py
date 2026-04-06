@@ -7,11 +7,9 @@ import pytest
 from steering_geometry.config import ConceptConfig, ExtractionConfig, ModelConfig
 from steering_geometry.extract import (
     load_contrast_pairs,
-    load_honesty_data,
+    load_polite_data,
     load_refusal_data,
     load_sentiment_data,
-    load_sycophancy_data,
-    load_toxicity_data,
 )
 
 HAS_ACCELERATE = importlib.util.find_spec("accelerate") is not None
@@ -26,30 +24,16 @@ class TestLoadContrastPairs:
     def test_zero_pairs_raises(self) -> None:
         """Zero pairs should raise ValueError."""
         with pytest.raises(ValueError, match="must be positive"):
-            load_contrast_pairs("honesty", num_pairs=0)
+            load_contrast_pairs("sentiment", num_pairs=0)
 
     def test_negative_pairs_raises(self) -> None:
         """Negative pairs should raise ValueError."""
         with pytest.raises(ValueError, match="must be positive"):
-            load_contrast_pairs("honesty", num_pairs=-1)
+            load_contrast_pairs("sentiment", num_pairs=-1)
 
 
 class TestDatasetLoaders:
     """Tests for individual dataset loaders."""
-
-    def test_load_honesty_data(self) -> None:
-        """Honesty data should load from TruthfulQA."""
-        config = ConceptConfig(
-            concept_name="honesty",
-            dataset_name="truthfulqa",
-            num_pairs=10,
-        )
-        pairs = load_honesty_data(config)
-        assert len(pairs) == 10
-        for pair in pairs:
-            assert pair.metadata["concept"] == "honesty"
-            assert "honest" in pair.positive.lower()
-            assert "dishonest" in pair.negative.lower()
 
     def test_load_sentiment_data(self) -> None:
         """Sentiment data should load from SST-2."""
@@ -64,34 +48,6 @@ class TestDatasetLoaders:
             assert pair.metadata["concept"] == "sentiment"
             assert pair.positive
             assert pair.negative
-
-    def test_load_toxicity_data(self) -> None:
-        """Toxicity data should load from Civil Comments."""
-        config = ConceptConfig(
-            concept_name="toxicity",
-            dataset_name="civil_comments",
-            num_pairs=10,
-        )
-        pairs = load_toxicity_data(config)
-        assert len(pairs) == 10
-        for pair in pairs:
-            assert pair.metadata["concept"] == "toxicity"
-            assert pair.positive
-            assert pair.negative
-
-    def test_load_sycophancy_data(self) -> None:
-        """Sycophancy data should load from Anthropic dataset."""
-        config = ConceptConfig(
-            concept_name="sycophancy",
-            dataset_name="anthropic",
-            num_pairs=10,
-        )
-        pairs = load_sycophancy_data(config)
-        assert len(pairs) == 10
-        for pair in pairs:
-            assert pair.metadata["concept"] == "sycophancy"
-            assert "sycophantic" in pair.positive.lower()
-            assert "objective" in pair.negative.lower()
 
     def test_load_refusal_data(self) -> None:
         """Refusal data should load from LLM-LAT dataset."""
@@ -172,3 +128,48 @@ class TestExtractionConfig:
         assert config.batch_size == 16
         assert config.read_token_index == 0
         assert config.layers == [0.5]
+
+
+class TestPoliteLoader:
+    """Tests for polite data loader."""
+
+    def test_load_polite_data(self) -> None:
+        """Polite data should load from Cleanlab/stanford-politeness."""
+        config = ConceptConfig(
+            concept_name="polite",
+            dataset_name="politeness",
+            num_pairs=10,
+        )
+        pairs = load_polite_data(config)
+        assert len(pairs) == 10
+        for pair in pairs:
+            assert pair.metadata["concept"] == "polite"
+            assert pair.metadata["dataset"] == "politeness"
+            assert pair.metadata["source"] == "Cleanlab/stanford-politeness"
+            assert pair.positive  # polite text (label=1)
+            assert pair.negative  # impolite text (label=0)
+
+    def test_load_polite_data_returns_correct_count(self) -> None:
+        """Polite data should return the requested number of pairs."""
+        config = ConceptConfig(
+            concept_name="polite",
+            dataset_name="politeness",
+            num_pairs=5,
+        )
+        pairs = load_polite_data(config)
+        assert len(pairs) == 5
+
+    def test_polite_uses_direct_text_no_prefix(self) -> None:
+        """Polite loader should use original text directly, no prefix."""
+        config = ConceptConfig(
+            concept_name="polite",
+            dataset_name="politeness",
+            num_pairs=3,
+        )
+        pairs = load_polite_data(config)
+        # Unlike sycophancy, polite uses direct text like sentiment
+        # Check that text doesn't have artificial prefixes
+        for pair in pairs:
+            # Should be original text, not prefixed with instructions
+            assert not pair.positive.startswith("Pretend")
+            assert not pair.negative.startswith("Pretend")

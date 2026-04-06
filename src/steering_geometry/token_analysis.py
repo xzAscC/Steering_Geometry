@@ -27,7 +27,7 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import PreTrainedTokenizerBase
 
-from .config import ModelConfig, TokenAnalysisConfig
+from .config import SUPPORTED_CONCEPTS, ModelConfig, TokenAnalysisConfig
 from .extract import load_contrast_pairs
 from .models import HookedModel
 from .types import (
@@ -323,7 +323,7 @@ def _build_parser() -> argparse.ArgumentParser:
     visualize_parser.add_argument(
         "--concept",
         required=True,
-        choices=["honesty", "sentiment", "toxicity", "sycophancy", "refusal"],
+        choices=SUPPORTED_CONCEPTS,
         help="Concept to analyze",
     )
     visualize_parser.add_argument(
@@ -350,7 +350,7 @@ def _build_parser() -> argparse.ArgumentParser:
     probe_parser.add_argument(
         "--concept",
         required=True,
-        choices=["honesty", "sentiment", "toxicity", "sycophancy", "refusal"],
+        choices=SUPPORTED_CONCEPTS,
         help="Concept to probe",
     )
     probe_parser.add_argument(
