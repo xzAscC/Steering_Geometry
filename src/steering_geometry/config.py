@@ -175,6 +175,8 @@ class TokenAnalysisConfig:
         layers: Relative layer positions (0.0-1.0) to analyze.
         batch_size: Batch size for processing activations.
         random_seed: Random seed for reproducible token sampling.
+        last_n: If set, only use the last N tokens per sequence for scoring.
+            None means use all tokens (default behavior).
     """
 
     top_k: int = 50
@@ -183,6 +185,7 @@ class TokenAnalysisConfig:
     layers: list[float] = field(default_factory=lambda: [i / 9 for i in range(10)])
     batch_size: int = 8
     random_seed: int = 42
+    last_n: int | None = None
 
 
 @dataclass

@@ -68,18 +68,20 @@ def extract_all_token_activations(
     label: str,
     config: TokenAnalysisConfig,
 ) -> dict[int, list[TokenRecord]]:
-    """Extract activations for ALL tokens in texts (not just last token).
+    """Extract activations for tokens in texts.
 
     Processes texts in batches, extracts activations for each layer, and creates
     TokenRecord objects for each token position (excluding padding tokens).
     Stops collecting tokens when tokens_per_class limit is reached.
+    When config.last_n is set, only the last N non-padding tokens per sequence
+    are collected; otherwise all tokens are collected.
 
     Args:
         model: The hooked model to extract activations from.
         texts: List of input texts to process.
         layers: List of absolute layer indices to extract activations from.
         label: Label for all tokens ("positive" or "negative").
-        config: Configuration controlling batch size and token limits.
+        config: Configuration controlling batch size, token limits, and last_n.
 
     Returns:
         Dictionary mapping layer index to list of TokenRecord objects.
@@ -115,6 +117,8 @@ def extract_all_token_activations(
             token_ids_list = seq_input_ids[:actual_len].tolist()
 
             for pos in range(actual_len):
+                if config.last_n is not None and pos < actual_len - config.last_n:
+                    continue
                 token_id = int(seq_input_ids[pos].item())
                 token_text = _detokenize_token(model.tokenizer, token_id, token_ids_list)
 
@@ -306,6 +310,7 @@ class _Args(Protocol):
     output: str
     top_k: int
     tokens_per_class: int
+    last_n: int | None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -341,6 +346,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=50,
         help="Number of top tokens to visualize (default: 50)",
+    )
+    visualize_parser.add_argument(
+        "--last-n",
+        type=int,
+        default=None,
+        help="Only use the last N tokens per sequence for scoring (default: all tokens)",
     )
 
     probe_parser = subparsers.add_parser(
@@ -401,6 +412,7 @@ def run_visualize(args: _Args) -> None:
         top_k=args.top_k,
         tokens_per_class=10000,
         batch_size=8,
+        last_n=args.last_n,
     )
 
     logger.info("Extracting token activations for positive texts...")
