@@ -42,6 +42,7 @@ NUM_PAIRS=100
 OUTPUT_DIR="$PROJECT_ROOT/data/tdnv"
 PLOT_DIR="$PROJECT_ROOT/plot/tdnv"
 DRY_RUN=false
+LAST_N=10
 
 # --- 8 paper models ---
 MODELS=(
@@ -99,6 +100,9 @@ echo ""
 TDNV_ARGS=()
 if [[ "$DRY_RUN" == true ]]; then
     TDNV_ARGS+=(--dry-run)
+fi
+if [[ -n "${LAST_N:-}" ]]; then
+    TDNV_ARGS+=(--last-n "$LAST_N")
 fi
 
 failed=0
