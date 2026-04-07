@@ -117,8 +117,11 @@ def extract_all_token_activations(
             token_ids_list = seq_input_ids[:actual_len].tolist()
 
             for pos in range(actual_len):
-                if config.last_n is not None and pos < actual_len - config.last_n:
-                    continue
+                if config.last_n is not None:
+                    if config.last_n <= 0:
+                        raise ValueError("last_n must be a positive integer")
+                    if pos < actual_len - config.last_n:
+                        continue
                 token_id = int(seq_input_ids[pos].item())
                 token_text = _detokenize_token(model.tokenizer, token_id, token_ids_list)
 
