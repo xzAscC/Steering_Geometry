@@ -37,8 +37,8 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # --- Fixed hyperparameters ---
-CONCEPTS=("polite" "sentiment" "refusal")
-NUM_PAIRS=100
+CONCEPTS=("refusal")
+NUM_PAIRS=25
 TOP_K=100
 OUTPUT_DIR="$PROJECT_ROOT/data/tdnv_topk"
 PLOT_DIR="$PROJECT_ROOT/plot/tdnv_topk"
@@ -46,11 +46,11 @@ DRY_RUN=false
 
 # --- 8 paper models ---
 MODELS=(
-    "Qwen/Qwen3-1.7B"
-    "Qwen/Qwen3-4B"
+    #"Qwen/Qwen3-1.7B"
+    #"Qwen/Qwen3-4B"
     #"Qwen/Qwen3.5-9B"
     #"Qwen/Qwen3.5-27B"
-    "google/gemma-2-2b"
+    #"google/gemma-2-2b"
     #"google/gemma-2-9b"
     "allenai/Olmo-3-1025-7B"
     #"allenai/Olmo-3-1125-32B"
