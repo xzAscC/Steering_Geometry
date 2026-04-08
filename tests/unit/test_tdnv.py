@@ -1,17 +1,21 @@
 """Tests for TDNV metrics computation."""
 
+from unittest.mock import MagicMock, patch
+
+import pytest
 import torch
 
 from steering_geometry.tdnv import (
     EPS,
     _compute_per_topic_stats,
+    _run_concept,
     compute_tdnv,
     compute_tdnv_mmlu,  # noqa: F401 - TDD: function doesn't exist yet
     compute_tdnv_multi_concept,
     select_last_n_tokens,  # noqa: F401 - TDD: function doesn't exist yet
     select_top_k_discriminative,  # noqa: F401 - TDD: function doesn't exist yet
 )  # noqa: F401 - TDD: function doesn't exist yet
-from steering_geometry.types import TDNVLayerMetrics
+from steering_geometry.types import ContrastPair, ContrastPairMetadata, TDNVLayerMetrics
 
 
 class TestComputePerTopicStats:
@@ -550,3 +554,72 @@ class TestComputeTDNVMMLU:
             (category_activations["only_category"] ** 2).sum(dim=1).mean().item()
         )
         assert abs(metrics.energy - expected_energy) < 0.01
+
+
+def _make_mock_pairs(n: int, concept: str = "sentiment") -> list[ContrastPair]:
+    """Create n mock ContrastPairs for testing."""
+    return [
+        ContrastPair(
+            positive=f"positive text {i}",
+            negative=f"negative text {i}",
+            metadata=ContrastPairMetadata(concept=concept, dataset="test", pair_index=i),
+        )
+        for i in range(n)
+    ]
+
+
+class TestRunConcept:
+    """Tests for _run_concept ensuring correct data loading behavior."""
+
+    @patch("steering_geometry.tdnv.load_contrast_pairs")
+    def test_run_concept_dry_run_loads_once(self, mock_load: MagicMock) -> None:
+        """Dry-run path should call load_contrast_pairs exactly once."""
+        mock_load.return_value = _make_mock_pairs(10)
+        args = MagicMock()
+        args.dry_run = True
+        args.concept = "sentiment"
+        args.num_pairs = 10
+
+        _run_concept(args)
+
+        mock_load.assert_called_once_with("sentiment", 10)
+
+    @patch("steering_geometry.tdnv.plot_tdnv_trends")
+    @patch("steering_geometry.tdnv.save_tdnv_result")
+    @patch("steering_geometry.tdnv.compute_tdnv_for_concept")
+    @patch("steering_geometry.tdnv.load_contrast_pairs")
+    def test_run_concept_non_dry_run_no_direct_load(
+        self,
+        mock_load: MagicMock,
+        mock_compute: MagicMock,
+        mock_save: MagicMock,
+        mock_plot: MagicMock,
+    ) -> None:
+        """Non-dry-run path should NOT call load_contrast_pairs directly."""
+        mock_result = MagicMock()
+        mock_compute.return_value = mock_result
+
+        args = MagicMock()
+        args.dry_run = False
+        args.concept = "sentiment"
+        args.num_pairs = 10
+        args.model = "test-model"
+        args.output = "data/tdnv/"
+        args.plot_dir = "plot/tdnv/"
+        args.last_n = None
+        args.top_k = None
+
+        _run_concept(args)
+
+        mock_load.assert_not_called()
+        mock_compute.assert_called_once()
+        mock_save.assert_called_once()
+        mock_plot.assert_called_once()
+
+    def test_run_concept_no_concept_raises(self) -> None:
+        """Missing concept should raise SystemExit(1)."""
+        args = MagicMock()
+        args.concept = None
+
+        with pytest.raises(SystemExit, match="1"):
+            _run_concept(args)

@@ -9,7 +9,8 @@
     "ses_29f1c6d3cffenbliwuoqIXX8o2",
     "ses_29f1c6c87ffeNhvPop7fZ07Jhf",
     "ses_29f1c6d01ffeCKdLCpjw6nHKJ4",
-    "ses_29f1c6cc2ffeuQXJj85XeiZL3d"
+    "ses_29f1c6cc2ffeuQXJj85XeiZL3d",
+    "ses_2951a5e8effelawJYu32pYxWfU"
   ],
   "plan_name": "switch-polite-dataset",
   "agent": "atlas",
@@ -45,10 +46,10 @@
       "task_key": "final-wave:f1",
       "task_label": "F1",
       "task_title": "**Plan Compliance Audit** — `oracle`",
-      "session_id": "ses_29f1c6d01ffeCKdLCpjw6nHKJ4",
+      "session_id": "ses_2950fda9bffe3xNsSPGSYUzkls",
       "agent": "Sisyphus-Junior",
-      "category": "unspecified-high",
-      "updated_at": "2026-04-06T03:46:28.311Z"
+      "category": "quick",
+      "updated_at": "2026-04-08T02:47:03.821Z"
     }
   }
 }

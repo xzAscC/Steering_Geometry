@@ -964,10 +964,9 @@ def _run_concept(args: _Args) -> None:
         print("Error: --concept is required for --mode concept")
         raise SystemExit(1)
 
-    pairs = load_contrast_pairs(args.concept, args.num_pairs)
-    print(f"Loaded {len(pairs)} contrast pairs for {args.concept}")
-
     if args.dry_run:
+        pairs = load_contrast_pairs(args.concept, args.num_pairs)
+        print(f"Loaded {len(pairs)} contrast pairs for {args.concept}")
         print("Dry run complete")
         return
 

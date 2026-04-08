@@ -195,6 +195,7 @@ def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
 
     dataset = load_dataset("glue", "sst2")
 
+    oversample = config.num_pairs * 2
     positives: list[str] = []
     negatives: list[str] = []
     for row in dataset["train"]:
@@ -206,6 +207,9 @@ def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
             positives.append(sentence.strip())
         elif label == 0:
             negatives.append(sentence.strip())
+        # Early stop: collected enough for oversample buffer
+        if len(positives) >= oversample and len(negatives) >= oversample:
+            break
 
     if not positives or not negatives:
         msg = "SST-2 dataset did not provide both positive and negative sentences"
@@ -243,6 +247,7 @@ def load_polite_data(config: ConceptConfig) -> list[ContrastPair]:
 
     dataset = load_dataset("Intel/polite-guard", split="train")
 
+    oversample = config.num_pairs * 2
     polite_texts: list[str] = []
     impolite_texts: list[str] = []
     for row in dataset:
@@ -254,6 +259,9 @@ def load_polite_data(config: ConceptConfig) -> list[ContrastPair]:
             polite_texts.append(text.strip())
         elif label == "impolite":
             impolite_texts.append(text.strip())
+        # Early stop: collected enough for oversample buffer
+        if len(polite_texts) >= oversample and len(impolite_texts) >= oversample:
+            break
 
     if not polite_texts or not impolite_texts:
         msg = "Intel/polite-guard dataset did not provide both polite and impolite texts"
