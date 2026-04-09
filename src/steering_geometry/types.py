@@ -151,6 +151,187 @@ class MMLUResult:
     predictions: list[MMLUPrediction]
 
 
+class HarmBenchBehavior(TypedDict):
+    """A single HarmBench behavior for evaluation.
+
+    Attributes:
+        behavior_id: Unique identifier for the behavior.
+        behavior: The behavior text describing the harmful action.
+        functional_category: Functional classification of the behavior.
+        semantic_category: Semantic classification of the behavior.
+        tags: Tags associated with the behavior.
+        context_string: Context string for contextual behaviors.
+    """
+
+    behavior_id: str
+    behavior: str
+    functional_category: str
+    semantic_category: str
+    tags: str
+    context_string: str
+
+
+class HarmBenchPrediction(TypedDict):
+    """Single HarmBench classification prediction.
+
+    Attributes:
+        behavior_id: Unique identifier for the behavior.
+        behavior: The behavior text.
+        generation: Model's generated response.
+        label: Classification label (1=harmful, 0=safe, -1=unknown).
+        reasoning: Classifier's reasoning text.
+    """
+
+    behavior_id: str
+    behavior: str
+    generation: str
+    label: int
+    reasoning: str
+
+
+@dataclass
+class HarmBenchResult:
+    """Results from HarmBench evaluation.
+
+    Attributes:
+        asr: Attack Success Rate (0-100).
+        total: Total number of behaviors evaluated.
+        harmful: Number of behaviors classified as harmful.
+        safe: Number of behaviors classified as safe.
+        unknown: Number of behaviors with unknown classification.
+        predictions: List of per-behavior predictions.
+    """
+
+    asr: float
+    total: int
+    harmful: int
+    safe: int
+    unknown: int
+    predictions: list[HarmBenchPrediction]
+
+
+class ORBenchPrompt(TypedDict):
+    """A single OR-Bench prompt for evaluation.
+
+    Attributes:
+        prompt: The prompt text (should be a hard/boundary case).
+        category: Category of the prompt.
+    """
+
+    prompt: str
+    category: str
+
+
+class ORBenchPrediction(TypedDict):
+    """Single OR-Bench over-refusal prediction.
+
+    Attributes:
+        prompt: The prompt text.
+        category: Category of the prompt.
+        response: Model's generated response.
+        is_refused: Whether the response was detected as a refusal.
+        refusal_type: Type of refusal detection ("keyword" or "none").
+    """
+
+    prompt: str
+    category: str
+    response: str
+    is_refused: bool
+    refusal_type: str
+
+
+@dataclass
+class ORBenchResult:
+    """Results from OR-Bench over-refusal evaluation.
+
+    Attributes:
+        orr: Over-Refusal Rate (0-100).
+        total: Total number of prompts evaluated.
+        refused: Number of responses detected as refusals.
+        answered: Number of responses that were answered.
+        per_category: Per-category ORR mapping.
+        predictions: List of per-prompt predictions.
+    """
+
+    orr: float
+    total: int
+    refused: int
+    answered: int
+    per_category: dict[str, float]
+    predictions: list[ORBenchPrediction]
+
+
+class MMLUProQuestion(TypedDict):
+    """A single MMLU-Pro question for evaluation.
+
+    Attributes:
+        question_id: Unique identifier for the question.
+        question: The question text.
+        options: List of answer choices.
+        answer: Correct answer letter ("A"-"J").
+        answer_index: Index of the correct answer in options list.
+        cot_content: Chain-of-thought content for few-shot examples.
+        category: Subject category.
+        src: Source of the question.
+    """
+
+    question_id: int
+    question: str
+    options: list[str]
+    answer: str
+    answer_index: int
+    cot_content: str
+    category: str
+    src: str
+
+
+class MMLUProPrediction(TypedDict):
+    """Single MMLU-Pro prediction record.
+
+    Attributes:
+        question_id: Unique identifier for the question.
+        question: The question text.
+        predicted: Model's predicted answer ("A"-"J") or None.
+        ground_truth: Correct answer letter.
+        correct: Whether the prediction was correct.
+        category: Subject category.
+        response_type: Type of response ("answered", "refused", "empty").
+    """
+
+    question_id: int
+    question: str
+    predicted: str | None
+    ground_truth: str
+    correct: bool
+    category: str
+    response_type: str
+
+
+@dataclass
+class MMLUProResult:
+    """Results from MMLU-Pro benchmark evaluation.
+
+    Attributes:
+        accuracy: Overall accuracy percentage (0-100).
+        total: Total number of questions evaluated.
+        correct: Number of correctly answered questions.
+        refused: Number of questions where the model refused to answer.
+        extract_failed: Number of questions where answer extraction failed.
+        per_category: Per-category accuracy mapping.
+        per_category_counts: Per-category question counts.
+        predictions: List of per-question predictions.
+    """
+
+    accuracy: float
+    total: int
+    correct: int
+    refused: int
+    extract_failed: int
+    per_category: dict[str, float]
+    per_category_counts: dict[str, int]
+    predictions: list[MMLUProPrediction]
+
+
 @dataclass
 class EvaluationResult:
     """Complete evaluation results for a steering experiment.
@@ -161,11 +342,17 @@ class EvaluationResult:
         judge_scores: List of judge scores for each evaluated response.
         mmlu_result: MMLU benchmark results if evaluation was run.
         metadata: Additional context (model, concept, steering strength, etc.).
+        harmbench_result: HarmBench evaluation results, if run.
+        orbench_result: OR-Bench evaluation results, if run.
+        mmlu_pro_result: MMLU-Pro evaluation results, if run.
     """
 
     judge_scores: list[JudgeScore]
     mmlu_result: MMLUResult
     metadata: EvaluationMetadata
+    harmbench_result: HarmBenchResult | None = None
+    orbench_result: ORBenchResult | None = None
+    mmlu_pro_result: MMLUProResult | None = None
 
 
 @dataclass
@@ -359,4 +546,13 @@ __all__ = [
     "ProbeExperimentResult",
     "UnembedAnalysisResult",
     "ConceptAnalysisResult",
+    "HarmBenchBehavior",
+    "HarmBenchPrediction",
+    "HarmBenchResult",
+    "ORBenchPrompt",
+    "ORBenchPrediction",
+    "ORBenchResult",
+    "MMLUProQuestion",
+    "MMLUProPrediction",
+    "MMLUProResult",
 ]

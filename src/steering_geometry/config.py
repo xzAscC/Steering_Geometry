@@ -228,6 +228,63 @@ class StabilityComparisonConfig:
             raise ValueError(f"num_runs must be at least 2 for comparison, got {self.num_runs}")
 
 
+@dataclass
+class HarmBenchConfig:
+    """Configuration for HarmBench evaluation.
+
+    Attributes:
+        classifier_model: Model to use as HarmBench classifier.
+        classifier_api_base: Base URL for the classifier API endpoint.
+        classifier_api_key: API key for the classifier service.
+        behaviors_file: Path to harmbench CSV file, or empty for default download.
+        max_completion_tokens: Maximum tokens for classifier completion analysis.
+        max_retries: Maximum number of retry attempts on API failure.
+    """
+
+    classifier_model: str = "google/gemma-4-31B"
+    classifier_api_base: str = "http://localhost:8000/v1"
+    classifier_api_key: str = "EMPTY"
+    behaviors_file: str = ""
+    max_completion_tokens: int = 512
+    max_retries: int = 3
+
+
+@dataclass
+class ORBenchConfig:
+    """Configuration for OR-Bench over-refusal evaluation.
+
+    Attributes:
+        split: HuggingFace dataset split name for OR-Bench prompts.
+        num_samples: Number of samples to use (0 = all prompts in split).
+        seed: Random seed for reproducible sample selection.
+    """
+
+    split: str = "or-bench-hard-1k"
+    num_samples: int = 0
+    seed: int = 42
+
+
+@dataclass
+class MMLUProConfig:
+    """Configuration for MMLU-Pro benchmark evaluation.
+
+    Attributes:
+        num_questions: Number of test questions (0 = all 12,032).
+        n_shot: Number of few-shot examples from validation set.
+        use_cot: Whether to enable chain-of-thought reasoning.
+        seed: Random seed for reproducible question selection.
+        categories: List of categories to evaluate (None = all 14 categories).
+        max_new_tokens: Maximum tokens for generation (CoT needs more).
+    """
+
+    num_questions: int = 0
+    n_shot: int = 5
+    use_cot: bool = True
+    seed: int = 42
+    categories: list[str] | None = None
+    max_new_tokens: int = 2048
+
+
 __all__ = [
     "SUPPORTED_MODELS",
     "SUPPORTED_CONCEPTS",
@@ -242,4 +299,7 @@ __all__ = [
     "TDNVConfig",
     "TokenAnalysisConfig",
     "StabilityComparisonConfig",
+    "HarmBenchConfig",
+    "ORBenchConfig",
+    "MMLUProConfig",
 ]
