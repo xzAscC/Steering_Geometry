@@ -9,6 +9,8 @@ import torch
 if TYPE_CHECKING:
     from torch import Tensor
 
+DISCRIMINATIVE_EPS: float = 1e-8
+
 
 def validate_positive_int(value: int, name: str = "value") -> None:
     """Validate that an integer is positive.
@@ -149,6 +151,7 @@ def select_token_activations(
 
 
 __all__ = [
+    "DISCRIMINATIVE_EPS",
     "validate_positive_int",
     "sample_with_seed",
     "ensure_dir",
