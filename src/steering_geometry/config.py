@@ -55,6 +55,10 @@ class ExtractionConfig:
         read_token_index: Token position to read activations from (-1 for last token).
         top_k: Number of top tokens to select for discriminative method.
             Only used when method="discriminative". Default is None (uses 100 internally).
+        data_mode: How to format contrast pair data ("prompt_only", "prompt_response").
+        token_select: Token selection strategy ("all", "last_n").
+        last_n: Number of trailing tokens for "last_n" token_select mode.
+        seed: Deterministic subsampling seed.
     """
 
     layers: list[float] = field(default_factory=lambda: [0.4, 0.5, 0.6, 0.7, 0.8])
@@ -62,6 +66,10 @@ class ExtractionConfig:
     batch_size: int = 8
     read_token_index: int = -1
     top_k: int | None = None
+    data_mode: str = "prompt_only"
+    token_select: str = "default"
+    last_n: int = 1
+    seed: int = 42
 
 
 @dataclass
