@@ -41,6 +41,7 @@ from .config import (
 from .models import HookedModel
 from .types import ContrastPair, ContrastPairMetadata, SteeringVector
 from .utils import (
+    DISCRIMINATIVE_EPS,
     ensure_dir,
     safe_model_name,
     sample_with_seed,
@@ -126,7 +127,9 @@ def weighted_mean_aggregator(pos: Tensor, neg: Tensor) -> Tensor:
 def discriminative_token_aggregator(pos: Tensor, neg: Tensor, top_k: int = 100) -> Tensor:
     """Discriminative token aggregator selecting top-k tokens by class separation.
 
-    Scores each token by: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+    Scores each token by:
+        s_i = (||h_i - μ_other||² - ||h_i - μ_same||²)
+            / (||h_i - μ_same||² + ||h_i - μ_other||² + ε)
     Higher scores mean the token is closer to its own class and farther from the other.
 
     For each class c:
@@ -140,11 +143,23 @@ def discriminative_token_aggregator(pos: Tensor, neg: Tensor, top_k: int = 100) 
         msg = "Cannot compute discriminative aggregator with empty tensors"
         raise ValueError(msg)
 
+    pos = pos.float()
+    neg = neg.float()
+
     pos_center = pos.mean(dim=0)
     neg_center = neg.mean(dim=0)
 
-    pos_scores = ((pos - neg_center) ** 2).sum(dim=1) - ((pos - pos_center) ** 2).sum(dim=1)
-    neg_scores = ((neg - pos_center) ** 2).sum(dim=1) - ((neg - neg_center) ** 2).sum(dim=1)
+    pos_dist_other = ((pos - neg_center) ** 2).sum(dim=1)
+    pos_dist_own = ((pos - pos_center) ** 2).sum(dim=1)
+    pos_scores = (pos_dist_other - pos_dist_own) / (
+        pos_dist_own + pos_dist_other + DISCRIMINATIVE_EPS
+    )
+
+    neg_dist_other = ((neg - pos_center) ** 2).sum(dim=1)
+    neg_dist_own = ((neg - neg_center) ** 2).sum(dim=1)
+    neg_scores = (neg_dist_other - neg_dist_own) / (
+        neg_dist_own + neg_dist_other + DISCRIMINATIVE_EPS
+    )
 
     k_pos = min(top_k, pos.shape[0])
     k_neg = min(top_k, neg.shape[0])

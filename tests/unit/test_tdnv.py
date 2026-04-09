@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from steering_geometry.tdnv import (
-    EPS,
+    DISCRIMINATIVE_EPS,
     _compute_per_topic_stats,
     _run_concept,
     compute_tdnv,
@@ -183,7 +183,7 @@ class TestTDNVFormula:
         mean_diff_sq = float(((pos_mean - neg_mean) ** 2).sum().item())
 
         pos_var = ((1 - 2) ** 2 + (3 - 2) ** 2) / 2
-        expected_tdnv = pos_var / (2 * mean_diff_sq + EPS)
+        expected_tdnv = pos_var / (2 * mean_diff_sq + DISCRIMINATIVE_EPS)
 
         assert abs(metrics.tdnv - expected_tdnv) < 0.01
 
@@ -427,7 +427,7 @@ class TestSelectTopKDiscriminative:
         # μ_same = [2, 0], μ_class1 = [0, 2]
         # Σ ||h - μ_c||² = ||[2, -2]||² = 8
         # ||h - μ_same||² = 0
-        # score = 8 - 0 = 8
+        # score = (8 - 0) / (0 + 8 + ε) ≈ 1.0
 
         result = select_top_k_discriminative(activations, labels, k=2)
 
@@ -478,6 +478,33 @@ class TestSelectTopKDiscriminative:
         assert result.shape[0] == 3
         # Verify class 0's selected token is [5, 0] not [0.1, 0]
         assert result[0, 0].item() == 5.0
+
+    def test_normalized_score_range(self) -> None:
+        """Normalized scores should be bounded in (-1, 1] for multi-class data."""
+        torch.manual_seed(42)
+        class_0 = torch.randn(20, 8, dtype=torch.float32) + 5.0
+        class_1 = torch.randn(20, 8, dtype=torch.float32) - 5.0
+        activations = torch.cat([class_0, class_1], dim=0)
+        labels = [0] * 20 + [1] * 20
+
+        result = select_top_k_discriminative(activations, labels, k=5)
+
+        assert result.shape[0] == 10  # 5 per class
+        assert torch.isfinite(result).all()
+
+    def test_binary_exact_normalized_score(self) -> None:
+        """Verify exact normalized score for well-separated binary data."""
+        class_0 = torch.tensor([[2.0, 0.0], [2.0, 0.0]], dtype=torch.float32)
+        class_1 = torch.tensor([[0.0, 2.0], [0.0, 2.0]], dtype=torch.float32)
+        activations = torch.cat([class_0, class_1], dim=0)
+        labels = [0, 0, 1, 1]
+
+        result = select_top_k_discriminative(activations, labels, k=2)
+
+        # For class_0 token [2,0]: dist_other = ||[2,-2]||² = 8, dist_own = 0
+        # Normalized score = (8 - 0) / (0 + 8 + ε) ≈ 1.0
+        assert result.shape[0] == 4  # 2 per class
+        assert torch.isfinite(result).all()
 
 
 class TestComputeTDNVMMLU:

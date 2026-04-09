@@ -33,9 +33,7 @@ from .config import MMLUConfig, ModelConfig, TDNVConfig
 from .extract import VALID_CONCEPTS, load_contrast_pairs
 from .models import HookedModel
 from .types import MMLUQuestion, TDNVLayerMetrics, TDNVResult
-from .utils import ensure_dir, safe_model_name
-
-EPS = 1e-8
+from .utils import DISCRIMINATIVE_EPS, ensure_dir, safe_model_name
 
 
 def select_last_n_tokens(activations: Tensor, n: int) -> Tensor:
@@ -63,9 +61,11 @@ def select_top_k_discriminative(
 ) -> Tensor:
     """Select top-k discriminative tokens per class.
 
-    Scoring formula: s_i = Σ_{c ≠ own} ||h_i - μ_c||² - ||h_i - μ_same||²
-    For binary: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
-    For multi-class: sums distance to ALL other class centroids.
+    Scoring formula: s_i = (Σ_{c ≠ own} ||h_i - μ_c||² - ||h_i - μ_same||²)
+        / (||h_i - μ_same||² + Σ_{c ≠ own} ||h_i - μ_c||² + ε)
+    For binary: s_i = (||h_i - μ_other||² - ||h_i - μ_same||²)
+        / (||h_i - μ_same||² + ||h_i - μ_other||² + ε)
+    For multi-class: denominator sums over own + all other class distances.
     Higher score = token is closer to own class, farther from all other classes.
 
     Args:
@@ -77,6 +77,7 @@ def select_top_k_discriminative(
         Concatenated tensor of selected tokens from all classes
     """
     unique_labels = sorted(set(labels))
+    activations = activations.float()
     selected_tokens: list[Tensor] = []
 
     # Compute centroids for all classes
@@ -94,7 +95,7 @@ def select_top_k_discriminative(
 
         # Score: Σ_{c ≠ own} ||h - μ_c||² - ||h - μ_same||²
         # Sum distances to ALL other class centroids (not averaged)
-        dist_to_others = torch.zeros(class_activations.shape[0], dtype=class_activations.dtype)
+        dist_to_others = torch.zeros(class_activations.shape[0], dtype=torch.float32)
         for other_label in unique_labels:
             if other_label == label:
                 continue
@@ -102,7 +103,9 @@ def select_top_k_discriminative(
             dist_to_others = dist_to_others + ((class_activations - other_centroid) ** 2).sum(dim=1)
 
         dist_to_own = ((class_activations - own_centroid) ** 2).sum(dim=1)
-        scores = dist_to_others - dist_to_own
+        scores = (dist_to_others - dist_to_own) / (
+            dist_to_own + dist_to_others + DISCRIMINATIVE_EPS
+        )
 
         # Select top-k
         k_actual = min(k, class_activations.shape[0])
@@ -219,11 +222,11 @@ def compute_tdnv_multi_concept(
 
             avg_variance = (g_stats.variance + g_prime_stats.variance) / 2.0
 
-            pairwise_tdnv = avg_variance / (2.0 * mean_diff_sq + EPS)
+            pairwise_tdnv = avg_variance / (2.0 * mean_diff_sq + DISCRIMINATIVE_EPS)
             total_pairwise_tdnv += pairwise_tdnv
 
-            total_norm_num += avg_variance / (energy + EPS) if energy > 0 else 0.0
-            total_norm_den += mean_diff_sq / (energy + EPS) if energy > 0 else 0.0
+            total_norm_num += avg_variance / (energy + DISCRIMINATIVE_EPS) if energy > 0 else 0.0
+            total_norm_den += mean_diff_sq / (energy + DISCRIMINATIVE_EPS) if energy > 0 else 0.0
 
             pair_count += 1
 
@@ -282,10 +285,10 @@ def compute_tdnv(
 
     avg_within_variance = (pos_stats.variance + neg_stats.variance) / 2.0
 
-    tdnv = avg_within_variance / (2.0 * mean_diff_sq + EPS)
+    tdnv = avg_within_variance / (2.0 * mean_diff_sq + DISCRIMINATIVE_EPS)
 
-    norm_num = avg_within_variance / (energy + EPS) if energy > 0 else 0.0
-    norm_den = mean_diff_sq / (energy + EPS) if energy > 0 else 0.0
+    norm_num = avg_within_variance / (energy + DISCRIMINATIVE_EPS) if energy > 0 else 0.0
+    norm_den = mean_diff_sq / (energy + DISCRIMINATIVE_EPS) if energy > 0 else 0.0
 
     return TDNVLayerMetrics(
         tdnv=tdnv,
@@ -332,7 +335,7 @@ def compute_tdnv_mmlu(
 
     if M < 2:
         single_variance = stats[0].variance if 0 in stats else 0.0
-        norm_num = single_variance / (energy + EPS) if energy > 0 else 0.0
+        norm_num = single_variance / (energy + DISCRIMINATIVE_EPS) if energy > 0 else 0.0
         return TDNVLayerMetrics(
             tdnv=norm_num,
             norm_num=norm_num,
@@ -356,7 +359,7 @@ def compute_tdnv_mmlu(
 
             avg_within_variance = (stats_i.variance + stats_j.variance) / 2.0
 
-            pair_tdnv = avg_within_variance / (2.0 * mean_diff_sq + EPS)
+            pair_tdnv = avg_within_variance / (2.0 * mean_diff_sq + DISCRIMINATIVE_EPS)
             tdnv_sum += pair_tdnv
 
             norm_num_sum += avg_within_variance
@@ -369,8 +372,8 @@ def compute_tdnv_mmlu(
 
     return TDNVLayerMetrics(
         tdnv=tdnv_avg,
-        norm_num=norm_num_avg / (energy + EPS) if energy > 0 else 0.0,
-        norm_den=norm_den_avg / (energy + EPS) if energy > 0 else 0.0,
+        norm_num=norm_num_avg / (energy + DISCRIMINATIVE_EPS) if energy > 0 else 0.0,
+        norm_den=norm_den_avg / (energy + DISCRIMINATIVE_EPS) if energy > 0 else 0.0,
         energy=energy,
     )
 

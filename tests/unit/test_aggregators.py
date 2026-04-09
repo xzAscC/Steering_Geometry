@@ -92,6 +92,25 @@ class TestDiscriminativeTokenAggregator:
         assert result_5.shape == (64,)
         assert result_10.shape == (64,)
 
+    def test_normalized_scores_bounded(self) -> None:
+        """With normalized formula, scores are internally bounded in (-1, 1]."""
+        torch.manual_seed(42)
+        pos = torch.randn(30, 64)
+        neg = torch.randn(30, 64)
+        result = discriminative_token_aggregator(pos, neg, top_k=10)
+        assert result.shape == (64,)
+        assert torch.isfinite(result).all(), "Result contains non-finite values"
+
+    def test_well_separated_classes(self) -> None:
+        """Well-separated classes in float16 should produce finite output (float32 cast)."""
+        pos = torch.stack([torch.ones(32) * 10 + torch.randn(32) * 0.1 for _ in range(10)])
+        neg = torch.stack([torch.ones(32) * -10 + torch.randn(32) * 0.1 for _ in range(10)])
+        pos = pos.to(torch.float16)
+        neg = neg.to(torch.float16)
+        result = discriminative_token_aggregator(pos, neg, top_k=5)
+        assert result.shape == (32,)
+        assert torch.isfinite(result).all(), "Result contains non-finite values with float16 input"
+
 
 class TestAggregatorIntegration:
     def test_resolve_weighted_mean(self) -> None:
