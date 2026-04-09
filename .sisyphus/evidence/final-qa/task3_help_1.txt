@@ -1,0 +1,14 @@
+Usage: scripts/token_experiments/1_token_count.sh [OPTIONS]
+
+Options:
+  -c, --concept      Concept to analyze (default: refusal)
+  -m, --model        Model name (default: Qwen/Qwen3-1.7B)
+  -n, --n-examples   Space-separated list of example counts
+                     (default: 10 30 100 300 1000 3000 6000 10000)
+  -l, --layers       Space-separated list of layer fractions
+                     (default: 0.4 0.5 0.6 0.7 0.8)
+  -o, --output       Output directory (default: outputs/token_experiments)
+  -h, --help         Show this help message
+
+Example:
+  scripts/token_experiments/1_token_count.sh -c honesty -n "10 100 1000"

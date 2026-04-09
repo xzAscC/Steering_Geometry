@@ -1,0 +1,48 @@
+{
+  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/token-selection-experiments.md",
+  "started_at": "2026-04-09T05:10:29.063Z",
+  "session_ids": [
+    "ses_28f59de56ffeG6T5crwvsGMIHa",
+    "ses_28f55b888ffeNHw4BnNjkNA5re",
+    "ses_28f55b8b7ffe7J05criuiEu0gn",
+    "ses_28f49be9fffeYWYyTtXu712od0",
+    "ses_28f4945baffeKQJaDGqjG147Xb",
+    "ses_28f4886f9ffeP2bOM0sZrpWDeh",
+    "ses_28f4886c9ffe6SZKn0vwZr3h1G",
+    "ses_28f3fde8cffeJLKAGp8NG7WeMG",
+    "ses_28f3fde64ffemhi7jPDcb7oMok",
+    "ses_28f3f6ccdffdmYNutUgQlKjejf",
+    "ses_28f3f6cceffePD8nQsxBKuGkeH"
+  ],
+  "plan_name": "token-selection-experiments",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Add `steer_tokens` Parameter for Prefix-Only Steering",
+      "session_id": "ses_28f55b8b7ffe7J05criuiEu0gn",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-09T05:22:05.556Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Create Token Count Experiment Script (`1_token_count.sh`)",
+      "session_id": "ses_28f49be9fffeYWYyTtXu712od0",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-09T05:29:36.282Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_28f3fde8cffeJLKAGp8NG7WeMG",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-09T05:41:17.531Z"
+    }
+  }
+}

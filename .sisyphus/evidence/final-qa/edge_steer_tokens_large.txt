@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.9, pytest-9.0.2, pluggy-1.6.0 -- /home/xzascc/Documents/code/Steering_Geometry/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/xzascc/Documents/code/Steering_Geometry
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 14 items / 13 deselected / 1 selected
+
+tests/test_token_selection_experiments.py::TestSteerTokens::test_steer_tokens_large PASSED [100%]
+
+======================= 1 passed, 13 deselected in 0.01s =======================
