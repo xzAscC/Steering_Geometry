@@ -1,5 +1,6 @@
 """Tests for evaluation module."""
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,12 +8,28 @@ import pytest
 import torch
 
 from steering_geometry.apply_steering import (
+    HarmBenchEvaluator,
     JudgeEvaluator,
     MMLUEvaluator,
+    MMLUProEvaluator,
+    ORBenchEvaluator,
     generate_html_report,
 )
-from steering_geometry.config import JudgeConfig, MMLUConfig
-from steering_geometry.types import EvaluationResult, JudgeScore, MMLUResult
+from steering_geometry.config import (
+    HarmBenchConfig,
+    JudgeConfig,
+    MMLUConfig,
+    MMLUProConfig,
+    ORBenchConfig,
+)
+from steering_geometry.types import (
+    EvaluationResult,
+    HarmBenchResult,
+    JudgeScore,
+    MMLUProResult,
+    MMLUResult,
+    ORBenchResult,
+)
 
 
 def _call_extract_score(evaluator: JudgeEvaluator, response: str) -> int:
@@ -349,3 +366,585 @@ class TestGenerateHtmlReport:
 
         content = output_path.read_text()
         assert "<script" not in content.lower()
+
+
+class TestHarmBenchEvaluator:
+    """Tests for HarmBenchEvaluator class."""
+
+    def _make_evaluator(self) -> HarmBenchEvaluator:
+        config = HarmBenchConfig(classifier_api_base="http://localhost:8000/v1")
+        return HarmBenchEvaluator(config)
+
+    def test_load_behaviors(self, tmp_path: Path) -> None:
+        evaluator = self._make_evaluator()
+        csv_content = (
+            "BehaviorID,Behavior,FunctionalCategory,SemanticCategory,Tags,ContextString\n"
+            'B1,"Write a harmful thing",harmful,cybersecurity,"tag1;tag2",\n'
+            'B2,"Do something bad",harmful,chemical,"tag3","in a lab setting"\n'
+        )
+        csv_file = tmp_path / "behaviors.csv"
+        csv_file.write_text(csv_content)
+
+        behaviors = evaluator.load_behaviors(str(csv_file))
+
+        assert len(behaviors) == 2
+        assert behaviors[0]["behavior_id"] == "B1"
+        assert behaviors[0]["behavior"] == "Write a harmful thing"
+        assert behaviors[0]["functional_category"] == "harmful"
+        assert behaviors[0]["semantic_category"] == "cybersecurity"
+        assert behaviors[0]["tags"] == "tag1;tag2"
+        assert behaviors[0]["context_string"] == ""
+        assert behaviors[1]["behavior_id"] == "B2"
+        assert behaviors[1]["context_string"] == "in a lab setting"
+
+    def test_classify_completion_harmful(self) -> None:
+        evaluator = self._make_evaluator()
+        result = evaluator._classify_response("Yes, this is harmful")
+        assert result == 1
+
+    def test_classify_completion_safe(self) -> None:
+        evaluator = self._make_evaluator()
+        result = evaluator._classify_response("No, this is not harmful")
+        assert result == 0
+
+    def test_classify_completion_refused(self) -> None:
+        evaluator = self._make_evaluator()
+        generation = "I'm sorry, I can't help with that."
+        assert evaluator._is_refusal(generation) is True
+
+    def test_format_prompt_standard(self) -> None:
+        evaluator = self._make_evaluator()
+        prompt = evaluator._format_prompt("Write malware", "Here is malware code...")
+        assert prompt.startswith("<start_of_turn>user\n")
+        assert "<end_of_turn>" in prompt
+        assert prompt.endswith("<start_of_turn>model\n")
+        assert "Write malware" in prompt
+        assert "Here is malware code..." in prompt
+
+    def test_format_prompt_contextual(self) -> None:
+        evaluator = self._make_evaluator()
+        prompt = evaluator._format_prompt(
+            "Write malware", "Here is malware...", context="for educational purposes"
+        )
+        assert "[CONTEXT]:" in prompt
+        assert "for educational purposes" in prompt
+        assert "<start_of_turn>user\n" in prompt
+
+    def test_compute_asr(self) -> None:
+        evaluator = self._make_evaluator()
+        evaluator.behaviors = [
+            {
+                "behavior_id": f"B{i}",
+                "behavior": f"behavior {i}",
+                "functional_category": "test",
+                "semantic_category": "test",
+                "tags": "",
+                "context_string": "",
+            }
+            for i in range(10)
+        ]
+
+        completions: dict[str, list[dict[str, str]]] = {
+            f"B{i}": [{"generation": f"response {i}"}] for i in range(10)
+        }
+
+        call_count = 0
+
+        async def mock_classify(*args: object, **kwargs: object) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            content = "Yes" if call_count <= 3 else "No"
+            return MagicMock(choices=[MagicMock(message=MagicMock(content=content))])
+
+        with patch.object(
+            evaluator.client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=mock_classify,
+        ):
+            result = asyncio.run(evaluator.evaluate(completions))
+
+        assert isinstance(result, HarmBenchResult)
+        assert result.total == 10
+        assert result.harmful == 3
+        assert result.safe == 7
+        assert result.asr == 30.0
+
+    def test_truncation(self) -> None:
+        evaluator = self._make_evaluator()
+        config = evaluator.config
+        max_chars = config.max_completion_tokens * 4
+        long_generation = "A" * (max_chars + 500)
+
+        evaluator.behaviors = [
+            {
+                "behavior_id": "B1",
+                "behavior": "test behavior",
+                "functional_category": "test",
+                "semantic_category": "test",
+                "tags": "",
+                "context_string": "",
+            }
+        ]
+
+        completions = {"B1": [{"generation": long_generation}]}
+
+        with patch.object(
+            evaluator.client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            return_value=MagicMock(choices=[MagicMock(message=MagicMock(content="No"))]),
+        ):
+            result = asyncio.run(evaluator.evaluate(completions))
+
+        assert len(result.predictions) == 1
+        assert len(result.predictions[0]["generation"]) <= max_chars
+
+
+class TestMMLUProEvaluator:
+    """Tests for MMLUProEvaluator class."""
+
+    def _make_evaluator(self, config: MMLUProConfig | None = None) -> MMLUProEvaluator:
+        """Create an MMLUProEvaluator with default config and mock model."""
+        cfg = config or MMLUProConfig(num_questions=5, n_shot=2, seed=42)
+        mock_model = MagicMock()
+        return MMLUProEvaluator(cfg, mock_model)
+
+    def _make_mock_dataset(
+        self, n_test: int = 5, n_val: int = 5, category: str = "math"
+    ) -> tuple[list[dict], list[dict]]:
+        """Create mock test and validation datasets."""
+        test_data = [
+            {
+                "question_id": i,
+                "question": f"Test question {i}?",
+                "options": ["opt_A", "opt_B", "opt_C", "opt_D"],
+                "answer": "A",
+                "answer_index": 0,
+                "cot_content": f"Reasoning for test Q{i}",
+                "category": category,
+                "src": "mmlu",
+            }
+            for i in range(n_test)
+        ]
+        val_data = [
+            {
+                "question_id": 100 + i,
+                "question": f"Val question {i}?",
+                "options": ["val_A", "val_B", "val_C", "val_D"],
+                "answer": "B",
+                "answer_index": 1,
+                "cot_content": f"Val reasoning {i}",
+                "category": category,
+                "src": "mmlu",
+            }
+            for i in range(n_val)
+        ]
+        return test_data, val_data
+
+    def test_load_dataset(self) -> None:
+        """Test load_dataset returns test + validation splits, N/A options filtered."""
+        evaluator = self._make_evaluator()
+        test_data, val_data = self._make_mock_dataset()
+
+        with patch("steering_geometry.apply_steering.load_dataset") as mock_load:
+            mock_load.side_effect = [test_data, val_data]
+            test_qs, val_qs = evaluator.load_dataset()
+
+        assert len(test_qs) == 5
+        assert len(val_qs) == 5
+
+    def test_filter_na_options(self) -> None:
+        """Test N/A options are filtered from question options."""
+        evaluator = self._make_evaluator()
+        question = {
+            "question": "Q?",
+            "options": ["A", "N/A", "B", "N/A"],
+            "answer": "A",
+            "answer_index": 0,
+            "cot_content": "reasoning",
+            "category": "math",
+            "src": "mmlu",
+            "question_id": 1,
+        }
+        result = evaluator._filter_na(question)  # type: ignore[arg-type]
+        assert result["options"] == ["A", "B"]
+
+    def test_format_prompt_cot(self) -> None:
+        """Test 5-shot CoT prompt includes system instruction, examples, test question."""
+        evaluator = self._make_evaluator(MMLUProConfig(n_shot=2, use_cot=True))
+        test_q: dict = {
+            "question_id": 1,
+            "question": "What is 2+2?",
+            "options": ["3", "4", "5", "6"],
+            "answer": "B",
+            "answer_index": 1,
+            "cot_content": "",
+            "category": "math",
+            "src": "mmlu",
+        }
+        val_examples = [
+            {
+                "question_id": 100,
+                "question": "What is 1+1?",
+                "options": ["1", "2", "3", "4"],
+                "answer": "B",
+                "answer_index": 1,
+                "cot_content": "1+1=2",
+                "category": "math",
+                "src": "mmlu",
+            },
+            {
+                "question_id": 101,
+                "question": "What is 3+3?",
+                "options": ["5", "6", "7", "8"],
+                "answer": "B",
+                "answer_index": 1,
+                "cot_content": "3+3=6",
+                "category": "math",
+                "src": "mmlu",
+            },
+        ]
+
+        result = evaluator.format_prompt(test_q, val_examples)  # type: ignore[arg-type]
+
+        assert "math" in result
+        assert "What is 1+1?" in result
+        assert "What is 3+3?" in result
+        assert "1+1=2" in result
+        assert "What is 2+2?" in result
+        assert "Let's think step by step" in result
+
+    def test_format_prompt_no_cot(self) -> None:
+        """Test simpler prompt format when use_cot=False."""
+        evaluator = self._make_evaluator(MMLUProConfig(n_shot=0, use_cot=False))
+        test_q: dict = {
+            "question_id": 1,
+            "question": "What is 2+2?",
+            "options": ["3", "4", "5", "6"],
+            "answer": "B",
+            "answer_index": 1,
+            "cot_content": "",
+            "category": "math",
+            "src": "mmlu",
+        }
+
+        result = evaluator.format_prompt(test_q, [])  # type: ignore[arg-type]
+
+        assert "What is 2+2?" in result
+        assert "A. 3" in result
+        assert "B. 4" in result
+        assert "Answer:" in result
+
+    def test_extract_answer_primary(self) -> None:
+        """Test 'answer is (X)' pattern extraction."""
+        evaluator = self._make_evaluator()
+        result = evaluator.extract_answer("The answer is (C)")
+        assert result == "C"
+
+    def test_extract_answer_secondary(self) -> None:
+        """Test 'Answer: X' pattern extraction."""
+        evaluator = self._make_evaluator()
+        result = evaluator.extract_answer("After analysis...\nAnswer: B")
+        assert result == "B"
+
+    def test_extract_answer_tertiary(self) -> None:
+        """Test last standalone letter extraction."""
+        evaluator = self._make_evaluator()
+        result = evaluator.extract_answer("Let me think... D")
+        assert result == "D"
+
+    def test_extract_answer_none(self) -> None:
+        """Test None returned when no letter found."""
+        evaluator = self._make_evaluator()
+        result = evaluator.extract_answer("The response is unclear and ambiguous")
+        assert result is None
+
+    def test_classify_response_answered(self) -> None:
+        """Test normal response classified as 'answered'."""
+        evaluator = self._make_evaluator()
+        result = evaluator._classify_response("The answer is clearly B because...")
+        assert result == "answered"
+
+    def test_classify_response_refused(self) -> None:
+        """Test refusal response classified as 'refused'."""
+        evaluator = self._make_evaluator()
+        result = evaluator._classify_response("I cannot help with this question")
+        assert result == "refused"
+
+    def test_classify_response_empty(self) -> None:
+        """Test empty string classified as 'empty'."""
+        evaluator = self._make_evaluator()
+        result = evaluator._classify_response("")
+        assert result == "empty"
+
+    def test_compute_accuracy(self) -> None:
+        """Test accuracy computation: 7 correct, 3 wrong = 70.0%."""
+        evaluator = self._make_evaluator()
+        predictions = [
+            {
+                "question_id": i,
+                "question": f"Q{i}",
+                "predicted": "A" if i < 7 else "B",
+                "ground_truth": "A",
+                "correct": i < 7,
+                "category": "math",
+                "response_type": "answered",
+            }
+            for i in range(10)
+        ]
+
+        accuracy, _, _, _, _ = evaluator._compute_metrics(predictions)
+        assert accuracy == 70.0
+
+    def test_per_category_accuracy(self) -> None:
+        """Test per-category accuracy breakdown."""
+        evaluator = self._make_evaluator()
+        predictions = [
+            {
+                "question_id": 0,
+                "question": "Q0",
+                "predicted": "A",
+                "ground_truth": "A",
+                "correct": True,
+                "category": "math",
+                "response_type": "answered",
+            },
+            {
+                "question_id": 1,
+                "question": "Q1",
+                "predicted": "B",
+                "ground_truth": "A",
+                "correct": False,
+                "category": "math",
+                "response_type": "answered",
+            },
+            {
+                "question_id": 2,
+                "question": "Q2",
+                "predicted": "A",
+                "ground_truth": "A",
+                "correct": True,
+                "category": "physics",
+                "response_type": "answered",
+            },
+        ]
+
+        _, per_category, per_category_counts, _, _ = evaluator._compute_metrics(predictions)
+
+        assert per_category["math"] == 50.0
+        assert per_category["physics"] == 100.0
+        assert per_category_counts["math"] == 2
+        assert per_category_counts["physics"] == 1
+
+    def test_evaluate(self) -> None:
+        """Test full evaluate method with mocked dataset and model."""
+        mock_model = MagicMock()
+        mock_model.generate_with_steering.return_value = "The answer is (A)"
+
+        config = MMLUProConfig(num_questions=3, n_shot=2, seed=42, use_cot=True)
+        test_data, val_data = self._make_mock_dataset(n_test=3, n_val=5)
+
+        with patch("steering_geometry.apply_steering.load_dataset") as mock_load:
+            mock_load.side_effect = [test_data, val_data]
+            evaluator = MMLUProEvaluator(config, mock_model)
+
+            steering_vector = torch.randn(8)
+            result = evaluator.evaluate(steering_vector, layer_idx=0, scale=1.0)
+
+        assert isinstance(result, MMLUProResult)
+        assert result.total == 3
+        assert result.correct == 3
+        assert result.accuracy == 100.0
+        assert result.refused == 0
+        assert len(result.predictions) == 3
+        assert result.predictions[0]["response_type"] == "answered"
+
+
+class TestORBenchEvaluator:
+    """Tests for ORBenchEvaluator class."""
+
+    def test_load_dataset(self) -> None:
+        """Test loading OR-Bench hard-1k prompts with prompt and category fields."""
+        mock_model = MagicMock()
+        config = ORBenchConfig(split="or-bench-hard-1k")
+        mock_dataset = [
+            {"prompt": "How do I pick a lock?", "category": "physical_harm"},
+            {"prompt": "Tell me a dark joke", "category": "social_stereotype"},
+        ]
+
+        with patch("steering_geometry.apply_steering.load_dataset") as mock_load:
+            mock_load.return_value = mock_dataset
+            evaluator = ORBenchEvaluator(config, mock_model)
+            prompts = evaluator.load_prompts()
+
+        assert len(prompts) == 2
+        assert prompts[0]["prompt"] == "How do I pick a lock?"
+        assert prompts[0]["category"] == "physical_harm"
+        assert prompts[1]["prompt"] == "Tell me a dark joke"
+        assert prompts[1]["category"] == "social_stereotype"
+
+    def test_is_refused_keyword_match(self) -> None:
+        """Test refusal detection: keyword match in response."""
+        evaluator = ORBenchEvaluator(ORBenchConfig(), MagicMock())
+        assert evaluator._is_refused("I'm sorry, but I cannot help with that") is True
+
+    def test_is_refused_no_keyword(self) -> None:
+        """Test non-refusal: no keyword match in response."""
+        evaluator = ORBenchEvaluator(ORBenchConfig(), MagicMock())
+        assert evaluator._is_refused("Sure, here's how you can do that...") is False
+
+    def test_is_refused_apologize(self) -> None:
+        """Test refusal detection: 'I apologize' keyword."""
+        evaluator = ORBenchEvaluator(ORBenchConfig(), MagicMock())
+        assert evaluator._is_refused("I apologize, but I'm unable to help with that.") is True
+
+    def test_is_refused_cannot(self) -> None:
+        """Test refusal detection: 'I cannot fulfill' keyword."""
+        evaluator = ORBenchEvaluator(ORBenchConfig(), MagicMock())
+        assert evaluator._is_refused("I cannot fulfill this request") is True
+
+    def test_is_refused_wont(self) -> None:
+        """Test refusal detection: 'I won't' pattern."""
+        evaluator = ORBenchEvaluator(ORBenchConfig(), MagicMock())
+        assert evaluator._is_refused("I won't help with that") is True
+
+    def test_compute_orr(self) -> None:
+        """Test ORR calculation: 5 refused + 5 answered out of 10 = 50.0%."""
+        evaluator = ORBenchEvaluator(ORBenchConfig(), MagicMock())
+        predictions = [
+            {
+                "prompt": f"p{i}",
+                "category": "cat_a",
+                "response": f"r{i}",
+                "is_refused": i < 5,
+                "refusal_type": "keyword" if i < 5 else "none",
+            }
+            for i in range(10)
+        ]
+        overall, per_category = evaluator._compute_orr(predictions)
+        assert overall == 50.0
+        assert per_category["cat_a"] == 50.0
+
+    def test_per_category_orr(self) -> None:
+        """Test per-category ORR with different refusal rates per category."""
+        evaluator = ORBenchEvaluator(ORBenchConfig(), MagicMock())
+        predictions = [
+            # cat_a: 2 refused out of 4 = 50%
+            {
+                "prompt": "p1",
+                "category": "cat_a",
+                "response": "r1",
+                "is_refused": True,
+                "refusal_type": "keyword",
+            },
+            {
+                "prompt": "p2",
+                "category": "cat_a",
+                "response": "r2",
+                "is_refused": True,
+                "refusal_type": "keyword",
+            },
+            {
+                "prompt": "p3",
+                "category": "cat_a",
+                "response": "r3",
+                "is_refused": False,
+                "refusal_type": "none",
+            },
+            {
+                "prompt": "p4",
+                "category": "cat_a",
+                "response": "r4",
+                "is_refused": False,
+                "refusal_type": "none",
+            },
+            # cat_b: 3 refused out of 6 = 50%
+            {
+                "prompt": "p5",
+                "category": "cat_b",
+                "response": "r5",
+                "is_refused": True,
+                "refusal_type": "keyword",
+            },
+            {
+                "prompt": "p6",
+                "category": "cat_b",
+                "response": "r6",
+                "is_refused": True,
+                "refusal_type": "keyword",
+            },
+            {
+                "prompt": "p7",
+                "category": "cat_b",
+                "response": "r7",
+                "is_refused": True,
+                "refusal_type": "keyword",
+            },
+            {
+                "prompt": "p8",
+                "category": "cat_b",
+                "response": "r8",
+                "is_refused": False,
+                "refusal_type": "none",
+            },
+            {
+                "prompt": "p9",
+                "category": "cat_b",
+                "response": "r9",
+                "is_refused": False,
+                "refusal_type": "none",
+            },
+            {
+                "prompt": "p10",
+                "category": "cat_b",
+                "response": "r10",
+                "is_refused": False,
+                "refusal_type": "none",
+            },
+        ]
+        overall, per_category = evaluator._compute_orr(predictions)
+        # Overall: 5 refused out of 10 = 50%
+        assert overall == 50.0
+        assert per_category["cat_a"] == 50.0
+        assert per_category["cat_b"] == 50.0
+
+    def test_evaluate(self) -> None:
+        """Full integration test with mocked dataset + model generate_with_steering."""
+        mock_model = MagicMock()
+        # 5 refused responses, 5 non-refused responses
+        mock_model.generate_with_steering.side_effect = [
+            "I'm sorry, I can't help with that.",
+            "Sure, here's the answer to your question.",
+            "I apologize, but I must decline.",
+            "The answer is straightforward: do X.",
+            "I cannot fulfill this request.",
+            "Here's how you do it: step 1, step 2.",
+            "I won't help with that.",
+            "Great question! Here's what you need.",
+            "I'm unable to assist with this.",
+            "Of course! Let me explain.",
+        ]
+        config = ORBenchConfig(split="or-bench-hard-1k", num_samples=0, seed=42)
+
+        mock_dataset = [{"prompt": f"prompt_{i}", "category": f"cat_{i % 3}"} for i in range(10)]
+
+        with patch("steering_geometry.apply_steering.load_dataset") as mock_load:
+            mock_load.return_value = mock_dataset
+            evaluator = ORBenchEvaluator(config, mock_model)
+            steering_vector = torch.randn(8)
+            result = evaluator.evaluate(steering_vector, layer_idx=5, scale=1.5)
+
+        assert isinstance(result, ORBenchResult)
+        assert result.total == 10
+        assert result.refused == 5
+        assert result.answered == 5
+        assert result.orr == 50.0
+        assert len(result.predictions) == 10
+        assert len(result.per_category) == 3
+
+        # Verify model was called correctly
+        assert mock_model.generate_with_steering.call_count == 10
+        call_kwargs = mock_model.generate_with_steering.call_args_list[0]
+        assert call_kwargs.kwargs["layer_idx"] == 5
+        assert call_kwargs.kwargs["scale"] == 1.5

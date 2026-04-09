@@ -1,0 +1,15 @@
+Usage: scripts/token_experiments/2_token_position.sh [OPTIONS]
+
+Options:
+  -c, --concept      Concept to analyze (default: refusal)
+  -m, --model        Model name (default: Qwen/Qwen3-1.7B)
+  -n, --num-examples Number of contrast pairs (default: 100)
+  --last-n           Space-separated last_n values (default: "1 2 3 4 5 10")
+  --include-all      Include "all" mode: true/false (default: true)
+  -l, --layers       Layer fractions as space-separated list
+  -o, --output       Output directory (default: outputs/token_experiments)
+  -h, --help         Show this help message
+
+Example:
+  scripts/token_experiments/2_token_position.sh -c honesty -n 200
+  scripts/token_experiments/2_token_position.sh --last-n "1 2 4 8" --include-all false

@@ -1,0 +1,17 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.9, pytest-9.0.2, pluggy-1.6.0 -- /home/xzascc/Documents/code/Steering_Geometry/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/xzascc/Documents/code/Steering_Geometry
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 7 items
+
+tests/unit/test_utils.py::TestSelectTokenAllMode::test_select_token_all_mode_3d PASSED [ 14%]
+tests/unit/test_utils.py::TestSelectTokenAllMode::test_select_token_all_mode_2d PASSED [ 28%]
+tests/unit/test_utils.py::TestSelectTokenAllMode::test_select_token_all_no_padding_tokens PASSED [ 42%]
+tests/unit/test_utils.py::TestSelectTokenLastNMode::test_select_token_last_n_mode PASSED [ 57%]
+tests/unit/test_utils.py::TestSelectTokenLastNMode::test_select_token_last_n_overflow PASSED [ 71%]
+tests/unit/test_utils.py::TestSelectTokenLastNMode::test_select_token_last_n_no_padding PASSED [ 85%]
+tests/unit/test_utils.py::TestSelectTokenBackwardCompat::test_select_token_int_index_backward_compat PASSED [100%]
+
+============================== 7 passed in 0.01s ===============================

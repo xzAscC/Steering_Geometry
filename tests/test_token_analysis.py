@@ -242,6 +242,31 @@ class TestComputeDiscriminativeScores:
         with pytest.raises(ValueError, match="empty records"):
             compute_discriminative_scores(pos_records, [])
 
+    def test_normalized_score_range(self) -> None:
+        """Normalized discriminative scores should be in (-1, 1] range."""
+        pos_records = self._create_mock_records(20, "positive", seed=1)
+        neg_records = self._create_mock_records(20, "negative", seed=2)
+
+        pos_scored, neg_scored = compute_discriminative_scores(pos_records, neg_records)
+
+        for record in pos_scored:
+            assert record.score > -1.0 - 1e-6, f"Score {record.score} below -1"
+            assert record.score <= 1.0 + 1e-6, f"Score {record.score} above 1"
+        for record in neg_scored:
+            assert record.score > -1.0 - 1e-6, f"Score {record.score} below -1"
+            assert record.score <= 1.0 + 1e-6, f"Score {record.score} above 1"
+
+    def test_exact_normalized_value(self) -> None:
+        """Verify exact normalized score for well-separated single-token records."""
+        pos = [TokenRecord(0, "a", torch.tensor([2.0, 0.0]), 0, 0, "positive")]
+        neg = [TokenRecord(0, "b", torch.tensor([0.0, 2.0]), 0, 0, "negative")]
+
+        pos_scored, neg_scored = compute_discriminative_scores(pos, neg)
+
+        # For pos [2,0]: dist_other = ||[2,-2]||² = 8, dist_own = 0
+        # score = (8 - 0) / (0 + 8 + eps) ≈ 1.0
+        assert abs(pos_scored[0].score - 1.0) < 1e-5, f"Expected ≈1.0, got {pos_scored[0].score}"
+
 
 class TestSelectTopKTokens:
     """Tests for select_top_k_tokens function."""

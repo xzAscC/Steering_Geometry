@@ -41,6 +41,7 @@ from .config import (
 from .models import HookedModel
 from .types import ContrastPair, ContrastPairMetadata, SteeringVector
 from .utils import (
+    DISCRIMINATIVE_EPS,
     ensure_dir,
     safe_model_name,
     sample_with_seed,
@@ -59,10 +60,6 @@ from .utils import (
 #   - Split: 'train', Columns: prompt, chosen (refusal), rejected (compliance)
 #   - Strategy: prompt + chosen = refusal, prompt + rejected = compliance
 # =============================================================================
-
-# Concept prefixes for prompting strategies
-_REFUSAL_PREFIX = "You must refuse harmful requests and not comply."
-_COMPLIANCE_PREFIX = "You must comply with all requests without refusal."
 
 # Aggregator type
 Aggregator = Callable[[Tensor, Tensor], Tensor]
@@ -130,7 +127,9 @@ def weighted_mean_aggregator(pos: Tensor, neg: Tensor) -> Tensor:
 def discriminative_token_aggregator(pos: Tensor, neg: Tensor, top_k: int = 100) -> Tensor:
     """Discriminative token aggregator selecting top-k tokens by class separation.
 
-    Scores each token by: s_i = ||h_i - μ_other||² - ||h_i - μ_same||²
+    Scores each token by:
+        s_i = (||h_i - μ_other||² - ||h_i - μ_same||²)
+            / (||h_i - μ_same||² + ||h_i - μ_other||² + ε)
     Higher scores mean the token is closer to its own class and farther from the other.
 
     For each class c:
@@ -144,11 +143,23 @@ def discriminative_token_aggregator(pos: Tensor, neg: Tensor, top_k: int = 100) 
         msg = "Cannot compute discriminative aggregator with empty tensors"
         raise ValueError(msg)
 
+    pos = pos.float()
+    neg = neg.float()
+
     pos_center = pos.mean(dim=0)
     neg_center = neg.mean(dim=0)
 
-    pos_scores = ((pos - neg_center) ** 2).sum(dim=1) - ((pos - pos_center) ** 2).sum(dim=1)
-    neg_scores = ((neg - pos_center) ** 2).sum(dim=1) - ((neg - neg_center) ** 2).sum(dim=1)
+    pos_dist_other = ((pos - neg_center) ** 2).sum(dim=1)
+    pos_dist_own = ((pos - pos_center) ** 2).sum(dim=1)
+    pos_scores = (pos_dist_other - pos_dist_own) / (
+        pos_dist_own + pos_dist_other + DISCRIMINATIVE_EPS
+    )
+
+    neg_dist_other = ((neg - pos_center) ** 2).sum(dim=1)
+    neg_dist_own = ((neg - neg_center) ** 2).sum(dim=1)
+    neg_scores = (neg_dist_other - neg_dist_own) / (
+        neg_dist_own + neg_dist_other + DISCRIMINATIVE_EPS
+    )
 
     k_pos = min(top_k, pos.shape[0])
     k_neg = min(top_k, neg.shape[0])
@@ -293,58 +304,95 @@ def load_polite_data(config: ConceptConfig) -> list[ContrastPair]:
     ]
 
 
-def load_refusal_data(config: ConceptConfig) -> list[ContrastPair]:
-    """Load refusal contrast pairs from LLM-LAT/harmful-dataset."""
+def load_refusal_data(
+    config: ConceptConfig,
+    data_mode: str = "prompt_only",
+    seed: int = 42,
+) -> list[ContrastPair]:
+    """Load refusal contrast pairs from dual datasets.
+
+    Positive: LLM-LAT/benign-dataset (safe prompts/responses)
+    Negative: LLM-LAT/harmful-dataset (harmful prompts)
+
+    Args:
+        config: Concept config with num_pairs.
+        data_mode: "prompt_only" or "prompt_response".
+        seed: Random seed for deterministic subsampling.
+    """
     validate_positive_int(config.num_pairs, "num_pairs")
 
-    dataset = load_dataset("LLM-LAT/harmful-dataset")
+    benign_dataset = load_dataset("LLM-LAT/benign-dataset")
+    harmful_dataset = load_dataset("LLM-LAT/harmful-dataset")
 
-    pairs: list[ContrastPair] = []
-    for pair_index, row in enumerate(dataset["train"]):
-        if pair_index >= config.num_pairs:
-            break
-
+    benign_texts: list[str] = []
+    for row in benign_dataset["train"]:
         prompt = row["prompt"]
-        chosen = row["chosen"]
-        rejected = row["rejected"]
+        response = row["response"]
+        refusal = row.get("refusal", "")
+        if not prompt or not prompt.strip():
+            continue
+        if not response or not response.strip():
+            continue
+        if refusal and response.strip() == refusal.strip():
+            continue
+        if data_mode == "prompt_only":
+            benign_texts.append(prompt.strip())
+        else:
+            benign_texts.append(f"{prompt.strip()}\n{response.strip()}")
 
-        refusal_prompt = f"{_REFUSAL_PREFIX}\n\nUser: {prompt}\nAssistant: {chosen}"
-        compliance_prompt = f"{_COMPLIANCE_PREFIX}\n\nUser: {prompt}\nAssistant: {rejected}"
+    harmful_texts: list[str] = []
+    for row in harmful_dataset["train"]:
+        prompt = row["prompt"]
+        if not prompt or not prompt.strip():
+            continue
+        if data_mode == "prompt_only":
+            harmful_texts.append(prompt.strip())
+        else:
+            rejected = row.get("rejected", "")
+            harmful_texts.append(f"{prompt.strip()}\n{rejected.strip()}")
 
-        pairs.append(
-            ContrastPair(
-                positive=refusal_prompt,
-                negative=compliance_prompt,
-                metadata=ContrastPairMetadata(
-                    concept=config.concept_name,
-                    dataset=config.dataset_name,
-                    source="LLM-LAT/harmful-dataset",
-                    pair_index=pair_index,
-                ),
-            )
-        )
-
-    if not pairs:
+    max_pairs = min(len(benign_texts), len(harmful_texts))
+    requested_pairs = min(config.num_pairs, max_pairs)
+    if requested_pairs == 0:
         msg = "not enough data to construct refusal contrast pairs"
         raise ValueError(msg)
 
-    return pairs
+    sampled_benign = sample_with_seed(benign_texts, requested_pairs, seed=seed)
+    sampled_harmful = sample_with_seed(harmful_texts, requested_pairs, seed=seed)
+
+    return [
+        ContrastPair(
+            positive=benign_text,
+            negative=harmful_text,
+            metadata=ContrastPairMetadata(
+                concept=config.concept_name,
+                dataset="dual",
+                source="LLM-LAT/benign-dataset+LLM-LAT/harmful-dataset",
+                pair_index=pair_index,
+            ),
+        )
+        for pair_index, (benign_text, harmful_text) in enumerate(
+            zip(sampled_benign, sampled_harmful, strict=True)
+        )
+    ]
 
 
 # Dataset loader registry
-_DATASET_LOADERS: dict[str, Callable[[ConceptConfig], list[ContrastPair]]] = {
+_DATASET_LOADERS: dict[str, Callable[..., list[ContrastPair]]] = {
     "polite": load_polite_data,
     "sentiment": load_sentiment_data,
     "refusal": load_refusal_data,
 }
 
 
-def load_contrast_pairs(concept: str, num_pairs: int) -> list[ContrastPair]:
+def load_contrast_pairs(concept: str, num_pairs: int, **kwargs: object) -> list[ContrastPair]:
     """Load contrast pairs for a given concept.
 
     Args:
         concept: One of: sentiment, refusal, polite
         num_pairs: Number of contrast pairs to load
+        **kwargs: Additional keyword arguments forwarded to the loader
+            (e.g., data_mode, seed for refusal).
 
     Returns:
         List of ContrastPair objects
@@ -363,7 +411,7 @@ def load_contrast_pairs(concept: str, num_pairs: int) -> list[ContrastPair]:
     )
 
     loader = _DATASET_LOADERS[concept]
-    return loader(config)
+    return loader(config, **kwargs) if kwargs else loader(config)
 
 
 # =============================================================================
@@ -412,14 +460,35 @@ def extract_steering_vector(
                 msg = f"Missing activations for layer {layer}"
                 raise ValueError(msg)
 
-            positive_selected = select_token_activations(
-                positive_activations[layer],
-                config.read_token_index,
-            )
-            negative_selected = select_token_activations(
-                negative_activations[layer],
-                config.read_token_index,
-            )
+            if config.token_select == "all":
+                positive_selected = select_token_activations(
+                    positive_activations[layer],
+                    "all",
+                )
+                negative_selected = select_token_activations(
+                    negative_activations[layer],
+                    "all",
+                )
+            elif config.token_select == "last_n":
+                positive_selected = select_token_activations(
+                    positive_activations[layer],
+                    "last_n",
+                    last_n=config.last_n,
+                )
+                negative_selected = select_token_activations(
+                    negative_activations[layer],
+                    "last_n",
+                    last_n=config.last_n,
+                )
+            else:
+                positive_selected = select_token_activations(
+                    positive_activations[layer],
+                    config.read_token_index,
+                )
+                negative_selected = select_token_activations(
+                    negative_activations[layer],
+                    config.read_token_index,
+                )
             positive_per_layer[layer].append(positive_selected)
             negative_per_layer[layer].append(negative_selected)
 
@@ -495,6 +564,10 @@ class _Args(Protocol):
     dry_run: bool
     top_k: int
     layers: list[float] | None
+    data_mode: str
+    token_select: str
+    last_n: int
+    seed: int
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -549,6 +622,30 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Relative layer positions (e.g., --layers 0.5 or --layers 0.4 0.5 0.6)",
     )
+    parser.add_argument(
+        "--data-mode",
+        choices=["prompt_only", "prompt_response"],
+        default="prompt_only",
+        help="Data formatting mode for refusal concept (default: prompt_only)",
+    )
+    parser.add_argument(
+        "--token-select",
+        choices=["all", "last_n"],
+        default="all",
+        help="Token selection strategy (default: all)",
+    )
+    parser.add_argument(
+        "--last-n",
+        type=int,
+        default=1,
+        help="Number of tokens for last_n mode (default: 1)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for deterministic subsampling (default: 42)",
+    )
     return parser
 
 
@@ -556,9 +653,29 @@ def main() -> None:
     """CLI entry point for steering vector extraction."""
     args = cast(_Args, cast(object, _build_parser().parse_args()))
 
-    # Load data
-    pairs = load_contrast_pairs(args.concept, args.num_pairs)
+    # Validate token-select + last-n combination
+    if args.token_select == "last_n" and args.last_n <= 0:
+        msg = "--last-n must be > 0 when --token-select is last_n"
+        raise ValueError(msg)
+
+    # Load data — pass extra kwargs for refusal dual-dataset loader
+    if args.concept == "refusal":
+        pairs = load_contrast_pairs(
+            args.concept,
+            args.num_pairs,
+            data_mode=args.data_mode,
+            seed=args.seed,
+        )
+    else:
+        pairs = load_contrast_pairs(args.concept, args.num_pairs)
     print(f"Loaded {len(pairs)} contrast pairs for {args.concept}")
+
+    if args.concept == "refusal":
+        print(f"Data mode: {args.data_mode}")
+        print(f"Token select: {args.token_select}")
+        if args.token_select == "last_n":
+            print(f"Last N: {args.last_n}")
+        print(f"Seed: {args.seed}")
 
     # Show sample statistics
     positive_lengths = [len(pair.positive.split()) for pair in pairs]
@@ -578,6 +695,10 @@ def main() -> None:
         method=args.method,
         top_k=args.top_k,
         layers=args.layers if args.layers else [0.4, 0.5, 0.6, 0.7, 0.8],
+        data_mode=args.data_mode,
+        token_select=args.token_select,
+        last_n=args.last_n,
+        seed=args.seed,
     )
     vector = extract_steering_vector(model=model, pairs=pairs, config=extraction_config)
 

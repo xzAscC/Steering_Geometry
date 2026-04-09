@@ -36,7 +36,7 @@ from .types import (
     ProbeLayerResult,
     TokenRecord,
 )
-from .utils import ensure_dir, safe_model_name
+from .utils import DISCRIMINATIVE_EPS, ensure_dir, safe_model_name
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ def compute_discriminative_scores(
     neg_records: list[TokenRecord],
 ) -> tuple[list[TokenRecord], list[TokenRecord]]:
     """Compute discriminative scores for tokens using the formula:
-    s_i = ||h_i - μ_other||² - ||h_i - μ_own||²
+    s_i = (||h_i - μ_other||² - ||h_i - μ_own||²) / (||h_i - μ_own||² + ||h_i - μ_other||² + ε)
 
     Higher score = more discriminative (closer to own class, farther from other).
 
@@ -178,12 +178,17 @@ def compute_discriminative_scores(
     pos_center = pos_activations.mean(dim=0)
     neg_center = neg_activations.mean(dim=0)
 
-    pos_scores = ((pos_activations - neg_center) ** 2).sum(dim=1) - (
-        (pos_activations - pos_center) ** 2
-    ).sum(dim=1)
-    neg_scores = ((neg_activations - pos_center) ** 2).sum(dim=1) - (
-        (neg_activations - neg_center) ** 2
-    ).sum(dim=1)
+    pos_dist_other = ((pos_activations - neg_center) ** 2).sum(dim=1)
+    pos_dist_own = ((pos_activations - pos_center) ** 2).sum(dim=1)
+    pos_scores = (pos_dist_other - pos_dist_own) / (
+        pos_dist_own + pos_dist_other + DISCRIMINATIVE_EPS
+    )
+
+    neg_dist_other = ((neg_activations - pos_center) ** 2).sum(dim=1)
+    neg_dist_own = ((neg_activations - neg_center) ** 2).sum(dim=1)
+    neg_scores = (neg_dist_other - neg_dist_own) / (
+        neg_dist_own + neg_dist_other + DISCRIMINATIVE_EPS
+    )
 
     for i, record in enumerate(pos_records):
         record.score = float(pos_scores[i].item())

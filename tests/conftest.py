@@ -98,19 +98,23 @@ class FakeCausalLM(nn.Module):
         max_new_tokens: int = 1,
         do_sample: bool = False,
         pad_token_id: int | None = None,
+        **kwargs: object,
     ) -> Tensor:
         del attention_mask, do_sample, pad_token_id
-
-        hidden_states = self._compute_hidden_states(input_ids)
-        next_token_base = int(hidden_states.mean().item()) % 26
-        next_token_id = next_token_base + ord("a") + 1
-        appended = torch.full(
-            (input_ids.shape[0], max_new_tokens),
-            next_token_id,
-            dtype=input_ids.dtype,
-            device=input_ids.device,
-        )
-        return torch.cat([input_ids, appended], dim=1)
+        for _ in kwargs:
+            pass
+        for _ in range(max_new_tokens):
+            _ = self(input_ids)
+            next_token_base = int(input_ids.float().mean().item()) % 26
+            next_token_id = next_token_base + ord("a") + 1
+            next_token = torch.full(
+                (input_ids.shape[0], 1),
+                next_token_id,
+                dtype=input_ids.dtype,
+                device=input_ids.device,
+            )
+            input_ids = torch.cat([input_ids, next_token], dim=1)
+        return input_ids
 
 
 def pytest_configure(config: pytest.Config) -> None:
