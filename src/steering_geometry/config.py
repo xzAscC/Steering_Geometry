@@ -97,6 +97,7 @@ class SteeringConfig:
         seed: Random seed for reproducible sample selection.
         max_new_tokens: Maximum number of tokens to generate.
         temperature: Sampling temperature (0.0 for greedy decoding).
+        steer_tokens: Number of generation steps to apply steering (None = all steps).
     """
 
     multipliers: list[float] = field(default_factory=lambda: [0.01, 0.1, 1.0, 10.0])
@@ -104,6 +105,7 @@ class SteeringConfig:
     seed: int = 42
     max_new_tokens: int = 100
     temperature: float = 0.0
+    steer_tokens: int | None = None
 
 
 @dataclass

@@ -199,6 +199,7 @@ class HookedModel:
         scale: float,
         max_new_tokens: int = 100,
         temperature: float = 0.0,
+        steer_tokens: int | None = None,
     ) -> str:
         """Generate text with steering vector applied to a specific layer.
 
@@ -209,6 +210,10 @@ class HookedModel:
             scale: Scaling factor for the steering vector.
             max_new_tokens: Maximum tokens to generate.
             temperature: Sampling temperature (0.0 for greedy).
+            steer_tokens: Number of generation steps to apply steering.
+                None applies steering to all steps (default).
+                0 applies no steering. Values >= max_new_tokens are
+                equivalent to None.
 
         Returns:
             Generated text string.
@@ -226,7 +231,14 @@ class HookedModel:
 
         model_layers = self._get_layers_module()
 
+        step_counter = [0]
+
         def steering_hook(module: Any, input: Any, output: Tensor) -> Tensor:
+            step_counter[0] += 1
+            if steer_tokens is not None and step_counter[0] > steer_tokens:
+                if isinstance(output, tuple):
+                    return output
+                return output
             tensor_output = output[0] if isinstance(output, tuple) else output
             steering = steering_vector.to(device=tensor_output.device, dtype=tensor_output.dtype)
             tensor_output = tensor_output + steering * scale
@@ -244,6 +256,8 @@ class HookedModel:
             if temperature > 0:
                 gen_kwargs["temperature"] = temperature
                 gen_kwargs["do_sample"] = True
+            if steer_tokens is not None:
+                gen_kwargs["use_cache"] = True
 
             with torch.no_grad():
                 output_ids = self.model.generate(**inputs, **gen_kwargs)
