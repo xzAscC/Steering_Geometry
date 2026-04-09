@@ -7,11 +7,14 @@ import pytest
 
 from steering_geometry.config import ConceptConfig, ExtractionConfig, ModelConfig
 from steering_geometry.extract import (
+    extract_steering_vector,
     load_contrast_pairs,
     load_polite_data,
     load_refusal_data,
     load_sentiment_data,
 )
+from steering_geometry.models import HookedModel
+from steering_geometry.types import ContrastPair, SteeringVector
 
 HAS_ACCELERATE = importlib.util.find_spec("accelerate") is not None
 
@@ -80,20 +83,6 @@ class TestDatasetLoaders:
             assert pair.positive
             assert pair.negative
 
-    def test_load_refusal_data(self) -> None:
-        """Refusal data should load from LLM-LAT dataset."""
-        config = ConceptConfig(
-            concept_name="refusal",
-            dataset_name="harmful",
-            num_pairs=10,
-        )
-        pairs = load_refusal_data(config)
-        assert len(pairs) == 10
-        for pair in pairs:
-            assert pair.metadata["concept"] == "refusal"
-            assert "refuse" in pair.positive.lower() or "refusal" in pair.positive.lower()
-            assert "comply" in pair.negative.lower() or "compliance" in pair.negative.lower()
-
 
 @pytest.mark.skipif(not HAS_ACCELERATE, reason="requires accelerate package")
 class TestHookedModel:
@@ -160,6 +149,48 @@ class TestExtractionConfig:
         assert config.read_token_index == 0
         assert config.layers == [0.5]
 
+    def test_new_field_defaults(self) -> None:
+        """New fields should have correct defaults."""
+        config = ExtractionConfig()
+        assert config.data_mode == "prompt_only"
+        assert config.token_select == "default"
+        assert config.last_n == 1
+        assert config.seed == 42
+
+    def test_new_fields_custom_values(self) -> None:
+        """New fields should accept custom values."""
+        config = ExtractionConfig(
+            data_mode="prompt_response",
+            token_select="last_n",
+            last_n=10,
+            seed=123,
+        )
+        assert config.data_mode == "prompt_response"
+        assert config.token_select == "last_n"
+        assert config.last_n == 10
+        assert config.seed == 123
+
+    def test_new_fields_with_existing_fields(self) -> None:
+        """New fields should coexist with existing fields."""
+        config = ExtractionConfig(
+            method="pca",
+            batch_size=16,
+            read_token_index=0,
+            layers=[0.5],
+            data_mode="prompt_response",
+            token_select="last_n",
+            last_n=5,
+            seed=99,
+        )
+        assert config.method == "pca"
+        assert config.batch_size == 16
+        assert config.read_token_index == 0
+        assert config.layers == [0.5]
+        assert config.data_mode == "prompt_response"
+        assert config.token_select == "last_n"
+        assert config.last_n == 5
+        assert config.seed == 99
+
 
 class TestPoliteLoader:
     """Tests for polite data loader."""
@@ -224,9 +255,152 @@ def _make_polite_rows(n: int) -> list[dict]:
     return rows
 
 
-def _passthrough_sample(items: list, n: int) -> list:
-    """Passthrough for sample_with_seed that returns first n items."""
+def _passthrough_sample(items: list, n: int, **kwargs: object) -> list:
     return items[:n]
+
+
+def _make_benign_rows(n: int) -> list[dict]:
+    """Create benign-dataset rows: prompt, response, refusal."""
+    return [
+        {
+            "prompt": f"benign prompt {i}",
+            "response": f"benign response {i}",
+            "refusal": "I cannot comply.",
+        }
+        for i in range(n)
+    ]
+
+
+def _make_harmful_rows(n: int) -> list[dict]:
+    """Create harmful-dataset rows: prompt, chosen (refusal), rejected (compliance)."""
+    return [
+        {"prompt": f"harmful prompt {i}", "chosen": f"I refuse {i}", "rejected": f"I comply {i}"}
+        for i in range(n)
+    ]
+
+
+def _mock_dual_dataset(benign_rows: list[dict], harmful_rows: list[dict]) -> MagicMock:
+    """Create a mock load_dataset that returns correct dataset based on name."""
+    mock = MagicMock()
+
+    def _load(name: str, **kwargs: object) -> dict:
+        if name == "LLM-LAT/benign-dataset":
+            return {"train": benign_rows}
+        if name == "LLM-LAT/harmful-dataset":
+            return {"train": harmful_rows}
+        return {}
+
+    mock.side_effect = _load
+    return mock
+
+
+class TestRefusalDualDataset:
+    """Tests for the dual-dataset refusal loader."""
+
+    @patch("steering_geometry.extract.sample_with_seed", side_effect=_passthrough_sample)
+    @patch("steering_geometry.extract.load_dataset")
+    def test_load_refusal_dual_dataset(self, mock_load: MagicMock, mock_sample: MagicMock) -> None:
+        mock_load.side_effect = _mock_dual_dataset(
+            _make_benign_rows(20), _make_harmful_rows(20)
+        ).side_effect
+        config = ConceptConfig(concept_name="refusal", dataset_name="dual", num_pairs=10)
+
+        pairs = load_refusal_data(config)
+
+        assert len(pairs) == 10
+        for pair in pairs:
+            assert pair.positive.startswith("benign prompt")
+            assert pair.negative.startswith("harmful prompt")
+            assert pair.metadata["concept"] == "refusal"
+            assert pair.metadata["source"] == "LLM-LAT/benign-dataset+LLM-LAT/harmful-dataset"
+
+    @patch("steering_geometry.extract.sample_with_seed", side_effect=_passthrough_sample)
+    @patch("steering_geometry.extract.load_dataset")
+    def test_load_refusal_prompt_only(self, mock_load: MagicMock, mock_sample: MagicMock) -> None:
+        mock_load.side_effect = _mock_dual_dataset(
+            _make_benign_rows(20), _make_harmful_rows(20)
+        ).side_effect
+        config = ConceptConfig(concept_name="refusal", dataset_name="dual", num_pairs=5)
+
+        pairs = load_refusal_data(config, data_mode="prompt_only")
+
+        assert len(pairs) == 5
+        for pair in pairs:
+            assert "\n" not in pair.positive
+            assert "\n" not in pair.negative
+
+    @patch("steering_geometry.extract.sample_with_seed", side_effect=_passthrough_sample)
+    @patch("steering_geometry.extract.load_dataset")
+    def test_load_refusal_prompt_response(
+        self, mock_load: MagicMock, mock_sample: MagicMock
+    ) -> None:
+        mock_load.side_effect = _mock_dual_dataset(
+            _make_benign_rows(20), _make_harmful_rows(20)
+        ).side_effect
+        config = ConceptConfig(concept_name="refusal", dataset_name="dual", num_pairs=5)
+
+        pairs = load_refusal_data(config, data_mode="prompt_response")
+
+        assert len(pairs) == 5
+        for pair in pairs:
+            assert "\n" in pair.positive
+            assert "\n" in pair.negative
+            parts_p = pair.positive.split("\n")
+            assert parts_p[0].startswith("benign prompt")
+            assert parts_p[1].startswith("benign response")
+
+    @patch("steering_geometry.extract.sample_with_seed", side_effect=_passthrough_sample)
+    @patch("steering_geometry.extract.load_dataset")
+    def test_load_refusal_filter(self, mock_load: MagicMock, mock_sample: MagicMock) -> None:
+        benign = [
+            {"prompt": "keep this", "response": "good response", "refusal": "I cannot comply."},
+            {
+                "prompt": "filter this",
+                "response": "I cannot comply.",
+                "refusal": "I cannot comply.",
+            },
+            {"prompt": "", "response": "empty prompt", "refusal": ""},
+            {"prompt": "also keep", "response": "another good", "refusal": "no match"},
+        ]
+        mock_load.side_effect = _mock_dual_dataset(benign, _make_harmful_rows(10)).side_effect
+        config = ConceptConfig(concept_name="refusal", dataset_name="dual", num_pairs=10)
+
+        pairs = load_refusal_data(config, data_mode="prompt_only")
+
+        assert len(pairs) == 2
+        positives = [p.positive for p in pairs]
+        assert "keep this" in positives
+        assert "also keep" in positives
+        assert "filter this" not in positives
+
+    @patch("steering_geometry.extract.sample_with_seed", side_effect=_passthrough_sample)
+    @patch("steering_geometry.extract.load_dataset")
+    def test_load_refusal_cap(self, mock_load: MagicMock, mock_sample: MagicMock) -> None:
+        mock_load.side_effect = _mock_dual_dataset(
+            _make_benign_rows(5), _make_harmful_rows(3)
+        ).side_effect
+        config = ConceptConfig(concept_name="refusal", dataset_name="dual", num_pairs=100)
+
+        pairs = load_refusal_data(config)
+
+        assert len(pairs) == 3
+
+    @patch("steering_geometry.extract.sample_with_seed", side_effect=_passthrough_sample)
+    @patch("steering_geometry.extract.load_dataset")
+    def test_load_refusal_seed_deterministic(
+        self, mock_load: MagicMock, mock_sample: MagicMock
+    ) -> None:
+        mock_load.side_effect = _mock_dual_dataset(
+            _make_benign_rows(20), _make_harmful_rows(20)
+        ).side_effect
+        config = ConceptConfig(concept_name="refusal", dataset_name="dual", num_pairs=5)
+
+        pairs_a = load_refusal_data(config, seed=99)
+        pairs_b = load_refusal_data(config, seed=99)
+
+        for a, b in zip(pairs_a, pairs_b, strict=True):
+            assert a.positive == b.positive
+            assert a.negative == b.negative
 
 
 class TestEarlyStop:
@@ -285,3 +459,135 @@ class TestEarlyStop:
         load_polite_data(config)
 
         assert mock_sample.call_count >= 2
+
+
+class TestTokenSelectDispatch:
+    """Tests for token selection dispatch in extract_steering_vector."""
+
+    def test_extract_with_token_select_all(self, mock_hooked_model: HookedModel) -> None:
+        """token_select='all' should dispatch to select all non-padding tokens."""
+        pairs = [
+            ContrastPair(positive="aaa", negative="bbb", metadata={"concept": "test"}),
+            ContrastPair(positive="ccc", negative="ddd", metadata={"concept": "test"}),
+        ]
+        config = ExtractionConfig(token_select="all", layers=[0.5], method="mean")
+        result = extract_steering_vector(mock_hooked_model, pairs, config)
+        assert isinstance(result, SteeringVector)
+        assert result.concept == "test"
+        assert len(result.layer_activations) > 0
+
+    def test_extract_with_token_select_last_n(self, mock_hooked_model: HookedModel) -> None:
+        """token_select='last_n' should dispatch to select last N tokens."""
+        pairs = [
+            ContrastPair(positive="aaa", negative="bbb", metadata={"concept": "test"}),
+            ContrastPair(positive="ccc", negative="ddd", metadata={"concept": "test"}),
+        ]
+        config = ExtractionConfig(token_select="last_n", last_n=3, layers=[0.5], method="mean")
+        result = extract_steering_vector(mock_hooked_model, pairs, config)
+        assert isinstance(result, SteeringVector)
+        assert result.concept == "test"
+        assert len(result.layer_activations) > 0
+
+    def test_extract_default_backward_compat(self, mock_hooked_model: HookedModel) -> None:
+        """Default config should work and dispatch to 'all' mode."""
+        pairs = [
+            ContrastPair(positive="aaa", negative="bbb", metadata={"concept": "test"}),
+            ContrastPair(positive="ccc", negative="ddd", metadata={"concept": "test"}),
+        ]
+        config = ExtractionConfig(layers=[0.5], method="mean")
+        result = extract_steering_vector(mock_hooked_model, pairs, config)
+        assert isinstance(result, SteeringVector)
+        assert result.concept == "test"
+        assert len(result.layer_activations) > 0
+
+    def test_extract_legacy_token_select(self, mock_hooked_model: HookedModel) -> None:
+        """An unknown token_select value should fall through to the int-index path."""
+        pairs = [
+            ContrastPair(positive="aaa", negative="bbb", metadata={"concept": "test"}),
+            ContrastPair(positive="ccc", negative="ddd", metadata={"concept": "test"}),
+        ]
+        config = ExtractionConfig(
+            token_select="legacy",
+            layers=[0.5],
+            method="mean",
+        )
+        result = extract_steering_vector(mock_hooked_model, pairs, config)
+        assert isinstance(result, SteeringVector)
+        assert result.concept == "test"
+
+
+class TestRefusalIntegration:
+    """End-to-end integration tests for refusal extraction with all 4 strategy combos."""
+
+    @pytest.fixture
+    def mock_pairs(self) -> list[ContrastPair]:
+        """Create refusal contrast pairs for integration testing."""
+        return [
+            ContrastPair(
+                positive=f"good query {i}",
+                negative=f"evil query {i}",
+                metadata={"concept": "refusal", "dataset": "dual"},
+            )
+            for i in range(5)
+        ]
+
+    def test_integration_prompt_only_all(
+        self, mock_hooked_model: HookedModel, mock_pairs: list[ContrastPair]
+    ) -> None:
+        """prompt_only + all tokens produces valid SteeringVector."""
+        config = ExtractionConfig(
+            token_select="all",
+            data_mode="prompt_only",
+            layers=[0.5],
+            method="mean",
+        )
+        result = extract_steering_vector(mock_hooked_model, mock_pairs, config)
+        assert isinstance(result, SteeringVector)
+        assert result.concept == "refusal"
+        assert len(result.layer_activations) > 0
+        for _layer, vec in result.layer_activations.items():
+            assert vec.ndim == 1
+
+    def test_integration_prompt_only_last_n(
+        self, mock_hooked_model: HookedModel, mock_pairs: list[ContrastPair]
+    ) -> None:
+        """prompt_only + last_n tokens produces valid SteeringVector."""
+        config = ExtractionConfig(
+            token_select="last_n",
+            last_n=2,
+            data_mode="prompt_only",
+            layers=[0.5],
+            method="mean",
+        )
+        result = extract_steering_vector(mock_hooked_model, mock_pairs, config)
+        assert isinstance(result, SteeringVector)
+        assert result.concept == "refusal"
+        for vec in result.layer_activations.values():
+            assert vec.ndim == 1
+
+    def test_integration_prompt_response_all(
+        self, mock_hooked_model: HookedModel, mock_pairs: list[ContrastPair]
+    ) -> None:
+        """prompt_response + all tokens produces valid SteeringVector."""
+        config = ExtractionConfig(
+            token_select="all",
+            data_mode="prompt_response",
+            layers=[0.5],
+            method="mean",
+        )
+        result = extract_steering_vector(mock_hooked_model, mock_pairs, config)
+        assert isinstance(result, SteeringVector)
+
+    def test_integration_prompt_response_last_n(
+        self, mock_hooked_model: HookedModel, mock_pairs: list[ContrastPair]
+    ) -> None:
+        """prompt_response + last_n tokens produces valid SteeringVector."""
+        config = ExtractionConfig(
+            token_select="last_n",
+            last_n=3,
+            data_mode="prompt_response",
+            layers=[0.5],
+            method="mean",
+        )
+        result = extract_steering_vector(mock_hooked_model, mock_pairs, config)
+        assert isinstance(result, SteeringVector)
