@@ -122,7 +122,7 @@ uv run python -u -c "
 from steering_geometry.token_selection_experiments import run_prompt_response_experiment
 from steering_geometry.utils import configure_logging
 
-configure_logging(level="INFO")
+configure_logging(level='INFO')
 
 # Run experiment
 results = run_prompt_response_experiment(

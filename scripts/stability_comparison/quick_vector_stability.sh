@@ -133,7 +133,7 @@ from steering_geometry.stability_comparison import (
 )
 from steering_geometry.utils import configure_logging
 
-configure_logging(level="INFO")
+configure_logging(level='INFO')
 
 # Configuration
 config = StabilityComparisonConfig(

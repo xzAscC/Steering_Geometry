@@ -202,7 +202,7 @@ from steering_geometry.config import StabilitySweepBatchConfig
 from steering_geometry.stability_comparison import run_stability_sweep_batch
 from steering_geometry.utils import configure_logging
 
-configure_logging(level="INFO")
+configure_logging(level='INFO')
 
 config = StabilitySweepBatchConfig(
     model_name='${MODEL}',
@@ -257,7 +257,6 @@ for r in results:
                 "$bar" "$pct" "$OVERALL_CURRENT" "$GRAND_TOTAL" \
                 "$elapsed_str" "$remain_str" \
                 "$concept"
-            echo ""
         else
             # Forward non-progress lines, indented under the box
             echo -e "${YELLOW}│${NC} $line"
@@ -282,7 +281,7 @@ from pathlib import Path
 from steering_geometry.stability_comparison import load_sweep_results, plot_stability_sweep
 from steering_geometry.utils import configure_logging
 
-configure_logging(level="INFO")
+configure_logging(level='INFO')
 
 output_dir = Path('${OUTPUT_DIR}')
 all_results = load_sweep_results(output_dir)

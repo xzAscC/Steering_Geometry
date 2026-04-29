@@ -138,7 +138,7 @@ from pathlib import Path
 from steering_geometry.token_selection_experiments import run_token_position_experiment
 from steering_geometry.utils import configure_logging
 
-configure_logging(level="INFO")
+configure_logging(level='INFO')
 
 # Build position_configs
 position_configs = []

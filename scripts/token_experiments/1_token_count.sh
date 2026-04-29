@@ -112,7 +112,7 @@ uv run python -u -c "
 from steering_geometry.token_selection_experiments import run_token_count_experiment
 from steering_geometry.utils import configure_logging
 
-configure_logging(level="INFO")
+configure_logging(level='INFO')
 
 # Run experiment
 results = run_token_count_experiment(
