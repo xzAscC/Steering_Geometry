@@ -7,14 +7,14 @@
 | Lint | `uv run ruff check src/ tests/` | ✅ |
 | Format | `uv run ruff format --check src/ tests/` | ✅ |
 | Type Check | `uv run mypy src/` | ✅ |
-| Tests | `uv run pytest` | ✅ (21 pass) |
+| Tests | `uv run pytest` | ✅ (231 pass, 2 skip) |
 | CI | GitHub Actions | ⬜ |
 
 ## Layer 2: Trend Metrics
 
 | Metric | Current | Target | Notes |
 |--------|---------|--------|-------|
-| Test Coverage | ~60% | 80% | 21 tests across unit/integration |
+| Test Coverage | ~60% | 80% | 231 tests across unit/integration |
 | Type Coverage | 100% | 100% | All files have type hints |
 | Open Tech Debt | 0 | 0 | From tech-debt-tracker.md |
 | PR Review Time | - hrs | <24 hrs | Average turnaround |

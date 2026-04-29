@@ -21,7 +21,7 @@ steering_geometry/
 ├── token_analysis.py     # Token-level analysis (visualize, probe subcommands)
 ├── unembed_analysis.py   # Unembedding cosine similarity analysis
 ├── tdnv.py               # TDNV separability metrics (Topic-Discriminative Normalized Variance)
-└── utils.py              # Shared: validate_positive_int, sample_with_seed, ensure_dir, safe_model_name
+└── utils.py              # Shared: validate_positive_int, sample_with_seed, ensure_dir, safe_model_name, configure_logging
 ```
 
 ## WHERE TO LOOK
@@ -40,6 +40,7 @@ steering_geometry/
 | Token analysis | `token_analysis.py` | `visualize()`, `probe()` |
 | Unembed analysis | `unembed_analysis.py` | `analyze_unembed_cosine()` |
 | TDNV analysis | `tdnv.py` | `compute_tdnv()`, `compute_tdnv_for_concept()` |
+| Configure logging | `utils.py` | `configure_logging()` — idempotent, dual output (console + file) |
 
 ## CODE MAP
 
@@ -103,7 +104,8 @@ config = ExtractionConfig(layers=[0.4, 0.6], method="mean", batch_size=8)
 | `unembed_analysis.py:12,38` | `Any` for tokenizer | Use Protocol |
 | `apply_steering.py:32,328,607` | `Any` for model/config | Use specific types |
 | `extract.py` + `tdnv.py` | `_select_token_activations` duplicated | Extract to utils.py |
-| `extract.py`, `apply_steering.py`, `tdnv.py`, `token_analysis.py` | `print()` for CLI output | Use logging module |
+| `__main__.py` | 3 `print()` for shell eval | Intentional — shell capture output, not logging |
+| `token_analysis.py` | 9 `print()` for CLI tables | Intentional — tabular CLI output, not logging |
 
 ## IMPORT GRAPH
 
@@ -115,7 +117,7 @@ extract.py
     ├── config.py (ExtractionConfig, ModelConfig, ConceptConfig)
     ├── models.py (HookedModel)
     ├── types.py (ContrastPair, SteeringVector)
-    └── utils.py (ensure_dir, safe_model_name, sample_with_seed)
+    └── utils.py (ensure_dir, safe_model_name, sample_with_seed, configure_logging)
 
 apply_steering.py
     ├── config.py (SteeringConfig, EvaluationConfig)
