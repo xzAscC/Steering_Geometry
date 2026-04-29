@@ -41,3 +41,6 @@ logs/
 .ipynb_checkpoints/
 plot/
 outputs/
+
+# ipynb notebook
+*.ipynb
