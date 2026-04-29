@@ -38,10 +38,12 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # MODELS="Qwen/Qwen3-1.7B Qwen/Qwen3-14B allenai/Olmo-3-1025-7B allenai/Olmo-3-1125-32B"
 MODELS="Qwen/Qwen3-1.7B allenai/Olmo-3-1025-7B"
 CONCEPTS="refusal polite sentiment"
-N_VALUES="100 300 600 1000 3000"
+N_VALUES="50 100 200 400 600 800 1000"
 LAYERS="0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0"
-NUM_RUNS=5
+NUM_RUNS=3
+REFERENCE_N=3000
 OUTPUT_DIR="$PROJECT_ROOT/outputs/stability_sweep"
+PLOT_LAYER=""
 
 # Colors for output
 RED='\033[0;31m'
@@ -114,6 +116,14 @@ while [[ $# -gt 0 ]]; do
             OUTPUT_DIR="$2"
             shift 2
             ;;
+        --plot-layer)
+            PLOT_LAYER="$2"
+            shift 2
+            ;;
+        --reference-n)
+            REFERENCE_N="$2"
+            shift 2
+            ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -124,6 +134,8 @@ while [[ $# -gt 0 ]]; do
             echo "  -l, --layers     Space-separated layer fractions (default: 0.1 0.2 ... 1.0)"
             echo "  -r, --num-runs   Number of independent runs (default: 5)"
             echo "  -o, --output     Output directory (default: outputs/stability_sweep)"
+            echo "  --plot-layer     Layer fraction to plot (default: best auto-selected layer)"
+            echo "  --reference-n   Reference N value for cos_sim comparison (default: 3000)"
             echo "  -h, --help       Show this help message"
             echo ""
             echo "Example:"
@@ -173,6 +185,9 @@ echo -e "N values:      ${GREEN}${N_VALUES}${NC}"
 echo -e "Layers:        ${GREEN}${LAYERS}${NC}"
 echo -e "Num runs:      ${GREEN}${NUM_RUNS}${NC}"
 echo -e "Output dir:    ${GREEN}${OUTPUT_DIR}${NC}"
+PLOT_LAYER_DISPLAY="${PLOT_LAYER:-auto (best layer)}"
+echo -e "Plot layer:    ${GREEN}${PLOT_LAYER_DISPLAY}${NC}"
+echo -e "Reference N:   ${GREEN}${REFERENCE_N}${NC}"
 echo -e "Total steps:   ${CYAN}${GRAND_TOTAL}${NC} (${NUM_MODELS} models × ${NUM_CONCEPTS} concepts × ${NUM_N_VALUES} N-values × ${NUM_RUNS} runs)"
 echo -e "${BLUE}============================================${NC}"
 
@@ -211,6 +226,7 @@ config = StabilitySweepBatchConfig(
     layers=${layers_str},
     num_runs=${NUM_RUNS},
     output_dir='${OUTPUT_DIR}',
+    reference_n=${REFERENCE_N},
 )
 
 results = run_stability_sweep_batch(config)
@@ -291,7 +307,12 @@ by_concept: dict[str, dict[str, object]] = defaultdict(dict)
 for (model_name, concept), result in all_results.items():
     by_concept[result.display_concept][model_name] = result
 
-paths = plot_stability_sweep(dict(by_concept), output_dir=output_dir)
+plot_kwargs = dict(output_dir=output_dir)
+plot_layer = ${PLOT_LAYER:-None}
+if plot_layer is not None:
+    plot_kwargs['plot_layer'] = float(plot_layer)
+
+paths = plot_stability_sweep(dict(by_concept), **plot_kwargs)
 for p in paths:
     print(f'  Saved: {p}')
 "
