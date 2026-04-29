@@ -547,6 +547,33 @@ def compute_stability_statistics(vectors: list[Tensor]) -> dict[str, float]:
     }
 
 
+def compute_reference_statistics(
+    vectors: list[Tensor],
+    reference: Tensor,
+) -> dict[str, float]:
+    """Compute cosine similarity statistics against a reference vector.
+
+    Args:
+        vectors: List of vectors from different runs.
+        reference: Reference vector to compare against.
+
+    Returns:
+        Dict with mean, min, max, std of cosine similarities vs reference.
+    """
+    import torch.nn.functional as functional
+
+    cos_sims = [
+        float(functional.cosine_similarity(v.unsqueeze(0), reference.unsqueeze(0))) for v in vectors
+    ]
+    arr = np.array(cos_sims)
+    return {
+        "mean": float(arr.mean()),
+        "min": float(arr.min()),
+        "max": float(arr.max()),
+        "std": float(arr.std()),
+    }
+
+
 def save_results_json(
     results: dict[str, Any],
     output_path: Path,
@@ -769,6 +796,7 @@ def run_stability_sweep_batch(
             output_dir=config.output_dir,
             device=config.device,
             dtype=config.dtype,
+            reference_n=config.reference_n,
         )
 
         logger.info(
@@ -870,6 +898,36 @@ def _run_sweep_with_model(
                 save_vector(vector, vector_path)
                 all_vectors[layer_frac][n][run_idx] = vector
 
+    # Load reference vectors when using reference-based comparison
+    reference_vectors: dict[float, Tensor] | None = None
+    if config.reference_n is not None:
+        reference_vectors = {}
+        for layer_frac in config.layers:
+            ref_path = concept_dir / f"n{config.reference_n}_run0_layer{layer_frac}.pt"
+            if not ref_path.exists():
+                msg = (
+                    f"Reference vector not found for N={config.reference_n}, "
+                    f"layer={layer_frac}. Expected: {ref_path}"
+                )
+                raise FileNotFoundError(msg)
+            reference_vectors[layer_frac] = load_vector(ref_path)
+
+    # Validate that reference vectors have compatible dimensions with extracted vectors
+    if reference_vectors is not None:
+        for layer_frac in config.layers:
+            ref_dim = reference_vectors[layer_frac].shape[0]
+            first_n = config.n_values[0]
+            sweep_dim = all_vectors[layer_frac][first_n][0].shape[0]
+            if ref_dim != sweep_dim:
+                msg = (
+                    f"Reference vector dimension ({ref_dim}) does not match "
+                    f"extracted vector dimension ({sweep_dim}) at layer {layer_frac}. "
+                    f"The reference vector was likely extracted with a different model. "
+                    f"Re-extract the reference vector with the current model, "
+                    f"or remove reference_n to use pairwise comparison."
+                )
+                raise ValueError(msg)
+
     all_layers_data: dict[float, dict[int, dict[str, float]]] = {}
 
     for layer_frac in config.layers:
@@ -877,7 +935,10 @@ def _run_sweep_with_model(
 
         for n in config.n_values:
             vectors = [all_vectors[layer_frac][n][run_idx] for run_idx in range(config.num_runs)]
-            stats = compute_stability_statistics(vectors)
+            if reference_vectors is not None:
+                stats = compute_reference_statistics(vectors, reference_vectors[layer_frac])
+            else:
+                stats = compute_stability_statistics(vectors)
             layer_data[n] = stats
 
         all_layers_data[layer_frac] = layer_data
@@ -1039,11 +1100,37 @@ _MODEL_DISPLAY_NAMES: dict[str, str] = {
 }
 
 
+def _validate_plot_layer(
+    results: dict[str, dict[str, StabilitySweepResult]],
+    plot_layer: float,
+) -> None:
+    """Validate that plot_layer exists in all results' all_layers_data.
+
+    Args:
+        results: Nested dict {concept: {model_name: StabilitySweepResult}}.
+        plot_layer: Layer fraction to validate.
+
+    Raises:
+        ValueError: If plot_layer is not available in any result.
+    """
+    for concept_name, model_results in results.items():
+        for model_name, result in model_results.items():
+            if plot_layer not in result.all_layers_data:
+                available = sorted(result.all_layers_data.keys())
+                msg = (
+                    f"plot_layer={plot_layer} not found in results for "
+                    f"model={model_name}, concept={concept_name}. "
+                    f"Available layers: {available}"
+                )
+                raise ValueError(msg)
+
+
 def plot_stability_sweep(
     results: dict[str, dict[str, StabilitySweepResult]],
     output_dir: Path | str = "outputs/stability_sweep",
     model_colors: dict[str, str] | None = None,
     model_labels: dict[str, str] | None = None,
+    plot_layer: float | None = None,
 ) -> list[Path]:
     """Generate line plots showing cos_sim vs N for each concept.
 
@@ -1056,6 +1143,9 @@ def plot_stability_sweep(
         output_dir: Directory to save PDF figures.
         model_colors: Optional override for model colors (model_name → hex color).
         model_labels: Optional override for model display names.
+        plot_layer: Optional layer fraction to plot. When set, uses data from
+            ``result.all_layers_data[plot_layer]`` instead of ``result.per_n_data``.
+            The output filename includes the layer value.
 
     Returns:
         List of paths to saved PDF figures.
@@ -1064,6 +1154,9 @@ def plot_stability_sweep(
 
     output_dir = Path(output_dir)
     ensure_dir(output_dir)
+
+    if plot_layer is not None:
+        _validate_plot_layer(results, plot_layer)
 
     default_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 
@@ -1075,9 +1168,14 @@ def plot_stability_sweep(
         fig, ax = plt.subplots(figsize=(6, 4))
 
         for idx, (model_name, result) in enumerate(sorted(model_results.items())):
-            n_values = sorted(result.per_n_data.keys())
-            means = [result.per_n_data[n]["mean"] for n in n_values]
-            stds = [result.per_n_data[n]["std"] for n in n_values]
+            if plot_layer is not None:
+                layer_data = result.all_layers_data[plot_layer]
+            else:
+                layer_data = result.per_n_data
+
+            n_values = sorted(layer_data.keys())
+            means = [layer_data[n]["mean"] for n in n_values]
+            stds = [layer_data[n]["std"] for n in n_values]
 
             display_name = labels.get(model_name, model_name)
             color = (
@@ -1109,7 +1207,12 @@ def plot_stability_sweep(
 
         from matplotlib.ticker import NullFormatter, ScalarFormatter
 
-        n_values = sorted(next(iter(model_results.values())).per_n_data.keys())
+        first_result = next(iter(model_results.values()))
+        if plot_layer is not None:
+            ref_data = first_result.all_layers_data[plot_layer]
+        else:
+            ref_data = first_result.per_n_data
+        n_values = sorted(ref_data.keys())
         ax.set_xticks(n_values)
         ax.get_xaxis().set_major_formatter(ScalarFormatter())
         ax.get_xaxis().set_minor_formatter(NullFormatter())
@@ -1117,7 +1220,10 @@ def plot_stability_sweep(
         fig.tight_layout()
 
         safe_name = concept_name.lower().replace(" ", "_")
-        output_path = output_dir / f"{safe_name}_stability_sweep.pdf"
+        if plot_layer is not None:
+            output_path = output_dir / f"{safe_name}_stability_sweep_layer{plot_layer}.pdf"
+        else:
+            output_path = output_dir / f"{safe_name}_stability_sweep.pdf"
         plt.savefig(output_path, bbox_inches="tight", format="pdf")
         plt.close()
 
@@ -1140,6 +1246,7 @@ __all__ = [
     "select_token_subsets",
     "run_single_extraction",
     "compute_stability_statistics",
+    "compute_reference_statistics",
     "save_results_json",
     "generate_stability_heatmap",
     "run_stability_comparison_experiment",
