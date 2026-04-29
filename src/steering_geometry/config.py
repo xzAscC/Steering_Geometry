@@ -259,16 +259,26 @@ class StabilitySweepConfig:
     Measures DiM steering vector stability via pairwise cosine similarity
     across multiple independent runs at varying sample sizes (N).
 
+    When ``reference_n`` is set, each run's vector is compared against a fixed
+    reference vector (pre-extracted from N=reference_n samples) instead of
+    performing pairwise comparison between runs.
+
     Attributes:
         model_name: HuggingFace model identifier.
         concept: Concept name (canonical: refusal, polite, sentiment).
         n_values: Sample sizes to sweep.
         layers: Layer fractions to test (relative positions 0.0-1.0).
         num_runs: Number of independent runs per (N, layer) setting.
+            Must be >= 2 when reference_n is None (pairwise comparison).
+            Must be >= 1 when reference_n is set (reference-based comparison).
         seed: Base random seed for reproducibility.
         output_dir: Directory to save results and vectors.
         device: Torch device for model inference.
         dtype: Model weight data type.
+        reference_n: When set, compare each run against a pre-existing reference
+            vector from N=reference_n samples (run0) instead of pairwise comparison.
+            The reference vector file must exist at
+            ``{output_dir}/vectors/{concept}/n{reference_n}_run0_layer{layer}.pt``.
     """
 
     model_name: str
@@ -282,6 +292,7 @@ class StabilitySweepConfig:
     output_dir: Path | str = field(default_factory=lambda: "outputs/stability_sweep")
     device: str = "auto"
     dtype: str = "float16"
+    reference_n: int | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -297,10 +308,13 @@ class StabilitySweepConfig:
             raise ValueError(
                 f"Unsupported model '{self.model_name}'. Must be one of {SUPPORTED_MODELS}"
             )
-        if self.num_runs < 2:
-            raise ValueError(
-                f"num_runs must be at least 2 for pairwise comparison, got {self.num_runs}"
-            )
+        min_runs = 1 if self.reference_n is not None else 2
+        if self.num_runs < min_runs:
+            if self.reference_n is not None:
+                msg = f"num_runs must be at least 1 with reference_n, got {self.num_runs}"
+            else:
+                msg = f"num_runs must be at least 2 for pairwise comparison, got {self.num_runs}"
+            raise ValueError(msg)
 
     @property
     def display_concept(self) -> str:
@@ -331,6 +345,8 @@ class StabilitySweepBatchConfig:
         output_dir: Directory to save results and vectors.
         device: Torch device for model inference.
         dtype: Model weight data type.
+        reference_n: When set, compare each run against a pre-existing reference
+            vector from N=reference_n samples instead of pairwise comparison.
     """
 
     model_name: str
@@ -344,6 +360,7 @@ class StabilitySweepBatchConfig:
     output_dir: Path | str = field(default_factory=lambda: "outputs/stability_sweep")
     device: str = "auto"
     dtype: str = "float16"
+    reference_n: int | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -362,10 +379,13 @@ class StabilitySweepBatchConfig:
             raise ValueError(
                 f"Unsupported model '{self.model_name}'. Must be one of {SUPPORTED_MODELS}"
             )
-        if self.num_runs < 2:
-            raise ValueError(
-                f"num_runs must be at least 2 for pairwise comparison, got {self.num_runs}"
-            )
+        min_runs = 1 if self.reference_n is not None else 2
+        if self.num_runs < min_runs:
+            if self.reference_n is not None:
+                msg = f"num_runs must be at least 1 with reference_n, got {self.num_runs}"
+            else:
+                msg = f"num_runs must be at least 2 for pairwise comparison, got {self.num_runs}"
+            raise ValueError(msg)
 
 
 @dataclass
