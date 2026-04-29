@@ -172,6 +172,9 @@ def configure_logging(
         log_name: Log file name.  Defaults to
                   ``steering_YYYYMMDD_HHMMSS.log``.
     """
+    for _name in ("httpx", "datasets", "filelock", "transformers", "PIL"):
+        logging.getLogger(_name).setLevel(logging.WARNING)
+
     logger = logging.getLogger("steering_geometry")
 
     if logger.handlers:

@@ -123,7 +123,6 @@ echo ""
 
 uv run python -u -c "
 import json
-import logging
 from pathlib import Path
 
 from steering_geometry.config import StabilityComparisonConfig
@@ -132,9 +131,9 @@ from steering_geometry.stability_comparison import (
     run_stability_comparison_experiment,
     save_results_json,
 )
+from steering_geometry.utils import configure_logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+configure_logging(level="INFO")
 
 # Configuration
 config = StabilityComparisonConfig(

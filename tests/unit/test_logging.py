@@ -12,16 +12,21 @@ from steering_geometry.utils import configure_logging
 
 LOGGER_NAME = "steering_geometry"
 
+NOISY_LOGGERS = ("httpx", "datasets", "filelock", "transformers", "PIL")
+
 
 @pytest.fixture(autouse=True)
 def _cleanup_logger() -> Generator[None, None, None]:
-    """Remove all handlers from the named logger after each test."""
+    """Remove all handlers from the named logger and restore third-party levels."""
+    saved_levels = {name: logging.getLogger(name).level for name in NOISY_LOGGERS}
     yield
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.WARNING)
     for handler in logger.handlers[:]:
         handler.close()
         logger.removeHandler(handler)
+    for name, level in saved_levels.items():
+        logging.getLogger(name).setLevel(level)
 
 
 class TestConfigureLoggingCreatesLogFile:
@@ -125,3 +130,34 @@ class TestConfigureLoggingCreatesLogDir:
 
         assert nested_dir.exists()
         assert (nested_dir / "test.log").exists()
+
+
+class TestConfigureLoggingSuppressesThirdParty:
+    """configure_logging should suppress noisy third-party loggers to WARNING."""
+
+    def test_httpx_suppressed_to_warning(self) -> None:
+        """httpx logger level should be set to WARNING."""
+        logging.getLogger("httpx").setLevel(logging.DEBUG)
+        configure_logging(level="INFO")
+        assert logging.getLogger("httpx").level == logging.WARNING
+
+    def test_datasets_suppressed_to_warning(self) -> None:
+        """datasets logger level should be set to WARNING."""
+        logging.getLogger("datasets").setLevel(logging.DEBUG)
+        configure_logging(level="INFO")
+        assert logging.getLogger("datasets").level == logging.WARNING
+
+    def test_all_noisy_loggers_suppressed(self) -> None:
+        """All known noisy third-party loggers should be at WARNING."""
+        for name in NOISY_LOGGERS:
+            logging.getLogger(name).setLevel(logging.DEBUG)
+        configure_logging(level="INFO")
+        for name in NOISY_LOGGERS:
+            assert logging.getLogger(name).level == logging.WARNING, f"{name} not suppressed"
+
+    def test_suppression_applies_even_when_idempotent(self) -> None:
+        """Suppression should fire even on second call (idempotent guard)."""
+        configure_logging(level="INFO")
+        logging.getLogger("httpx").setLevel(logging.DEBUG)
+        configure_logging(level="INFO")
+        assert logging.getLogger("httpx").level == logging.WARNING

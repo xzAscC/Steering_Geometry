@@ -195,16 +195,14 @@ for MODEL in $MODELS; do
     echo -e "${YELLOW}│${NC}"
 
     uv run python -u -c "
-import logging, sys, re
+import sys, re
 from pathlib import Path
 
 from steering_geometry.config import StabilitySweepBatchConfig
 from steering_geometry.stability_comparison import run_stability_sweep_batch
+from steering_geometry.utils import configure_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-)
+configure_logging(level="INFO")
 
 config = StabilitySweepBatchConfig(
     model_name='${MODEL}',
@@ -279,12 +277,12 @@ echo ""
 echo -e "${YELLOW}=== Generating plots ===${NC}"
 
 uv run python -u -c "
-import logging
 from pathlib import Path
 
 from steering_geometry.stability_comparison import load_sweep_results, plot_stability_sweep
+from steering_geometry.utils import configure_logging
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+configure_logging(level="INFO")
 
 output_dir = Path('${OUTPUT_DIR}')
 all_results = load_sweep_results(output_dir)
