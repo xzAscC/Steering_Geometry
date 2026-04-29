@@ -22,10 +22,16 @@ from numpy import ndarray
 from sklearn.metrics.pairwise import cosine_similarity  # type: ignore[import-untyped]
 from torch import Tensor
 
-from steering_geometry.config import ExtractionConfig, ModelConfig, StabilityComparisonConfig
+from steering_geometry.config import (
+    ExtractionConfig,
+    ModelConfig,
+    StabilityComparisonConfig,
+    StabilitySweepBatchConfig,
+    StabilitySweepConfig,
+)
 from steering_geometry.extract import extract_steering_vector, extract_vector, load_contrast_pairs
 from steering_geometry.models import HookedModel
-from steering_geometry.types import ContrastPair
+from steering_geometry.types import ContrastPair, StabilitySweepResult
 from steering_geometry.utils import ensure_dir
 
 if TYPE_CHECKING:
@@ -675,6 +681,452 @@ def run_stability_comparison_experiment(
     }
 
 
+def run_stability_sweep(config: StabilitySweepConfig) -> StabilitySweepResult:
+    """Run stability sweep experiment across varying sample sizes.
+
+    For each sample size N, constructs DiM directions from multiple independently
+    sampled datasets, computes pairwise cosine similarity, and selects the best
+    layer per (model, concept) pair.
+
+    Args:
+        config: Stability sweep configuration.
+
+    Returns:
+        StabilitySweepResult with selected layer and per-N stability metrics.
+
+    Raises:
+        ValueError: If no valid vectors can be extracted.
+    """
+    logger.info(
+        "Running stability sweep for model='%s', concept='%s', n_values=%s, layers=%s, num_runs=%d",
+        config.model_name,
+        config.concept,
+        config.n_values,
+        config.layers,
+        config.num_runs,
+    )
+
+    model_config = ModelConfig(
+        model_name=config.model_name,
+        device=config.device,
+        dtype=config.dtype,
+    )
+    model = HookedModel(model_config)
+
+    result = _run_sweep_with_model(model, config)
+
+    logger.info(
+        "Selected layer %.2f for model='%s', concept='%s' (avg cos_sim=%.4f)",
+        result.selected_layer,
+        config.model_name,
+        config.concept,
+        sum(result.per_n_data[n]["mean"] for n in config.n_values) / len(config.n_values),
+    )
+
+    return result
+
+
+def run_stability_sweep_batch(
+    config: StabilitySweepBatchConfig,
+) -> list[StabilitySweepResult]:
+    """Run stability sweeps for multiple concepts under a single model load.
+
+    Loads the model once and iterates over all concepts, producing one
+    StabilitySweepResult per concept.  Also emits structured progress lines
+    that the calling shell script can intercept for a progress bar.
+
+    Progress format (one line per extraction step)::
+
+        PROGRESS <concept_idx>/<total_concepts> <step>/<total_steps> <concept> N=<n> run=<r>/<runs>
+
+    Args:
+        config: Batch configuration (model, concepts, sweep params).
+
+    Returns:
+        List of StabilitySweepResult, one per concept.
+    """
+    model_config = ModelConfig(
+        model_name=config.model_name,
+        device=config.device,
+        dtype=config.dtype,
+    )
+    logger.info(
+        "Loading model '%s' for batch sweep (%d concepts)", config.model_name, len(config.concepts)
+    )
+    model = HookedModel(model_config)
+
+    total_concepts = len(config.concepts)
+    results: list[StabilitySweepResult] = []
+
+    for concept_idx, concept in enumerate(config.concepts):
+        concept_config = StabilitySweepConfig(
+            model_name=config.model_name,
+            concept=concept,
+            n_values=config.n_values,
+            layers=config.layers,
+            num_runs=config.num_runs,
+            seed=config.seed,
+            output_dir=config.output_dir,
+            device=config.device,
+            dtype=config.dtype,
+        )
+
+        logger.info(
+            "=== [%d/%d] Concept: %s ===",
+            concept_idx + 1,
+            total_concepts,
+            concept,
+        )
+
+        result = _run_sweep_with_model(model, concept_config, concept_idx, total_concepts)
+        save_sweep_results(result, output_dir=config.output_dir)
+        results.append(result)
+
+        logger.info(
+            "  Selected layer: %.2f | cos_sim values: %s",
+            result.selected_layer,
+            ", ".join(
+                f"N={n}={result.per_n_data[n]['mean']:.4f}±{result.per_n_data[n]['std']:.4f}"
+                for n in sorted(result.per_n_data)
+            ),
+        )
+
+    return results
+
+
+def _run_sweep_with_model(
+    model: HookedModel,
+    config: StabilitySweepConfig,
+    concept_idx: int = 0,
+    total_concepts: int = 1,
+) -> StabilitySweepResult:
+    """Core sweep logic accepting a pre-loaded model.
+
+    Identical to :func:`run_stability_sweep` but skips model loading so the
+    caller can reuse a single ``HookedModel`` across multiple concepts.
+
+    Args:
+        model: Pre-loaded HookedModel instance.
+        config: Per-concept sweep configuration.
+        concept_idx: 1-based index of current concept (for progress lines).
+        total_concepts: Total number of concepts in the batch.
+
+    Returns:
+        StabilitySweepResult for the requested concept.
+    """
+    all_pairs = load_contrast_pairs(config.concept, num_pairs=10000)
+    max_available = len(all_pairs)
+    logger.info("Loaded %d contrast pairs for concept '%s'", max_available, config.concept)
+
+    output_dir = Path(config.output_dir)
+    concept_dir = output_dir / "vectors" / config.concept
+
+    all_vectors: dict[float, dict[int, dict[int, Tensor]]] = {
+        layer: {n: {} for n in config.n_values} for layer in config.layers
+    }
+
+    total_steps = len(config.n_values) * config.num_runs
+    current_step = 0
+
+    for n in config.n_values:
+        capped = cap_examples(n, max_available, config.concept)
+
+        for run_idx in range(config.num_runs):
+            current_step += 1
+            rng = random.Random(config.seed + run_idx)
+            subset = rng.sample(all_pairs, k=capped)
+
+            logger.info(
+                "PROGRESS %d/%d %d/%d %s N=%d run=%d/%d",
+                concept_idx + 1,
+                total_concepts,
+                current_step,
+                total_steps,
+                config.concept,
+                n,
+                run_idx + 1,
+                config.num_runs,
+            )
+
+            extraction_config = ExtractionConfig(
+                layers=config.layers,
+                method="mean",
+            )
+            steering_vector = extract_steering_vector(model, subset, extraction_config)
+
+            for layer_frac, abs_idx in zip(
+                config.layers, steering_vector.layer_activations.keys(), strict=True
+            ):
+                vector = steering_vector.layer_activations[abs_idx]
+
+                if torch.isnan(vector).any():
+                    msg = (
+                        f"Vector for concept='{config.concept}', n={n}, "
+                        f"run={run_idx}, layer={layer_frac} contains NaN"
+                    )
+                    raise ValueError(msg)
+
+                vector_path = concept_dir / f"n{n}_run{run_idx}_layer{layer_frac}.pt"
+                save_vector(vector, vector_path)
+                all_vectors[layer_frac][n][run_idx] = vector
+
+    all_layers_data: dict[float, dict[int, dict[str, float]]] = {}
+
+    for layer_frac in config.layers:
+        layer_data: dict[int, dict[str, float]] = {}
+
+        for n in config.n_values:
+            vectors = [all_vectors[layer_frac][n][run_idx] for run_idx in range(config.num_runs)]
+            stats = compute_stability_statistics(vectors)
+            layer_data[n] = stats
+
+        all_layers_data[layer_frac] = layer_data
+
+    best_layer = config.layers[0]
+    best_avg = -1.0
+
+    for layer_frac in config.layers:
+        avg_sim = sum(all_layers_data[layer_frac][n]["mean"] for n in config.n_values) / len(
+            config.n_values
+        )
+
+        if avg_sim > best_avg:
+            best_avg = avg_sim
+            best_layer = layer_frac
+
+    per_n_data = all_layers_data[best_layer]
+
+    return StabilitySweepResult(
+        model_name=config.model_name,
+        concept=config.concept,
+        display_concept=config.display_concept,
+        selected_layer=best_layer,
+        per_n_data=per_n_data,
+        all_layers_data=all_layers_data,
+    )
+
+
+# =============================================================================
+# Sweep Result Persistence & Plotting
+# =============================================================================
+
+
+def save_sweep_results(
+    result: StabilitySweepResult,
+    output_dir: Path | str = "outputs/stability_sweep",
+) -> Path:
+    """Save sweep results to JSON file.
+
+    Saves a single (model, concept) result as JSON.
+
+    Args:
+        result: Sweep results to save.
+        output_dir: Directory to save results.
+
+    Returns:
+        Path to saved JSON file.
+    """
+    from steering_geometry.utils import safe_model_name
+
+    output_dir = Path(output_dir)
+    ensure_dir(output_dir)
+
+    model_slug = safe_model_name(result.model_name)
+    filename = f"results_{model_slug}_{result.concept}.json"
+    output_path = output_dir / filename
+
+    # Convert all_layers_data keys to strings for JSON
+    all_layers_serializable: dict[str, dict[str, dict[str, float]]] = {}
+    for layer_frac, n_data in result.all_layers_data.items():
+        all_layers_serializable[f"{layer_frac}"] = {str(n): stats for n, stats in n_data.items()}
+
+    per_n_serializable: dict[str, dict[str, float]] = {
+        str(n): stats for n, stats in result.per_n_data.items()
+    }
+
+    output_data = {
+        "model_name": result.model_name,
+        "concept": result.concept,
+        "display_concept": result.display_concept,
+        "selected_layer": result.selected_layer,
+        "per_n_data": per_n_serializable,
+        "all_layers_data": all_layers_serializable,
+        "timestamp": datetime.datetime.now().isoformat(),
+    }
+
+    with open(output_path, "w") as f:
+        json.dump(output_data, f, indent=2)
+
+    logger.info("Saved sweep results to %s", output_path)
+    return output_path
+
+
+def load_sweep_results(
+    output_dir: Path | str = "outputs/stability_sweep",
+) -> dict[tuple[str, str], StabilitySweepResult]:
+    """Load all sweep result JSON files from output directory.
+
+    Args:
+        output_dir: Directory containing result JSON files.
+
+    Returns:
+        Dict keyed by (model_name, concept) containing StabilitySweepResult.
+    """
+    output_dir = Path(output_dir)
+    results: dict[tuple[str, str], StabilitySweepResult] = {}
+
+    if not output_dir.exists():
+        logger.warning("Output directory %s does not exist", output_dir)
+        return results
+
+    for json_path in sorted(output_dir.glob("results_*.json")):
+        with open(json_path) as f:
+            data = json.load(f)
+
+        # Convert string keys back to int/float
+        per_n_data: dict[int, dict[str, float]] = {
+            int(n): stats for n, stats in data["per_n_data"].items()
+        }
+
+        all_layers_data: dict[float, dict[int, dict[str, float]]] = {}
+        for layer_str, n_data in data["all_layers_data"].items():
+            all_layers_data[float(layer_str)] = {int(n): stats for n, stats in n_data.items()}
+
+        result = StabilitySweepResult(
+            model_name=data["model_name"],
+            concept=data["concept"],
+            display_concept=data["display_concept"],
+            selected_layer=data["selected_layer"],
+            per_n_data=per_n_data,
+            all_layers_data=all_layers_data,
+        )
+        results[(result.model_name, result.concept)] = result
+
+    logger.info("Loaded %d sweep results from %s", len(results), output_dir)
+    return results
+
+
+def load_sweep_results_for_plotting(
+    output_dir: Path | str = "outputs/stability_sweep",
+) -> dict[str, dict[str, dict[int, tuple[float, float]]]]:
+    """Load sweep results structured for plotting.
+
+    Args:
+        output_dir: Directory containing result JSON files.
+
+    Returns:
+        Nested dict: {display_concept: {model_name: {N: (mean, std)}}}
+    """
+    all_results = load_sweep_results(output_dir)
+
+    plot_data: dict[str, dict[str, dict[int, tuple[float, float]]]] = {}
+    for (model_name, _concept), result in all_results.items():
+        display_concept = result.display_concept
+        if display_concept not in plot_data:
+            plot_data[display_concept] = {}
+        plot_data[display_concept][model_name] = {
+            n: (stats["mean"], stats["std"]) for n, stats in result.per_n_data.items()
+        }
+
+    return plot_data
+
+
+_MODEL_DISPLAY_NAMES: dict[str, str] = {
+    "allenai/Olmo-3-1025-7B": "OLMo3-7B",
+    "allenai/Olmo-3-1125-32B": "OLMo3-32B",
+    "Qwen/Qwen3-1.7B": "Qwen3-1.7B",
+    "Qwen/Qwen3-14B": "Qwen3-14B",
+}
+
+
+def plot_stability_sweep(
+    results: dict[str, dict[str, StabilitySweepResult]],
+    output_dir: Path | str = "outputs/stability_sweep",
+    model_colors: dict[str, str] | None = None,
+    model_labels: dict[str, str] | None = None,
+) -> list[Path]:
+    """Generate line plots showing cos_sim vs N for each concept.
+
+    Creates one PDF figure per concept, each showing 4 model lines with
+    error bands representing ±1 standard deviation.
+
+    Args:
+        results: Nested dict {concept: {model_name: StabilitySweepResult}}.
+            Can be obtained from load_sweep_results() and restructured.
+        output_dir: Directory to save PDF figures.
+        model_colors: Optional override for model colors (model_name → hex color).
+        model_labels: Optional override for model display names.
+
+    Returns:
+        List of paths to saved PDF figures.
+    """
+    import matplotlib.pyplot as plt
+
+    output_dir = Path(output_dir)
+    ensure_dir(output_dir)
+
+    default_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
+
+    labels = model_labels or _MODEL_DISPLAY_NAMES
+
+    saved_paths: list[Path] = []
+
+    for concept_name, model_results in results.items():
+        fig, ax = plt.subplots(figsize=(6, 4))
+
+        for idx, (model_name, result) in enumerate(sorted(model_results.items())):
+            n_values = sorted(result.per_n_data.keys())
+            means = [result.per_n_data[n]["mean"] for n in n_values]
+            stds = [result.per_n_data[n]["std"] for n in n_values]
+
+            display_name = labels.get(model_name, model_name)
+            color = (
+                model_colors.get(model_name, default_colors[idx % len(default_colors)])
+                if model_colors
+                else default_colors[idx % len(default_colors)]
+            )
+
+            ax.plot(n_values, means, "-o", color=color, label=display_name, markersize=4)
+            ax.fill_between(
+                n_values,
+                [m - s for m, s in zip(means, stds, strict=True)],
+                [m + s for m, s in zip(means, stds, strict=True)],
+                color=color,
+                alpha=0.2,
+            )
+
+        ax.set_xscale("log")
+        ax.set_xlabel("Number of Examples (N)", fontsize=12)
+        ax.set_ylabel("Mean Pairwise Cosine Similarity", fontsize=12)
+        ax.set_title(concept_name, fontsize=14, fontweight="bold")
+        ax.set_ylim(0, 1.05)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=10)
+
+        if not model_results:
+            plt.close()
+            continue
+
+        from matplotlib.ticker import NullFormatter, ScalarFormatter
+
+        n_values = sorted(next(iter(model_results.values())).per_n_data.keys())
+        ax.set_xticks(n_values)
+        ax.get_xaxis().set_major_formatter(ScalarFormatter())
+        ax.get_xaxis().set_minor_formatter(NullFormatter())
+
+        fig.tight_layout()
+
+        safe_name = concept_name.lower().replace(" ", "_")
+        output_path = output_dir / f"{safe_name}_stability_sweep.pdf"
+        plt.savefig(output_path, bbox_inches="tight", format="pdf")
+        plt.close()
+
+        logger.info("Saved stability sweep plot to %s", output_path)
+        saved_paths.append(output_path)
+
+    return saved_paths
+
+
 __all__ = [
     # Vector analysis (merged from vector_analysis.py)
     "compute_cosine_similarity_matrix",
@@ -691,4 +1143,11 @@ __all__ = [
     "save_results_json",
     "generate_stability_heatmap",
     "run_stability_comparison_experiment",
+    "run_stability_sweep",
+    "run_stability_sweep_batch",
+    # Sweep result persistence & plotting
+    "save_sweep_results",
+    "load_sweep_results",
+    "load_sweep_results_for_plotting",
+    "plot_stability_sweep",
 ]
