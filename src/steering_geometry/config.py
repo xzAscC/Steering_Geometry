@@ -275,10 +275,10 @@ class StabilitySweepConfig:
         output_dir: Directory to save results and vectors.
         device: Torch device for model inference.
         dtype: Model weight data type.
-        reference_n: When set, compare each run against a pre-existing reference
-            vector from N=reference_n samples (run0) instead of pairwise comparison.
-            The reference vector file must exist at
-            ``{output_dir}/vectors/{concept}/n{reference_n}_run0_layer{layer}.pt``.
+        reference_n: When set, compare each run against a reference vector
+            from N=reference_n samples (run0) instead of pairwise comparison.
+            Missing reference vectors are auto-extracted and saved to
+            ``{output_dir}/vectors/{safe_model_name(model_name)}/{concept}/n{reference_n}_run0_layer{layer}.pt``.
     """
 
     model_name: str

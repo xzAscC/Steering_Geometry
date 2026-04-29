@@ -32,7 +32,7 @@ from steering_geometry.config import (
 from steering_geometry.extract import extract_steering_vector, extract_vector, load_contrast_pairs
 from steering_geometry.models import HookedModel
 from steering_geometry.types import ContrastPair, StabilitySweepResult
-from steering_geometry.utils import ensure_dir
+from steering_geometry.utils import ensure_dir, safe_model_name
 
 if TYPE_CHECKING:
     pass
@@ -847,7 +847,7 @@ def _run_sweep_with_model(
     logger.info("Loaded %d contrast pairs for concept '%s'", max_available, config.concept)
 
     output_dir = Path(config.output_dir)
-    concept_dir = output_dir / "vectors" / config.concept
+    concept_dir = output_dir / "vectors" / safe_model_name(config.model_name) / config.concept
 
     all_vectors: dict[float, dict[int, dict[int, Tensor]]] = {
         layer: {n: {} for n in config.n_values} for layer in config.layers
@@ -898,19 +898,47 @@ def _run_sweep_with_model(
                 save_vector(vector, vector_path)
                 all_vectors[layer_frac][n][run_idx] = vector
 
-    # Load reference vectors when using reference-based comparison
+    # Load or auto-extract reference vectors when using reference-based comparison
     reference_vectors: dict[float, Tensor] | None = None
     if config.reference_n is not None:
         reference_vectors = {}
+        missing_layers: list[float] = []
         for layer_frac in config.layers:
             ref_path = concept_dir / f"n{config.reference_n}_run0_layer{layer_frac}.pt"
-            if not ref_path.exists():
-                msg = (
-                    f"Reference vector not found for N={config.reference_n}, "
-                    f"layer={layer_frac}. Expected: {ref_path}"
-                )
-                raise FileNotFoundError(msg)
-            reference_vectors[layer_frac] = load_vector(ref_path)
+            if ref_path.exists():
+                reference_vectors[layer_frac] = load_vector(ref_path)
+            else:
+                missing_layers.append(layer_frac)
+
+        if missing_layers:
+            logger.info(
+                "Extracting reference vectors for N=%d (%d layers missing)",
+                config.reference_n,
+                len(missing_layers),
+            )
+            ref_capped = cap_examples(config.reference_n, max_available, config.concept)
+            rng_ref = random.Random(config.seed)
+            ref_subset = rng_ref.sample(all_pairs, k=ref_capped)
+            ref_extraction_config = ExtractionConfig(
+                layers=config.layers,
+                method="mean",
+            )
+            ref_sv = extract_steering_vector(model, ref_subset, ref_extraction_config)
+
+            for layer_frac, abs_idx in zip(
+                config.layers, ref_sv.layer_activations.keys(), strict=True
+            ):
+                ref_vector = ref_sv.layer_activations[abs_idx]
+                if torch.isnan(ref_vector).any():
+                    msg = (
+                        f"Reference vector for concept='{config.concept}', "
+                        f"N={config.reference_n}, layer={layer_frac} contains NaN"
+                    )
+                    raise ValueError(msg)
+                ref_path = concept_dir / f"n{config.reference_n}_run0_layer{layer_frac}.pt"
+                if layer_frac not in reference_vectors:
+                    save_vector(ref_vector, ref_path)
+                    reference_vectors[layer_frac] = ref_vector
 
     # Validate that reference vectors have compatible dimensions with extracted vectors
     if reference_vectors is not None:
@@ -987,8 +1015,6 @@ def save_sweep_results(
     Returns:
         Path to saved JSON file.
     """
-    from steering_geometry.utils import safe_model_name
-
     output_dir = Path(output_dir)
     ensure_dir(output_dir)
 
