@@ -356,6 +356,31 @@ class EvaluationResult:
 
 
 @dataclass
+class StabilitySweepResult:
+    """Results from a stability sweep experiment.
+
+    Contains the selected best layer and per-N stability metrics for
+    DiM steering vectors extracted with varying sample sizes.
+
+    Attributes:
+        model_name: HuggingFace model identifier used.
+        concept: Canonical concept name (e.g., "refusal", "polite", "sentiment").
+        display_concept: Paper display name (e.g., "Safety", "Politeness").
+        selected_layer: Layer fraction with highest average cosine similarity across all N.
+        per_n_data: Mapping from sample size N to {mean, std} cosine similarity
+            at the selected layer.
+        all_layers_data: Full layer × N matrix: {layer_frac: {N: {mean, std}}}.
+    """
+
+    model_name: str
+    concept: str
+    display_concept: str
+    selected_layer: float
+    per_n_data: dict[int, dict[str, float]]
+    all_layers_data: dict[float, dict[int, dict[str, float]]]
+
+
+@dataclass
 class TDNVLayerMetrics:
     """Per-layer TDNV metrics.
 
@@ -538,6 +563,7 @@ __all__ = [
     "MMLUQuestion",
     "EvaluationResult",
     "EvaluationMetadata",
+    "StabilitySweepResult",
     "TDNVLayerMetrics",
     "TDNVResult",
     "TokenRecord",
