@@ -607,8 +607,7 @@ def test_run_stability_sweep_with_reference(
         mock_save_vector,
     )
 
-    # Pre-save reference vectors for both layers
-    concept_dir = tmp_path / "vectors" / "sentiment"
+    concept_dir = tmp_path / "vectors" / "Qwen_Qwen3-1.7B" / "sentiment"
     for layer in [0.3, 0.5]:
         ref_path = concept_dir / f"n10_run0_layer{layer}.pt"
         save_vector(reference_vec, ref_path)
@@ -640,8 +639,8 @@ def test_run_stability_sweep_with_reference(
         assert -1.0 <= stats["mean"] <= 1.0
 
 
-def test_reference_vector_not_found_raises(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """reference_n with missing reference file raises FileNotFoundError."""
+def test_reference_vector_auto_extracted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Missing reference vectors are auto-extracted and the sweep succeeds."""
     from unittest.mock import MagicMock
 
     import torch
@@ -659,11 +658,15 @@ def test_reference_vector_not_found_raises(monkeypatch: pytest.MonkeyPatch, tmp_
         for i in range(20)
     ]
 
+    extraction_calls: list[int] = []
+
     def mock_extract_steering_vector(
         model: object,
         pairs: object,
         config: ExtractionConfig,
     ) -> SteeringVector:
+        pair_count = len(pairs) if isinstance(pairs, list) else 0
+        extraction_calls.append(pair_count)
         layer_activations = {}
         for layer_frac in config.layers:
             abs_idx = int(layer_frac * 100)
@@ -675,6 +678,11 @@ def test_reference_vector_not_found_raises(monkeypatch: pytest.MonkeyPatch, tmp_
             concept="sentiment",
             method="mean",
         )
+
+    saved_paths: list[str] = []
+
+    def mock_save_vector(vector: torch.Tensor, path: Path) -> None:
+        saved_paths.append(str(path))
 
     monkeypatch.setattr(
         "steering_geometry.stability_comparison.HookedModel",
@@ -690,7 +698,7 @@ def test_reference_vector_not_found_raises(monkeypatch: pytest.MonkeyPatch, tmp_
     )
     monkeypatch.setattr(
         "steering_geometry.stability_comparison.save_vector",
-        lambda vector, path: None,
+        mock_save_vector,
     )
 
     config = StabilitySweepConfig(
@@ -704,8 +712,11 @@ def test_reference_vector_not_found_raises(monkeypatch: pytest.MonkeyPatch, tmp_
         reference_n=999,
     )
 
-    with pytest.raises(FileNotFoundError, match="Reference vector not found"):
-        run_stability_sweep(config)
+    result = run_stability_sweep(config)
+    assert result.model_name == "Qwen/Qwen3-1.7B"
+    assert len(extraction_calls) == 3
+    ref_path = "n999_run0_layer0.5.pt"
+    assert any(ref_path in p for p in saved_paths)
 
 
 def test_reference_n_allows_num_runs_1(tmp_path: Path) -> None:
