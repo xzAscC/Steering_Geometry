@@ -1,7 +1,12 @@
 """CLI entry point for steering_geometry package."""
 
 import argparse
+import logging
 import sys
+
+from steering_geometry.utils import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -30,7 +35,7 @@ def main() -> None:
                 SUPPORTED_MODELS,
             )
         except ImportError as e:
-            print(f"Error: Failed to import config: {e}", file=sys.stderr)
+            logger.error("Failed to import config: %s", e)
             sys.exit(1)
 
         # Format bash array with properly quoted strings
@@ -43,6 +48,7 @@ def main() -> None:
         sys.exit(0)
 
     # No action specified - show help
+    configure_logging()
     _build_parser().print_help()
     sys.exit(1)
 

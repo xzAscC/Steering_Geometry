@@ -36,7 +36,7 @@ from .types import (
     ProbeLayerResult,
     TokenRecord,
 )
-from .utils import DISCRIMINATIVE_EPS, ensure_dir, safe_model_name
+from .utils import DISCRIMINATIVE_EPS, configure_logging, ensure_dir, safe_model_name
 
 logger = logging.getLogger(__name__)
 
@@ -319,6 +319,7 @@ class _Args(Protocol):
     top_k: int
     tokens_per_class: int
     last_n: int | None
+    log_level: str
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -326,6 +327,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="steering_geometry.token_analysis",
         description="Analyze token-level contributions to steering vectors",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -401,20 +408,20 @@ def run_visualize(args: _Args) -> None:
     Args:
         args: Parsed CLI arguments with concept, model, output, and top_k.
     """
-    logger.info(f"Loading contrast pairs for concept: {args.concept}")
+    logger.info("Loading contrast pairs for concept: %s", args.concept)
     pairs = load_contrast_pairs(args.concept, num_pairs=500)
 
     positive_texts = [p.positive for p in pairs]
     negative_texts = [p.negative for p in pairs]
 
-    logger.info(f"Loading model: {args.model}")
+    logger.info("Loading model: %s", args.model)
     model_config = ModelConfig(model_name=args.model)
     model = HookedModel(model_config)
 
     # Relative layers 0.0-0.9 mapped to absolute indices
     relative_layers = [i / 9 for i in range(10)]
     absolute_layers = model.resolve_layers(relative_layers)
-    logger.info(f"Analyzing layers: {absolute_layers}")
+    logger.info("Analyzing layers: %s", absolute_layers)
 
     config = TokenAnalysisConfig(
         top_k=args.top_k,
@@ -445,7 +452,7 @@ def run_visualize(args: _Args) -> None:
     results: list[dict[str, object]] = []
 
     for layer in absolute_layers:
-        logger.info(f"Processing layer {layer}...")
+        logger.info("Processing layer %d...", layer)
 
         layer_pos = pos_records[layer]
         layer_neg = neg_records[layer]
@@ -514,8 +521,7 @@ def run_visualize(args: _Args) -> None:
     with output_file.open("w") as f:
         json.dump(output_data, f, indent=2)
 
-    logger.info(f"Saved results to {output_file}")
-    print(f"\nResults saved to: {output_file}")
+    logger.info("Saved results to %s", output_file)
 
 
 def run_probe(args: _Args) -> None:
@@ -527,19 +533,19 @@ def run_probe(args: _Args) -> None:
     Args:
         args: Parsed CLI arguments with concept, model, output, tokens_per_class.
     """
-    logger.info(f"Loading contrast pairs for concept: {args.concept}")
+    logger.info("Loading contrast pairs for concept: %s", args.concept)
     pairs = load_contrast_pairs(args.concept, num_pairs=500)
 
     positive_texts = [p.positive for p in pairs]
     negative_texts = [p.negative for p in pairs]
 
-    logger.info(f"Loading model: {args.model}")
+    logger.info("Loading model: %s", args.model)
     model_config = ModelConfig(model_name=args.model)
     model = HookedModel(model_config)
 
     relative_layers = [i / 9 for i in range(10)]
     absolute_layers = model.resolve_layers(relative_layers)
-    logger.info(f"Analyzing layers: {absolute_layers}")
+    logger.info("Analyzing layers: %s", absolute_layers)
 
     config = TokenAnalysisConfig(
         tokens_per_class=args.tokens_per_class,
@@ -571,7 +577,7 @@ def run_probe(args: _Args) -> None:
     )
 
     for layer in absolute_layers:
-        logger.info(f"Training probe for layer {layer}...")
+        logger.info("Training probe for layer %d...", layer)
 
         layer_pos = pos_records[layer]
         layer_neg = neg_records[layer]
@@ -648,13 +654,13 @@ def run_probe(args: _Args) -> None:
     with output_file.open("w") as f:
         json.dump(output_data, f, indent=2)
 
-    logger.info(f"Saved probe results to {output_file}")
-    print(f"\nProbe results saved to: {output_file}")
+    logger.info("Saved probe results to %s", output_file)
 
 
 def main() -> None:
     """CLI entry point for token analysis."""
     args = cast(_Args, cast(object, _build_parser().parse_args()))
+    configure_logging(level=args.log_level)
 
     if args.command == "visualize":
         run_visualize(args)

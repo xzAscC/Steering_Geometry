@@ -15,6 +15,7 @@ Usage:
     vector = extract_vector("sentiment", model_name="Qwen/Qwen3.5-2B", num_pairs=500)
 """
 
+import logging
 import warnings
 
 warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=RuntimeWarning)
@@ -42,12 +43,15 @@ from .models import HookedModel
 from .types import ContrastPair, ContrastPairMetadata, SteeringVector
 from .utils import (
     DISCRIMINATIVE_EPS,
+    configure_logging,
     ensure_dir,
     safe_model_name,
     sample_with_seed,
     select_token_activations,
     validate_positive_int,
 )
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Dataset Field Documentation (verified 2024-01)
@@ -532,7 +536,7 @@ def extract_vector(
     """
     # Load data
     pairs = load_contrast_pairs(concept, num_pairs)
-    print(f"Loaded {len(pairs)} contrast pairs for {concept}")
+    logger.info("Loaded %d contrast pairs for %s", len(pairs), concept)
 
     # Load model
     model = HookedModel(ModelConfig(model_name=model_name))
@@ -568,6 +572,7 @@ class _Args(Protocol):
     token_select: str
     last_n: int
     seed: int
+    log_level: str
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -646,12 +651,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=42,
         help="Random seed for deterministic subsampling (default: 42)",
     )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level (default: INFO)",
+    )
     return parser
 
 
 def main() -> None:
     """CLI entry point for steering vector extraction."""
     args = cast(_Args, cast(object, _build_parser().parse_args()))
+
+    # Configure logging before any other work
+    configure_logging(level=args.log_level)
 
     # Validate token-select + last-n combination
     if args.token_select == "last_n" and args.last_n <= 0:
@@ -668,25 +682,25 @@ def main() -> None:
         )
     else:
         pairs = load_contrast_pairs(args.concept, args.num_pairs)
-    print(f"Loaded {len(pairs)} contrast pairs for {args.concept}")
+    logger.info("Loaded %d contrast pairs for %s", len(pairs), args.concept)
 
     if args.concept == "refusal":
-        print(f"Data mode: {args.data_mode}")
-        print(f"Token select: {args.token_select}")
+        logger.info("Data mode: %s", args.data_mode)
+        logger.info("Token select: %s", args.token_select)
         if args.token_select == "last_n":
-            print(f"Last N: {args.last_n}")
-        print(f"Seed: {args.seed}")
+            logger.info("Last N: %d", args.last_n)
+        logger.info("Seed: %d", args.seed)
 
     # Show sample statistics
     positive_lengths = [len(pair.positive.split()) for pair in pairs]
     negative_lengths = [len(pair.negative.split()) for pair in pairs]
     avg_positive_length = sum(positive_lengths) / len(positive_lengths)
     avg_negative_length = sum(negative_lengths) / len(negative_lengths)
-    print(f"Avg positive length: {avg_positive_length:.2f} words")
-    print(f"Avg negative length: {avg_negative_length:.2f} words")
+    logger.info("Avg positive length: %.2f words", avg_positive_length)
+    logger.info("Avg negative length: %.2f words", avg_negative_length)
 
     if args.dry_run:
-        print("Dry run complete")
+        logger.info("Dry run complete")
         return
 
     # Load model and extract
@@ -713,7 +727,7 @@ def main() -> None:
         },
         output_file,
     )
-    print(f"Saved steering vector to {output_file}")
+    logger.info("Saved steering vector to %s", output_file)
 
 
 def _run_cli() -> None:
