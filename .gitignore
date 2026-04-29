@@ -37,5 +37,10 @@ htmlcov/
 data/
 # Uncomment to ignore generated files:
 assets/
+logs/
+.ipynb_checkpoints/
 plot/
 outputs/
+
+# ipynb notebook
+*.ipynb

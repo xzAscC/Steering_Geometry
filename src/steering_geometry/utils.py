@@ -1,6 +1,10 @@
 """Shared utility functions for steering geometry package."""
 
+from __future__ import annotations
+
+import logging
 import random
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -81,16 +85,16 @@ def clamp_score(score: int, min_val: int = 0, max_val: int = 10) -> int:
     return max(min_val, min(max_val, score))
 
 
-def _non_padding_mask(activations: "Tensor") -> "Tensor":
+def _non_padding_mask(activations: Tensor) -> Tensor:
     """Return 2D boolean mask of non-padding positions from a 3D activation tensor."""
     return activations.abs().sum(dim=-1) > 0
 
 
 def select_token_activations(
-    activations: "Tensor",
+    activations: Tensor,
     read_token_index: int | str,
     last_n: int | None = None,
-) -> "Tensor":
+) -> Tensor:
     """Select activations from token positions.
 
     Args:
@@ -150,8 +154,59 @@ def select_token_activations(
     return activations[:, index, :]
 
 
+def configure_logging(
+    level: str = "INFO",
+    log_dir: Path | None = None,
+    log_name: str | None = None,
+) -> None:
+    """Set up dual-output logging (console + file) for the package.
+
+    Creates a named logger ``steering_geometry`` with a StreamHandler
+    (console) and a FileHandler (file).  Idempotent — subsequent calls
+    are no-ops when handlers are already attached.
+
+    Args:
+        level: Logging level string (e.g. ``"DEBUG"``, ``"INFO"``, ``"WARNING"``).
+        log_dir: Directory for the log file.  Created automatically if missing.
+                 Defaults to ``logs/`` relative to cwd.
+        log_name: Log file name.  Defaults to
+                  ``steering_YYYYMMDD_HHMMSS.log``.
+    """
+    for _name in ("httpx", "datasets", "filelock", "transformers", "PIL"):
+        logging.getLogger(_name).setLevel(logging.WARNING)
+
+    logger = logging.getLogger("steering_geometry")
+
+    if logger.handlers:
+        return
+
+    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    logger.setLevel(numeric_level)
+
+    console_fmt = logging.Formatter("%(levelname)s - %(name)s - %(message)s")
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(numeric_level)
+    stream_handler.setFormatter(console_fmt)
+    logger.addHandler(stream_handler)
+
+    if log_dir is None:
+        log_dir = Path("logs")
+    ensure_dir(log_dir)
+
+    if log_name is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_name = f"steering_{timestamp}.log"
+
+    file_fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    file_handler = logging.FileHandler(log_dir / log_name)
+    file_handler.setLevel(numeric_level)
+    file_handler.setFormatter(file_fmt)
+    logger.addHandler(file_handler)
+
+
 __all__ = [
     "DISCRIMINATIVE_EPS",
+    "configure_logging",
     "validate_positive_int",
     "sample_with_seed",
     "ensure_dir",

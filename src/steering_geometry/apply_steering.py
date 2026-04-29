@@ -26,6 +26,7 @@ import argparse
 import asyncio
 import csv
 import json
+import logging
 import os
 import random
 import re
@@ -67,7 +68,9 @@ from .types import (
     ORBenchResult,
     SteeringVector,
 )
-from .utils import clamp_score, ensure_dir, safe_model_name
+from .utils import clamp_score, configure_logging, ensure_dir, safe_model_name
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Evaluation Module - Judge Prompts and HTML Template
@@ -1242,15 +1245,15 @@ def apply_steering(
     vector: SteeringVector = data["vector"]
     concept = vector.concept
 
-    print(f"Loaded steering vector for concept: {concept}")
-    print(f"Vector has {len(vector.layer_activations)} layers")
+    logger.info("Loaded steering vector for concept: %s", concept)
+    logger.info("Vector has %d layers", len(vector.layer_activations))
 
     # Load model
-    print(f"Loading model: {model_name}")
+    logger.info("Loading model: %s", model_name)
     model = HookedModel(ModelConfig(model_name=model_name))
 
     # Load contrast pairs and get negative samples
-    print(f"Loading {config.num_samples} negative samples (seed={config.seed})...")
+    logger.info("Loading %d negative samples (seed=%d)...", config.num_samples, config.seed)
     pairs = load_contrast_pairs(concept, config.num_samples)
     random.seed(config.seed)
     selected_pairs = random.sample(pairs, min(config.num_samples, len(pairs)))
@@ -1261,7 +1264,7 @@ def apply_steering(
     layers = sorted(normalized_vectors.keys())
 
     # Compute avg activation per layer
-    print("Computing average activations...")
+    logger.info("Computing average activations...")
     avg_activations = _compute_avg_activation(model, neg_samples, layers)
 
     # Create output directory
@@ -1270,7 +1273,7 @@ def apply_steering(
 
     # Process each layer
     for layer_idx in layers:
-        print(f"\nProcessing layer {layer_idx}...")
+        logger.info("Processing layer %d...", layer_idx)
         normalized_v = normalized_vectors[layer_idx]
         avg_act = avg_activations[layer_idx]
 
@@ -1296,17 +1299,17 @@ def apply_steering(
                     }
                 )
                 preview = generated[:50] + "..." if len(generated) > 50 else generated
-                print(f"  Sample {sample_idx}, mult {multiplier}: {preview}")
+                logger.debug("Sample %d, mult %s: %s", sample_idx, multiplier, preview)
 
         # Write JSONL
         output_file = concept_dir / f"layer{layer_idx}.jsonl"
         with output_file.open("w") as f:
             for result in results:
                 f.write(json.dumps(result) + "\n")
-        print(f"Saved {len(results)} results to {output_file}")
+        logger.info("Saved %d results to %s", len(results), output_file)
 
         if evaluate and len(results) > 0:
-            print(f"  Running evaluation for layer {layer_idx}...")
+            logger.info("Running evaluation for layer %d...", layer_idx)
             judge_config = JudgeConfig(model=judge_model, api_base=judge_api_base)
             mmlu_config = MMLUConfig(num_questions=mmlu_questions)
 
@@ -1427,9 +1430,9 @@ def apply_steering(
 
                 html_path = eval_dir / f"layer{layer_idx}_mult{multiplier}.html"
                 generate_html_report(eval_result, html_path)
-                print(f"    Evaluated mult {multiplier}: saved to {eval_dir}")
+                logger.info("Evaluated mult %s: saved to %s", multiplier, eval_dir)
 
-    print(f"\nDone! Results saved to {concept_dir}")
+    logger.info("Done! Results saved to %s", concept_dir)
 
 
 class _Args(Protocol):
@@ -1456,6 +1459,7 @@ class _Args(Protocol):
     mmlu_pro_num_questions: int
     mmlu_pro_no_cot: bool
     mmlu_pro_categories: str
+    log_level: str
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1575,12 +1579,20 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="Comma-separated MMLU-Pro categories (default: all)",
     )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level",
+    )
     return parser
 
 
 def main() -> None:
     """CLI entry point for steering vector application."""
     args = cast(_Args, cast(object, _build_parser().parse_args()))
+
+    configure_logging(level=args.log_level)
 
     # Parse multipliers
     multipliers = [float(m.strip()) for m in args.multipliers.split(",")]

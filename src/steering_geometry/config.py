@@ -10,11 +10,14 @@ from pathlib import Path
 SUPPORTED_MODELS: tuple[str, ...] = (
     "Qwen/Qwen3-1.7B",
     "Qwen/Qwen3-4B",
+    "Qwen/Qwen3-14B",
     "Qwen/Qwen3.5-4B",
     "Qwen/Qwen3.5-9B",
     "google/gemma-2-2b",
     "google/gemma-2-9b",
     "allenai/OLMo-2-1124-7B",
+    "allenai/Olmo-3-1025-7B",
+    "allenai/Olmo-3-1125-32B",
 )
 
 SUPPORTED_CONCEPTS: tuple[str, ...] = (
@@ -41,6 +44,11 @@ class ModelConfig:
     device: str = "auto"
     dtype: str = "float16"
     trust_remote_code: bool = False
+
+    def __post_init__(self) -> None:
+        """Auto-detect trust_remote_code for models that require it."""
+        if self.model_name.startswith("allenai/"):
+            self.trust_remote_code = True
 
 
 @dataclass
@@ -228,6 +236,158 @@ class StabilityComparisonConfig:
             raise ValueError(f"num_runs must be at least 2 for comparison, got {self.num_runs}")
 
 
+# Concept name mappings for paper display
+_CONCEPT_DISPLAY_NAMES: dict[str, str] = {
+    "refusal": "Safety",
+    "polite": "Politeness",
+    "sentiment": "Sentiment",
+}
+
+_PAPER_TO_CANONICAL: dict[str, str] = {
+    "safety": "refusal",
+    "politeness": "polite",
+    "sentiment": "sentiment",
+    "refusal": "refusal",
+    "polite": "polite",
+}
+
+
+@dataclass
+class StabilitySweepConfig:
+    """Configuration for stability sweep experiments.
+
+    Measures DiM steering vector stability via pairwise cosine similarity
+    across multiple independent runs at varying sample sizes (N).
+
+    When ``reference_n`` is set, each run's vector is compared against a fixed
+    reference vector (pre-extracted from N=reference_n samples) instead of
+    performing pairwise comparison between runs.
+
+    Attributes:
+        model_name: HuggingFace model identifier.
+        concept: Concept name (canonical: refusal, polite, sentiment).
+        n_values: Sample sizes to sweep.
+        layers: Layer fractions to test (relative positions 0.0-1.0).
+        num_runs: Number of independent runs per (N, layer) setting.
+            Must be >= 2 when reference_n is None (pairwise comparison).
+            Must be >= 1 when reference_n is set (reference-based comparison).
+        seed: Base random seed for reproducibility.
+        output_dir: Directory to save results and vectors.
+        device: Torch device for model inference.
+        dtype: Model weight data type.
+        reference_n: When set, compare each run against a reference vector
+            from N=reference_n samples (run0) instead of pairwise comparison.
+            Missing reference vectors are auto-extracted and saved to
+            ``{output_dir}/vectors/{safe_model_name(model_name)}/{concept}/n{reference_n}_run0_layer{layer}.pt``.
+    """
+
+    model_name: str
+    concept: str
+    n_values: list[int] = field(default_factory=lambda: [100, 500, 1000, 5000, 10000])
+    layers: list[float] = field(
+        default_factory=lambda: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    )
+    num_runs: int = 5
+    seed: int = 42
+    output_dir: Path | str = field(default_factory=lambda: "outputs/stability_sweep")
+    device: str = "auto"
+    dtype: str = "float16"
+    reference_n: int | None = None
+
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        # Resolve paper names to canonical names
+        canonical = _PAPER_TO_CANONICAL.get(self.concept)
+        if canonical is not None:
+            self.concept = canonical
+        if self.concept not in SUPPORTED_CONCEPTS:
+            raise ValueError(
+                f"Unsupported concept '{self.concept}'. Must be one of {SUPPORTED_CONCEPTS}"
+            )
+        if self.model_name not in SUPPORTED_MODELS:
+            raise ValueError(
+                f"Unsupported model '{self.model_name}'. Must be one of {SUPPORTED_MODELS}"
+            )
+        min_runs = 1 if self.reference_n is not None else 2
+        if self.num_runs < min_runs:
+            if self.reference_n is not None:
+                msg = f"num_runs must be at least 1 with reference_n, got {self.num_runs}"
+            else:
+                msg = f"num_runs must be at least 2 for pairwise comparison, got {self.num_runs}"
+            raise ValueError(msg)
+
+    @property
+    def display_concept(self) -> str:
+        """Return the paper display name for the concept."""
+        return _CONCEPT_DISPLAY_NAMES.get(self.concept, self.concept.title())
+
+    @property
+    def canonical_concept(self) -> str:
+        """Return the canonical codebase concept name."""
+        return self.concept
+
+
+@dataclass
+class StabilitySweepBatchConfig:
+    """Configuration for batched stability sweep experiments.
+
+    Runs stability sweeps for multiple concepts under a single model load,
+    avoiding redundant model loading when processing multiple concepts for
+    the same model.
+
+    Attributes:
+        model_name: HuggingFace model identifier.
+        concepts: List of concept names to sweep.
+        n_values: Sample sizes to sweep.
+        layers: Layer fractions to test (relative positions 0.0-1.0).
+        num_runs: Number of independent runs per (N, layer) setting.
+        seed: Base random seed for reproducibility.
+        output_dir: Directory to save results and vectors.
+        device: Torch device for model inference.
+        dtype: Model weight data type.
+        reference_n: When set, compare each run against a pre-existing reference
+            vector from N=reference_n samples instead of pairwise comparison.
+    """
+
+    model_name: str
+    concepts: list[str]
+    n_values: list[int] = field(default_factory=lambda: [100, 500, 1000, 5000, 10000])
+    layers: list[float] = field(
+        default_factory=lambda: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    )
+    num_runs: int = 5
+    seed: int = 42
+    output_dir: Path | str = field(default_factory=lambda: "outputs/stability_sweep")
+    device: str = "auto"
+    dtype: str = "float16"
+    reference_n: int | None = None
+
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        if not self.concepts:
+            msg = "concepts list cannot be empty"
+            raise ValueError(msg)
+        for concept in self.concepts:
+            canonical = _PAPER_TO_CANONICAL.get(concept)
+            if canonical is not None:
+                continue  # Will be canonicalized per-concept during sweep
+            if concept not in SUPPORTED_CONCEPTS:
+                raise ValueError(
+                    f"Unsupported concept '{concept}'. Must be one of {SUPPORTED_CONCEPTS}"
+                )
+        if self.model_name not in SUPPORTED_MODELS:
+            raise ValueError(
+                f"Unsupported model '{self.model_name}'. Must be one of {SUPPORTED_MODELS}"
+            )
+        min_runs = 1 if self.reference_n is not None else 2
+        if self.num_runs < min_runs:
+            if self.reference_n is not None:
+                msg = f"num_runs must be at least 1 with reference_n, got {self.num_runs}"
+            else:
+                msg = f"num_runs must be at least 2 for pairwise comparison, got {self.num_runs}"
+            raise ValueError(msg)
+
+
 @dataclass
 class HarmBenchConfig:
     """Configuration for HarmBench evaluation.
@@ -299,6 +459,8 @@ __all__ = [
     "TDNVConfig",
     "TokenAnalysisConfig",
     "StabilityComparisonConfig",
+    "StabilitySweepConfig",
+    "StabilitySweepBatchConfig",
     "HarmBenchConfig",
     "ORBenchConfig",
     "MMLUProConfig",

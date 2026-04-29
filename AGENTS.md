@@ -13,7 +13,7 @@ AI agents working in this repository MUST follow these rules.
 - Build: `hatchling`
 - Lint/Format: `ruff` (line-length 100, double quotes)
 - Type check: `mypy --strict`
-- Test: `pytest` (21 tests)
+- Test: `pytest` (231 tests)
 
 ## 2) Build & Verify Commands
 
@@ -125,7 +125,8 @@ Enforced by ruff (see pyproject.toml):
 | Token analysis | `src/steering_geometry/token_analysis.py` | `visualize()`, `probe()` subcommands |
 | Unembed analysis | `src/steering_geometry/unembed_analysis.py` | `analyze_unembed_cosine()` |
 | TDNV metrics | `src/steering_geometry/tdnv.py` | `compute_tdnv()`, `compute_tdnv_for_concept()` |
-| Shared utilities | `src/steering_geometry/utils.py` | `ensure_dir()`, `safe_model_name()`, `sample_with_seed()` |
+| Shared utilities | `src/steering_geometry/utils.py` | `ensure_dir()`, `safe_model_name()`, `sample_with_seed()`, `configure_logging()` |
+| Configure logging | `src/steering_geometry/utils.py` | `configure_logging()` — idempotent, dual output (console + file) |
 
 ## 10) Anti-Patterns
 
@@ -143,12 +144,13 @@ Enforced by ruff (see pyproject.toml):
 | `stability_comparison.py:17,543,589,618` | `Any` in result dicts | Use TypedDict |
 | `unembed_analysis.py:12,38` | `Any` for tokenizer | Use Protocol |
 | `apply_steering.py:32,328,607` | `Any` for model/config | Use specific types |
-| `extract.py`, `tdnv.py`, `token_analysis.py`, `apply_steering.py` | `print()` for CLI | Use logging |
 | `extract.py` + `tdnv.py` | `_select_token_activations` duplicated | Extract to utils.py |
+| `__main__.py` | 3 `print()` for shell eval | Intentional — shell capture output, not logging |
+| `token_analysis.py` | 9 `print()` for CLI tables | Intentional — tabular CLI output, not logging |
 
 ### Known Violations (from audit)
 - `typing.Any`: 15 instances across 4 files
-- `print()`: 35 instances across 4 files (CLI output)
+- `print()`: 12 instances across 2 files (`__main__.py` shell eval + `token_analysis.py` CLI tables — intentional)
 - `scripts/validate_analysis_json.py`: Python file violates "scripts/ = shell only" rule
 
 ## 11) Pipeline Workflow

@@ -17,6 +17,7 @@ from torch import Tensor
 from steering_geometry.config import SUPPORTED_CONCEPTS as VALID_CONCEPTS
 from steering_geometry.config import ModelConfig
 from steering_geometry.types import ConceptAnalysisResult, UnembedAnalysisResult
+from steering_geometry.utils import configure_logging
 
 if TYPE_CHECKING:
     from .models import HookedModel
@@ -468,6 +469,7 @@ class _Args(Protocol):
     model: str
     layers: list[float]
     output: str
+    log_level: str
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -504,16 +506,19 @@ def _build_parser() -> argparse.ArgumentParser:
         default="outputs",
         help="Output directory (default: outputs)",
     )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level",
+    )
     return parser
 
 
 def main() -> None:
     """CLI entry point for unembedding analysis."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
     args = cast(_Args, cast(object, _build_parser().parse_args()))
+    configure_logging(level=args.log_level)
 
     logger.info(
         "Starting unembed analysis: concept='%s', method='%s', model='%s', layers=%s",

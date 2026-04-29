@@ -119,12 +119,10 @@ echo -e "${YELLOW}Running prompt vs response experiment...${NC}"
 echo ""
 
 uv run python -u -c "
-import logging
-
 from steering_geometry.token_selection_experiments import run_prompt_response_experiment
+from steering_geometry.utils import configure_logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+configure_logging(level='INFO')
 
 # Run experiment
 results = run_prompt_response_experiment(

@@ -20,6 +20,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import random
 from collections import defaultdict
 from dataclasses import dataclass
@@ -33,7 +34,9 @@ from .config import MMLUConfig, ModelConfig, TDNVConfig
 from .extract import VALID_CONCEPTS, load_contrast_pairs
 from .models import HookedModel
 from .types import MMLUQuestion, TDNVLayerMetrics, TDNVResult
-from .utils import DISCRIMINATIVE_EPS, ensure_dir, safe_model_name
+from .utils import DISCRIMINATIVE_EPS, configure_logging, ensure_dir, safe_model_name
+
+logger = logging.getLogger(__name__)
 
 
 def select_last_n_tokens(activations: Tensor, n: int) -> Tensor:
@@ -427,15 +430,15 @@ def compute_tdnv_for_concept(
         config = TDNVConfig()
 
     pairs = load_contrast_pairs(concept, config.num_pairs)
-    print(f"Loaded {len(pairs)} contrast pairs for {concept}")
+    logger.info("Loaded %d contrast pairs for %s", len(pairs), concept)
     if last_n is not None:
-        print(f"Using last {last_n} tokens per sample")
+        logger.info("Using last %d tokens per sample", last_n)
     if top_k is not None:
-        print(f"Using top-{top_k} discriminative tokens per class")
+        logger.info("Using top-%d discriminative tokens per class", top_k)
 
     model = HookedModel(ModelConfig(model_name=model_name))
     layers = list(range(model.num_layers))
-    print(f"Model has {model.num_layers} layers")
+    logger.info("Model has %d layers", model.num_layers)
 
     pos_per_layer: dict[int, list[Tensor]] = {layer: [] for layer in layers}
     neg_per_layer: dict[int, list[Tensor]] = {layer: [] for layer in layers}
@@ -488,7 +491,7 @@ def compute_tdnv_for_concept(
         norm_den_values.append(metrics.norm_den)
         layerwise_energy.append(metrics.energy)
 
-        print(f"Layer {layer}: TDNV={metrics.tdnv:.4f}, energy={metrics.energy:.4f}")
+        logger.info("Layer %d: TDNV=%.4f, energy=%.4f", layer, metrics.tdnv, metrics.energy)
 
     return TDNVResult(
         concept=concept,
@@ -556,13 +559,13 @@ def compute_tdnv_for_mmlu(
 
     from datasets import load_dataset  # type: ignore[import-untyped]
 
-    print("Loading MMLU-Pro dataset...")
+    logger.info("Loading MMLU-Pro dataset...")
     ds = load_dataset("TIGER-Lab/MMLU-Pro", split="validation")
     questions: list[MMLUQuestion] = list(ds)
     random.seed(mmlu_config.seed)
     random.shuffle(questions)
     questions = questions[: mmlu_config.num_questions]
-    print(f"Loaded {len(questions)} MMLU questions")
+    logger.info("Loaded %d MMLU questions", len(questions))
 
     category_texts: dict[str, list[str]] = defaultdict(list)
     for q in questions:
@@ -583,13 +586,13 @@ def compute_tdnv_for_mmlu(
         raise ValueError(msg)
 
     sorted_categories = sorted(category_texts.keys())
-    print(f"Categories ({len(sorted_categories)}): {', '.join(sorted_categories)}")
+    logger.info("Categories (%d): %s", len(sorted_categories), ", ".join(sorted_categories))
 
     model = HookedModel(ModelConfig(model_name=model_name))
     layers = list(range(model.num_layers))
-    print(f"Model has {model.num_layers} layers")
+    logger.info("Model has %d layers", model.num_layers)
     if top_k is not None:
-        print(f"Using top-{top_k} discriminative tokens per category")
+        logger.info("Using top-%d discriminative tokens per category", top_k)
 
     cat_activations_per_layer: dict[int, dict[str, list[Tensor]]] = {
         layer: {cat: [] for cat in sorted_categories} for layer in layers
@@ -597,7 +600,7 @@ def compute_tdnv_for_mmlu(
 
     for cat in sorted_categories:
         texts = category_texts[cat]
-        print(f"Processing category '{cat}' ({len(texts)} questions)...")
+        logger.info("Processing category '%s' (%d questions)...", cat, len(texts))
 
         for start in range(0, len(texts), tdnv_config.batch_size):
             batch = texts[start : start + tdnv_config.batch_size]
@@ -654,7 +657,7 @@ def compute_tdnv_for_mmlu(
         norm_den_values.append(metrics.norm_den)
         layerwise_energy.append(metrics.energy)
 
-        print(f"Layer {layer}: TDNV={metrics.tdnv:.4f}, energy={metrics.energy:.4f}")
+        logger.info("Layer %d: TDNV=%.4f, energy=%.4f", layer, metrics.tdnv, metrics.energy)
 
     total_used = sum(len(texts) for texts in category_texts.values())
     return TDNVResult(
@@ -697,7 +700,7 @@ def save_tdnv_result(result: TDNVResult, output_dir: Path) -> Path:
     with output_file.open("w") as f:
         json.dump(data, f, indent=2)
 
-    print(f"Saved TDNV results to {output_file}")
+    logger.info("Saved TDNV results to %s", output_file)
     return output_file
 
 
@@ -772,7 +775,7 @@ def plot_tdnv_trends(result: TDNVResult, plot_dir: Path) -> Path:
     plt.savefig(output_file, bbox_inches="tight")
     plt.close()
 
-    print(f"Saved plot to {output_file}")
+    logger.info("Saved plot to %s", output_file)
     return output_file
 
 
@@ -851,7 +854,7 @@ def plot_stability_trend(
     plt.savefig(output_path, bbox_inches="tight")
     plt.close()
 
-    print(f"Saved stability trend plot to {output_path}")
+    logger.info("Saved stability trend plot to %s", output_path)
     return output_path
 
 
@@ -873,6 +876,7 @@ class _Args(Protocol):
     dry_run: bool
     last_n: int | None
     top_k: int | None
+    log_level: str
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -950,11 +954,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Use only top-K discriminative tokens per class (default: all tokens)",
     )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level (default: INFO)",
+    )
     return parser
 
 
 def main() -> None:
     args = cast(_Args, cast(object, _build_parser().parse_args()))
+    configure_logging(level=args.log_level)
 
     if args.mode == "mmlu":
         _run_mmlu(args)
@@ -964,13 +975,13 @@ def main() -> None:
 
 def _run_concept(args: _Args) -> None:
     if args.concept is None:
-        print("Error: --concept is required for --mode concept")
+        logger.error("--concept is required for --mode concept")
         raise SystemExit(1)
 
     if args.dry_run:
         pairs = load_contrast_pairs(args.concept, args.num_pairs)
-        print(f"Loaded {len(pairs)} contrast pairs for {args.concept}")
-        print("Dry run complete")
+        logger.info("Loaded %d contrast pairs for %s", len(pairs), args.concept)
+        logger.info("Dry run complete")
         return
 
     config = TDNVConfig(
@@ -992,10 +1003,10 @@ def _run_concept(args: _Args) -> None:
 
 
 def _run_mmlu(args: _Args) -> None:
-    print("MMLU TDNV analysis mode")
+    logger.info("MMLU TDNV analysis mode")
 
     if args.dry_run:
-        print("Dry run complete")
+        logger.info("Dry run complete")
         return
 
     mmlu_config = MMLUConfig(num_questions=args.num_questions, seed=args.mmlu_seed)
@@ -1037,7 +1048,7 @@ def _run_mmlu(args: _Args) -> None:
             f,
             indent=2,
         )
-    print(f"Saved MMLU TDNV results to {output_file}")
+    logger.info("Saved MMLU TDNV results to %s", output_file)
 
     plot_tdnv_trends(result, plot_dir)
 
