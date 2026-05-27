@@ -44,7 +44,7 @@ def run_token_count_experiment(
     and computes pairwise cosine similarities across all counts at each layer.
 
     Args:
-        concept: Concept to extract (e.g., "honesty", "toxicity").
+        concept: Concept to extract (e.g., "sentiment", "refusal").
         n_examples_list: List of example counts to test (e.g., [10, 30, 100]).
         layers: Relative layer positions (0.0-1.0) to analyze.
         model_name: HuggingFace model name.
@@ -184,7 +184,7 @@ def run_token_position_experiment(
     pairwise cosine similarities across all configs at each layer.
 
     Args:
-        concept: Concept to extract (e.g., "honesty", "toxicity").
+        concept: Concept to extract (e.g., "sentiment", "refusal").
         n_examples: Number of contrast pairs to use.
         position_configs: List of position configs, each a dict with:
             - "mode": "all" or "last_n"

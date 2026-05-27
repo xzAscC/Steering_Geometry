@@ -2,7 +2,7 @@
 
 import math
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 import torch
 from torch import Tensor
@@ -96,33 +96,6 @@ class HookedModel:
         if hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
             return self.model.transformer.h
         msg = "Could not find layers in this model architecture"
-        raise ValueError(msg)
-
-    def get_unembedding_matrix(self) -> Tensor:
-        """Get the unembedding matrix from the model.
-
-        Returns the weight matrix that projects hidden states to vocabulary logits.
-        Handles different model architectures (Qwen uses lm_head.weight, some use
-        embed_out.weight).
-
-        Returns:
-            Tensor of shape (vocab_size, hidden_dim), detached and on CPU.
-
-        Raises:
-            ValueError: If the unembedding matrix cannot be found.
-        """
-        # Common locations for unembedding weights
-        if hasattr(self.model, "lm_head") and hasattr(self.model.lm_head, "weight"):
-            weight = cast(Tensor, self.model.lm_head.weight)
-            return weight.detach().cpu()
-        if hasattr(self.model, "embed_out") and hasattr(self.model.embed_out, "weight"):
-            weight = cast(Tensor, self.model.embed_out.weight)
-            return weight.detach().cpu()
-        # Some models share embeddings with output projection
-        if hasattr(self.model, "model") and hasattr(self.model.model, "embed_tokens"):
-            weight = cast(Tensor, self.model.model.embed_tokens.weight)
-            return weight.detach().cpu()
-        msg = "Could not find unembedding matrix in this model architecture"
         raise ValueError(msg)
 
     def get_special_token_ids(self) -> set[int]:

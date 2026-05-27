@@ -8,11 +8,11 @@ from 3 behavioral concepts using HuggingFace datasets:
 
 Usage:
     # CLI
-    uv run python -m steering_geometry.extract --concept sentiment --model Qwen/Qwen3.5-2B
+    uv run python -m steering_geometry.extract --concept sentiment --model Qwen/Qwen3-1.7B
 
     # Programmatic
     from steering_geometry.extract import extract_vector
-    vector = extract_vector("sentiment", model_name="Qwen/Qwen3.5-2B", num_pairs=500)
+    vector = extract_vector("sentiment", model_name="Qwen/Qwen3-1.7B", num_pairs=500)
 """
 
 import logging
