@@ -14,14 +14,20 @@ tests/
 ├── __init__.py
 ├── conftest.py              # Shared fixtures + custom markers
 ├── test_apply_steering.py   # Integration-style tests for steering
+├── test_experiments.py      # Token selection experiment tests
+├── test_stability_comparison.py  # Stability comparison tests
+├── test_stability_sweep.py  # Stability sweep tests
+├── test_token_selection_experiments.py  # Token selection experiment tests
 ├── integration/             # Placeholder (empty)
 │   └── __init__.py
 └── unit/                    # Unit tests by module
     ├── __init__.py
     ├── test_aggregators.py  # Extraction aggregator tests
-    ├── test_evaluation.py   # Judge/MMLU evaluator tests
+    ├── test_config_main.py  # Config CLI tests
+    ├── test_evaluation.py   # Judge/MMLU/HarmBench evaluator tests
     ├── test_extract.py      # Extraction logic tests
-    └── test_tdnv.py         # TDNV metrics tests
+    ├── test_logging.py      # Logging configuration tests
+    └── test_utils.py        # Utility function tests
 ```
 
 ## WHERE TO LOOK

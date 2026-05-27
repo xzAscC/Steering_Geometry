@@ -4,316 +4,378 @@
 **Version:** 0.1.0
 **Branch:** refactor/architecture
 
-This document specifies the technical interfaces, data formats, and protocols for the Steering Geometry framework.
+This document specifies the paper experiment scope for the Steering Geometry framework.
+The repository supports the NeurIPS 2026 paper, "Not All Tokens Are Equally Useful for
+Steering: Robust Directions and Prefix Steering for Activation Steering".
+
+The implementation is limited to the paper's concepts, models, extraction methods,
+steering intervention, and evaluation protocols.
 
 ---
 
 ## 1. Supported Concepts
 
-The framework extracts steering vectors for five behavioral concepts:
+The paper studies three behavioral concepts. Code uses canonical concept names where
+needed, while paper text may use display names.
 
-| Concept | Description | Dataset Source |
-|---------|-------------|----------------|
-| `honesty` | Truthful vs. deceptive responses | `真理/TruthfulQA` |
-| `sycophancy` | Objective vs. user-aligned responses | `EleutherAI/sycophancy` |
-| `toxicity` | Non-toxic vs. toxic language | `SkolkovoInstitute/toxic_comments` |
-| `sentiment` | Positive vs. negative sentiment | `stanfordnlp/sst2` |
-| `refusal` | Compliance vs. refusal behavior | `HuggingFaceH4/ultrafeedback_binarized` |
+| Paper concept | Canonical code name | Positive construction data | Negative construction data | Evaluation data |
+|---|---|---|---|---|
+| Safety/refusal | `refusal` | `LLM-LAT/benign-dataset` | `LLM-LAT/harmful-dataset` | HarmBench |
+| Sentiment | `sentiment` | SST-2 train, positive labels | SST-2 train, negative labels | SST-2 validation |
+| Politeness | `polite` | PoliteGuard train, polite labels | PoliteGuard train, impolite labels | PoliteGuard test, polite and impolite labels only |
 
-**Constant:** `VALID_CONCEPTS = ["honesty", "sycophancy", "toxicity", "sentiment", "refusal"]`
+**Constant:** `SUPPORTED_CONCEPTS = ("refusal", "polite", "sentiment")`
 
----
+Paper aliases accepted by stability sweep configuration:
 
-## 2. Aggregation Methods
-
-Four methods for computing steering vectors from contrast pairs:
-
-| Method | Function | Description |
-|--------|----------|-------------|
-| `mean` | `mean_aggregator()` | Simple mean difference: `pos.mean() - neg.mean()` |
-| `pca` | `pca_aggregator()` | First principal component of concatenated deltas |
-| `weighted_mean` | `weighted_mean_aggregator()` | Inverse-variance weighted mean |
-| `discriminative` | `discriminative_token_aggregator()` | Top-K discriminative tokens by Fisher score |
-
-**Default:** `mean`
+| Paper name | Canonical name |
+|---|---|
+| `safety` | `refusal` |
+| `refusal` | `refusal` |
+| `politeness` | `polite` |
+| `polite` | `polite` |
+| `sentiment` | `sentiment` |
 
 ---
 
-## 3. Layer Specification
+## 2. Supported Models
 
-Layers are specified as relative positions (0.0 to 1.0):
+The paper experiments use four Hugging Face causal language models.
 
-| Layer Spec | Absolute Index (24-layer model) |
-|------------|--------------------------------|
-| 0.0 | Layer 0 (embedding) |
-| 0.25 | Layer 6 |
-| 0.5 | Layer 12 (middle) |
-| 0.75 | Layer 18 |
-| 1.0 | Layer 23 (final) |
+| Display name | Hugging Face identifier | Notes |
+|---|---|---|
+| OLMo3-7B | `allenai/Olmo-3-1025-7B` | Uses `trust_remote_code=True` through `ModelConfig` |
+| OLMo3-32B | `allenai/Olmo-3-1125-32B` | Uses `trust_remote_code=True` through `ModelConfig` |
+| Qwen3-1.7B | `Qwen/Qwen3-1.7B` | Default model |
+| Qwen3-14B | `Qwen/Qwen3-14B` | Paper model |
 
-**Resolution:** `model.resolve_layers([0.4, 0.6])` → absolute indices
-
----
-
-## 4. Data Formats
-
-### 4.1 SteeringVector
+**Constant:**
 
 ```python
-@dataclass
-class SteeringVector:
-    layer_activations: dict[int, Tensor]  # {layer_idx: steering_vector}
-    model_name: str                       # "Qwen/Qwen3.5-2B"
-    concept: str                          # "honesty"
-    method: str                           # "mean"
+SUPPORTED_MODELS = (
+    "Qwen/Qwen3-1.7B",
+    "Qwen/Qwen3-14B",
+    "allenai/Olmo-3-1025-7B",
+    "allenai/Olmo-3-1125-32B",
+)
 ```
 
-**Storage:** PyTorch `.pt` files via `torch.save()`
+**Default:** `DEFAULT_MODEL = "Qwen/Qwen3-1.7B"`
 
-**File naming:** `{concept}/{method}/n{count}_layer{frac}.pt`
+---
 
-### 4.2 ContrastPair
+## 3. Aggregation Methods
+
+The extraction pipeline supports four aggregation methods for converting contrastive
+activation data into a layer-wise steering direction.
+
+| Method | Meaning | Use in paper scope |
+|---|---|---|
+| `mean` | Difference in means between positive and negative activations | Baseline DiM direction |
+| `pca` | First principal component of contrastive activation differences | Directional baseline |
+| `weighted_mean` | Mean direction with token or activation weighting | Weighted baseline |
+| `discriminative` | Top-K high-margin activations selected by Robust DiM scoring | Main Robust DiM method |
+
+**Default extraction method:** `mean`
+
+**Configured methods:** `"mean"`, `"pca"`, `"weighted_mean"`, `"discriminative"`
+
+---
+
+## 4. Robust DiM Specification
+
+Robust DiM selects the most useful activations before constructing a steering direction.
+The goal is to avoid treating every token as equally informative.
+
+For an activation vector `h`, let `μ+` be the positive class centroid and `μ-` be the
+negative class centroid. The relative-margin score is:
+
+```text
+s+(h) = (||h - μ-||² - ||h - μ+||²) / (||h - μ-||² + ||h - μ+||²)
+```
+
+Interpretation:
+
+| Score behavior | Meaning |
+|---|---|
+| High positive `s+(h)` | `h` is closer to `μ+` than `μ-` with a large relative margin |
+| Near zero | `h` is weakly separated or ambiguous |
+| Negative | `h` is closer to `μ-` than `μ+` |
+
+Selection rule:
+
+1. Collect activations from contrast pairs at the configured relative layers.
+2. Compute the relative-margin score for candidate activations.
+3. Select the top-K high-margin activations.
+4. Aggregate selected activations into a steering direction for each layer.
+
+`ExtractionConfig.top_k` controls K. When `top_k` is `None`, the discriminative path uses
+its internal default.
+
+---
+
+## 5. Prefix Steering Specification
+
+Prefix Steering applies a steering direction only during the first generated tokens rather
+than during the full generation.
+
+| Parameter | Meaning | Paper default |
+|---|---|---|
+| `steer_tokens` | Number of generation steps that receive the steering vector | `5` |
+| `multipliers` | Scale factors applied to the steering vector | Configured by `SteeringConfig` |
+| `max_new_tokens` | Maximum generated tokens | Configured by `SteeringConfig` |
+| `temperature` | Decoding temperature | Configured by `SteeringConfig` |
+
+The intervention is prefix-local:
+
+```text
+For generated token positions t = 1, ..., m, add the steering vector at the target layer.
+For generated token positions t > m, run the model without the steering addition.
+```
+
+The paper default is `m = 5`. In code, this is represented by `SteeringConfig.steer_tokens`
+when running Prefix Steering experiments.
+
+---
+
+## 6. Layer Specification
+
+Layers are specified as relative positions from `0.0` to `1.0`, then resolved to absolute
+model layer indices for the selected model.
+
+| Relative layer | Meaning |
+|---|---|
+| `0.0` | Earliest available layer position |
+| `0.4` | 40 percent depth |
+| `0.5` | Middle depth |
+| `0.6` | 60 percent depth |
+| `0.7` | 70 percent depth |
+| `0.8` | 80 percent depth |
+| `1.0` | Final available layer position |
+
+Default extraction layers:
 
 ```python
-@dataclass
-class ContrastPair:
-    positive: str                    # "I always provide facts."
-    negative: str                    # "I might make up answers."
-    metadata: ContrastPairMetadata   # concept, dataset, source, pair_index
+[0.4, 0.5, 0.6, 0.7, 0.8]
 ```
 
-### 4.3 EvaluationResult
-
-```python
-@dataclass
-class EvaluationResult:
-    judge_scores: list[JudgeScore]   # Per-sample LLM-as-judge scores
-    mmlu_result: MMLUResult | None   # MMLU benchmark results
-    metadata: EvaluationMetadata     # model, concept, layer, multiplier
-```
+Stability sweeps may scan a denser layer grid across `0.0` to `1.0` using
+`StabilitySweepConfig.layers` or `StabilityComparisonConfig.layers`.
 
 ---
 
-## 5. CLI Interfaces
+## 7. Evaluation Protocols
 
-### 5.1 Extract
+The repository implements the paper's evaluation paths only.
 
-```bash
-uv run python -m steering_geometry.extract \
-    --concept <concept> \
-    --model <model_name> \
-    [--method <mean|pca|weighted_mean|discriminative>] \
-    [--num-pairs <N>] \
-    [--top-k <K>] \
-    [--layers <0.4,0.6,0.8>] \
-    [--output <dir>]
+### 7.1 HarmBench
+
+Safety/refusal steering is evaluated with the standard HarmBench protocol.
+
+Tracked result type: `HarmBenchResult`
+
+Key fields:
+
+| Field | Meaning |
+|---|---|
+| `asr` | Attack Success Rate, from 0 to 100 |
+| `total` | Number of evaluated behaviors |
+| `harmful` | Count classified as harmful |
+| `safe` | Count classified as safe |
+| `unknown` | Count with unknown classification |
+| `predictions` | Per-behavior `HarmBenchPrediction` records |
+
+### 7.2 LLM-as-judge
+
+Sentiment and politeness are evaluated with deterministic LLM-as-judge classification.
+
+Sentiment labels:
+
+```text
+POSITIVE
+NEGATIVE
+NEUTRAL_OR_MIXED
 ```
 
-**Required:** `--concept`, `--model`
+Politeness labels:
 
-### 5.2 Apply Steering
-
-```bash
-uv run python -m steering_geometry.apply_steering \
-    --vector <path.pt> \
-    --model <model_name> \
-    [--output <dir>] \
-    [--samples <N>] \
-    [--multipliers <1.0,1.5,2.0>] \
-    [--evaluate] \
-    [--judge-model <model>] \
-    [--mmlu-questions <N>]
+```text
+POLITE
+IMPOLITE
+NEUTRAL_OR_MIXED
 ```
 
-**Required:** `--vector`, `--model`
+Tracked result type: `JudgeScore`
 
-### 5.3 Token Analysis
+Key fields:
 
-```bash
-uv run python -m steering_geometry.token_analysis \
-    (visualize | probe) \
-    --concept <concept> \
-    --model <model_name> \
-    [--output <dir>]
-```
+| Field | Meaning |
+|---|---|
+| `concept_score` | Concept match score |
+| `fluency_score` | Naturalness score |
+| `final_score` | Combined score |
+| `reasoning` | Judge rationale |
 
-**Subcommands:** `visualize`, `probe`
+### 7.3 MMLU-Pro
 
-### 5.4 TDNV Metrics
+General capability preservation is evaluated with MMLU-Pro.
 
-```bash
-uv run python -m steering_geometry.tdnv \
-    --concept <concept> \
-    --model <model_name> \
-    [--num-pairs <N>]
-```
+Tracked result type: `MMLUProResult`
 
-### 5.5 Unembed Analysis
+Key fields:
 
-```bash
-uv run python -m steering_geometry.unembed_analysis \
-    --concept <concept> \
-    --model <model_name> \
-    [--top-k <K>]
-```
+| Field | Meaning |
+|---|---|
+| `accuracy` | Overall accuracy percentage |
+| `total` | Number of evaluated questions |
+| `correct` | Number answered correctly |
+| `refused` | Number refused |
+| `extract_failed` | Number with failed answer extraction |
+| `per_category` | Accuracy by category |
+| `per_category_counts` | Question counts by category |
+| `predictions` | Per-question `MMLUProPrediction` records |
+
+### 7.4 Cosine Similarity Stability
+
+Directional stability is measured with cosine similarity between steering directions from
+independent trials.
+
+Tracked result type: `StabilitySweepResult`
+
+Key fields:
+
+| Field | Meaning |
+|---|---|
+| `model_name` | Hugging Face model identifier |
+| `concept` | Canonical concept name |
+| `display_concept` | Paper display name |
+| `selected_layer` | Layer fraction with best average stability |
+| `per_n_data` | Mean and standard deviation by sample size |
+| `all_layers_data` | Full layer by sample-size stability matrix |
 
 ---
 
-## 6. Shell Script Interface
+## 8. Type Definitions
 
-### 6.1 Pipeline Script
+Core public types are defined in `src/steering_geometry/types.py`.
 
-```bash
-./scripts/pipeline/run_pipeline.sh \
-    -c <concepts> \           # comma-separated: honesty,toxicity
-    -m <models> \             # comma-separated: Qwen/Qwen3.5-2B
-    [-l <layers>] \           # comma-separated: 0.4,0.6
-    [--extract-only] \        # Skip steering and evaluation
-    [--steer-only] \          # Skip extraction (use existing)
-    [--eval-only]             # Skip extraction and steering
-```
+### 8.1 Extraction Types
 
-### 6.2 Quick Scripts
+| Type | Kind | Purpose |
+|---|---|---|
+| `ContrastPair` | dataclass | Positive and negative text pair with metadata |
+| `ContrastPairMetadata` | `TypedDict` | Concept, dataset, source, pair index, and source fields |
+| `SteeringVector` | dataclass | Layer-indexed activation tensors plus model, concept, and method |
 
-```bash
-# Quick extraction (single concept/layer)
-./scripts/quick/quick_extract.sh -c honesty -l 0.7
+### 8.2 Judge and Evaluation Types
 
-# Quick steering (single concept/layer)
-./scripts/quick/quick_steering.sh -c honesty -l 0.7
+| Type | Kind | Purpose |
+|---|---|---|
+| `JudgeScore` | dataclass | Per-response judge scores and reasoning |
+| `EvaluationResult` | dataclass | Combined judge, benchmark, and metadata result |
+| `EvaluationMetadata` | `TypedDict` | Concept, model, layer, and multiplier metadata |
 
-# Quick evaluation (single concept/layer)
-./scripts/quick/quick_eval.sh -c honesty -l 0.7
-```
+### 8.3 HarmBench Types
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `HarmBenchBehavior` | `TypedDict` | HarmBench behavior record |
+| `HarmBenchPrediction` | `TypedDict` | Per-behavior classifier output |
+| `HarmBenchResult` | dataclass | Aggregate HarmBench metrics |
+
+### 8.4 Capability Evaluation Types
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `MMLUProQuestion` | `TypedDict` | MMLU-Pro question record |
+| `MMLUProPrediction` | `TypedDict` | Per-question MMLU-Pro prediction |
+| `MMLUProResult` | dataclass | Aggregate MMLU-Pro metrics |
+| `MMLUQuestion` | `TypedDict` | MMLU question record retained for compatibility |
+| `MMLUPrediction` | `TypedDict` | Per-question MMLU prediction retained for compatibility |
+| `MMLUResult` | dataclass | Aggregate MMLU metrics retained for compatibility |
+
+### 8.5 Stability Types
+
+| Type | Kind | Purpose |
+|---|---|---|
+| `StabilitySweepResult` | dataclass | Cosine-similarity stability sweep result |
 
 ---
 
-## 7. Output Structure
+## 9. Configuration
 
-```
+Configuration dataclasses and constants are defined in `src/steering_geometry/config.py`.
+
+### 9.1 Constants
+
+| Name | Value |
+|---|---|
+| `SUPPORTED_MODELS` | Four paper model identifiers |
+| `SUPPORTED_CONCEPTS` | `("refusal", "polite", "sentiment")` |
+| `DEFAULT_MODEL` | `"Qwen/Qwen3-1.7B"` |
+
+### 9.2 Model and Extraction Configs
+
+| Config | Key fields | Purpose |
+|---|---|---|
+| `ModelConfig` | `model_name`, `device`, `dtype`, `trust_remote_code` | Model loading and inference |
+| `ExtractionConfig` | `layers`, `method`, `batch_size`, `read_token_index`, `top_k`, `data_mode`, `token_select`, `last_n`, `seed` | Steering vector extraction |
+| `ConceptConfig` | `concept_name`, `dataset_name`, `num_pairs` | Concept dataset and sample count |
+
+### 9.3 Steering and Evaluation Configs
+
+| Config | Key fields | Purpose |
+|---|---|---|
+| `SteeringConfig` | `multipliers`, `num_samples`, `seed`, `max_new_tokens`, `temperature`, `steer_tokens` | Prefix Steering generation settings |
+| `JudgeConfig` | `model`, `api_base`, `temperature`, `max_retries` | LLM-as-judge settings |
+| `EvaluationConfig` | `judge`, `mmlu`, `output_dir` | Shared evaluation settings |
+| `HarmBenchConfig` | `classifier_model`, `classifier_api_base`, `classifier_api_key`, `behaviors_file`, `max_completion_tokens`, `max_retries` | HarmBench classifier settings |
+| `MMLUProConfig` | `num_questions`, `n_shot`, `use_cot`, `seed`, `categories`, `max_new_tokens` | MMLU-Pro settings |
+
+### 9.4 Stability Configs
+
+| Config | Key fields | Purpose |
+|---|---|---|
+| `StabilityComparisonConfig` | `concept`, `num_tokens`, `num_runs`, `layers`, `top_k`, `model_name`, `output_dir` | Independent vector stability comparison |
+| `StabilitySweepConfig` | `model_name`, `concept`, `n_values`, `layers`, `num_runs`, `seed`, `output_dir`, `device`, `dtype`, `reference_n` | Sample-size and layer stability sweep |
+| `StabilitySweepBatchConfig` | `model_name`, `concepts`, `n_values`, `layers`, `num_runs`, `seed`, `output_dir`, `device`, `dtype`, `reference_n` | Batched stability sweeps for multiple concepts |
+
+---
+
+## 10. Output Structure
+
+Paper experiment outputs are written under `outputs/`.
+
+```text
 outputs/
 ├── vectors/
 │   └── {concept}/
-│       ├── diff_means/
-│       │   └── n{count}_layer{frac}.pt
-│       └── discriminative/
-│           └── k{K}_layer{frac}.pt
-├── heatmaps/
-│   ├── diff_means/
-│   │   └── {concept}_layer{frac}.pdf
-│   └── discriminative/
-│       └── {concept}_layer{frac}.pdf
-├── token_analysis/
+│       └── {model}/
+│           └── robust_dim_layer{frac}.pt
+├── steering/
 │   └── {concept}/
-│       ├── visualize/
-│       └── probe/
-├── unembed_analysis/
-│   ├── plots/
-│   └── json/
-└── stability/
-    └── {experiment}/
+│       └── {model}/
+│           └── prefix_steering_*.json
+├── token_experiments/
+│   ├── token_count/
+│   ├── token_position/
+│   ├── prompt_vs_response/
+│   └── steering_scope/
+└── vector_analysis/
+    ├── stability_sweep/
+    └── heatmaps/
 ```
 
 ---
 
-## 8. Configuration Classes
+## 11. Definition of Done for Paper Experiments
 
-### 8.1 ModelConfig
+An experiment run is complete when it records:
 
-```python
-@dataclass
-class ModelConfig:
-    model_name: str           # "Qwen/Qwen3.5-2B"
-    device: str = "auto"      # "cpu", "cuda", "auto"
-    dtype: str = "auto"       # "float16", "float32", "auto"
-```
-
-### 8.2 ExtractionConfig
-
-```python
-@dataclass
-class ExtractionConfig:
-    layers: list[float]       # [0.4, 0.6, 0.8]
-    method: str = "mean"      # "mean", "pca", "weighted_mean", "discriminative"
-    batch_size: int = 8
-    top_k: int = 64           # For discriminative method
-```
-
-### 8.3 SteeringConfig
-
-```python
-@dataclass
-class SteeringConfig:
-    multipliers: list[float]  # [1.0, 1.5, 2.0]
-    max_new_tokens: int = 64
-    temperature: float = 1.0
-    num_samples: int = 10
-```
-
----
-
-## 9. API Reference
-
-### 9.1 extract_vector()
-
-```python
-def extract_vector(
-    concept: str,
-    model_name: str,
-    num_pairs: int = 500,
-    method: str = "mean",
-    layers: list[float] | None = None,
-    batch_size: int = 8,
-) -> SteeringVector:
-    """Extract steering vector for a concept."""
-```
-
-### 9.2 load_contrast_pairs()
-
-```python
-def load_contrast_pairs(
-    concept: str,
-    num_pairs: int = 500,
-) -> list[ContrastPair]:
-    """Load contrast pairs for a concept."""
-```
-
-### 9.3 apply_steering()
-
-```python
-def apply_steering(
-    vector_path: str,
-    model_name: str,
-    output_dir: str,
-    config: SteeringConfig,
-    evaluate: bool = False,
-) -> EvaluationResult | None:
-    """Apply steering vector to model and optionally evaluate."""
-```
-
----
-
-## 10. Error Handling
-
-| Error | Cause | Resolution |
-|-------|-------|------------|
-| `ValueError: Invalid concept` | Unknown concept name | Use one of `VALID_CONCEPTS` |
-| `ValueError: No dataset loader` | Missing loader in `_DATASET_LOADERS` | Add loader function |
-| `RuntimeError: CUDA out of memory` | Batch size too large | Reduce `batch_size` |
-| `FileNotFoundError: Vector not found` | Missing steering vector file | Run extraction first |
-
----
-
-## 11. Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| torch | >=2.1,<3.0 | Tensor operations, model inference |
-| transformers | >=4.36,<5.0 | HuggingFace model loading |
-| datasets | >=2.16,<3.0 | Dataset loading |
-| numpy | >=1.26,<3.0 | Numerical operations |
-| scikit-learn | >=1.4,<2.0 | PCA, logistic regression |
-| accelerate | >=1.13.0 | Model parallelism |
-| openai | >=1.0.0,<2.0 | LLM-as-judge evaluation |
-| matplotlib | >=3.8.0,<4.0 | Visualization |
-| jinja2 | >=3.0.0,<4.0 | HTML report templates |
+1. Model identifier from `SUPPORTED_MODELS`.
+2. Canonical concept from `SUPPORTED_CONCEPTS`.
+3. Extraction method and layer fraction.
+4. Prefix Steering settings, including `steer_tokens` when steering is applied.
+5. Concept-specific evaluation result.
+6. MMLU-Pro capability result when capability preservation is part of the run.
+7. Cosine-similarity stability result when comparing independent direction trials.

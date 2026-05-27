@@ -1,211 +1,189 @@
-# Steering Geometry - AI Steering Vector Extraction Framework
+# Steering Geometry
 
-A research framework for extracting and analyzing steering vectors in Large Language Models (LLMs) to understand and control model behavior.
+Research code for the NeurIPS 2026 paper, "Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering for Activation Steering".
 
-## What This Is
+This repository studies which token positions produce stable activation steering directions, and how early-token interventions can steer model behavior while preserving general capability. The codebase focuses only on the paper experiments: Robust DiM direction construction, Prefix Steering intervention, safety refusal, sentiment, politeness, HarmBench, 3-label LLM-as-judge evaluation, and MMLU-Pro.
 
-This project provides tools for extracting activation steering vectors from LLMs across three key behavioral concepts:
+## Paper Scope
 
-- **Sentiment** - Controlling the emotional tone and valence of model outputs
-- **Refusal** - Understanding the mechanisms behind model refusals and safety boundaries
-- **Polite** - Steering model outputs toward more courteous and respectful language
+### Models
+
+The experiments use four Hugging Face causal language models:
+
+- **OLMo3-7B**: `allenai/Olmo-3-1025-7B`
+- **OLMo3-32B**: `allenai/Olmo-3-1125-32B`
+- **Qwen3-1.7B**: `Qwen/Qwen3-1.7B`
+- **Qwen3-14B**: `Qwen/Qwen3-14B`
+
+### Concepts
+
+The paper evaluates three steering concepts:
+
+- **Safety/refusal**: increase safe refusal behavior on harmful requests
+- **Sentiment**: steer generated text toward positive or negative sentiment
+- **Politeness**: steer generated text toward polite or impolite style
+
+### Datasets
+
+- **Safety/refusal**: `LLM-LAT/benign-dataset` and `LLM-LAT/harmful-dataset`
+- **Sentiment**: SST-2
+- **Politeness**: PoliteGuard
+
+### Evaluations
+
+- **HarmBench** for safety behavior
+- **3-label LLM-as-judge** for sentiment and politeness
+- **MMLU-Pro** for general capability retention
+
+## Methods
+
+### Robust DiM
+
+Robust DiM builds steering directions from token subsets rather than treating every token as equally useful. The extraction pipeline compares activations from contrast pairs, selects stable and informative token positions, and constructs a direction that is less sensitive to noisy or weak tokens.
+
+### Prefix Steering
+
+Prefix Steering applies the steering direction to early tokens during generation. This tests whether short, prefix-local interventions can guide behavior while reducing disruption to later-token computation and preserving MMLU-Pro performance.
 
 ## Quick Start
 
-1. **Install dependencies**
-   ```bash
-   uv sync
-   ```
+Install dependencies:
 
-2. **Verify installation**
-   ```bash
-   uv run ruff check src/ tests/
-   uv run mypy src/
-   uv run pytest
-   ```
+```bash
+uv sync
+```
 
-3. **Run extraction**
-   ```bash
-   # Example: Extract steering vectors for sentiment with default model
-   uv run python -m steering_geometry.extract --concept sentiment
-   
-   # Use specific models (Qwen, Gemma)
-   uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3-1.7B"
-   uv run python -m steering_geometry.extract --concept refusal --model "Qwen/Qwen3.5-2B"
-   uv run python -m steering_geometry.extract --concept polite --model "google/gemma-2-2b"
-   
-   # Or use the batch script for multiple extractions
-   ./scripts/pipeline/run_pipeline.sh -c sentiment,refusal,polite -m "Qwen/Qwen3.5-2B"
-   ```
-   
-   Supported concepts:
-   - `sentiment` - Sentiment steering vectors
-   - `refusal` - Refusal steering vectors
-   - `polite` - Politeness steering vectors
+Extract a sentiment steering vector with one paper model:
+
+```bash
+uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3-1.7B"
+```
+
+Apply a saved vector and run the configured evaluation path:
+
+```bash
+uv run python -m steering_geometry.apply_steering --vector outputs/vectors/sentiment/layer0.7.pt
+```
+
+Run construction diagnosis and stability experiments through the experiment scripts listed below. The `token_selection_experiments` and `stability_comparison` modules provide experiment functions used by those scripts.
 
 ## Project Structure
 
-```
-.
-├── AGENTS.md                    # AI agent instructions
-├── ARCHITECTURE.md              # System design
-├── SPEC.md                      # Technical specification
-├── README.md                    # This file
-├── pyproject.toml               # Project config
-├── .python-version              # Python version (3.12+)
-├── src/steering_geometry/       # Source code (Python modules ONLY)
-│   ├── __init__.py              # Package exports
-│   ├── types.py                 # Core type definitions
-│   ├── config.py                # Configuration management
-│   ├── models.py                # Model loading and activation hooks
-│   ├── extract.py               # Steering vector extraction
-│   ├── apply_steering.py        # Apply steering + evaluation (JudgeEvaluator, MMLUEvaluator)
-│   ├── stability_comparison.py  # Vector stability experiments
-│   ├── token_analysis.py        # Token-level analysis
-│   ├── unembed_analysis.py      # Unembedding analysis
-│   ├── tdnv.py                  # TDNV separability metrics
-│   └── utils.py                 # Shared utilities
-├── tests/                       # Test files
-│   ├── conftest.py              # Pytest fixtures
-│   ├── test_apply_steering.py   # Steering integration tests
-│   └── unit/                    # Unit tests
-├── scripts/                     # Shell scripts ONLY (no .py files)
-│   ├── pipeline/                # Pipeline scripts
-│   │   └── run_pipeline.sh     # Batch extraction orchestrator
-│   ├── quick/                   # Single-operation shortcuts
-│   ├── vector_analysis/         # Stability experiment scripts
-│   ├── token_analysis/          # Token analysis scripts
-│   ├── tdnv/                    # TDNV metric scripts
-│   ├── unembed_analysis/        # Unembedding scripts
-│   ├── stability_comparison/    # Stability comparison scripts
-│   └── complete_plan.sh         # Plan completion utility
-├── outputs/                     # Generated artifacts (vectors, heatmaps)
-│   ├── vectors/                 # Steering vectors (.pt files)
-│   ├── heatmaps/                # Cosine similarity heatmaps (.pdf)
-│   ├── probes/                  # Probe experiment results
-│   ├── token_analysis/          # Token analysis outputs
-│   ├── token_viz/               # Token visualizations
-│   └── unembed_analysis/        # Unembed analysis outputs
-├── data/                        # Raw datasets and contrast pairs
-└── docs/
-    ├── design-docs/             # Design documents
-    ├── exec-plans/              # Execution plans
-    ├── PLANS.md                 # Project roadmap
-    └── QUALITY_SCORE.md         # Quality tracking
-```
+```text
+src/steering_geometry/
+├── __init__.py
+├── __main__.py
+├── types.py
+├── config.py
+├── models.py
+├── extract.py                         # Steering vector extraction
+├── apply_steering.py                  # Apply steering + evaluation
+├── stability_comparison.py            # Vector stability experiments
+├── token_selection_experiments.py     # Construction diagnosis experiments
+├── utils.py
+├── py.typed
 
-## Directory Usage
+scripts/
+├── extract/
+├── apply_steering/
+├── pipeline/
+├── token_experiments/
+├── vector_analysis/
+├── stability_comparison/
 
-- **src/** - All Python modules (importable package)
-- **scripts/** - Shell scripts only (orchestration, not imported)
-- **data/** - Input datasets and contrast pairs for different concepts
-- **outputs/** - Generated artifacts (vectors, heatmaps, analysis results)
-- **docs/** - Design documents, execution plans, and quality tracking
+tests/
+├── conftest.py
+├── test_apply_steering.py
+├── test_experiments.py
+├── test_stability_comparison.py
+├── test_stability_sweep.py
+├── test_token_selection_experiments.py
+├── unit/
+│   ├── test_aggregators.py
+│   ├── test_config_main.py
+│   ├── test_evaluation.py
+│   ├── test_extract.py
+│   ├── test_logging.py
+│   └── test_utils.py
+```
 
 ## Entry Points
 
-This framework uses `python -m` invocation pattern:
+Use module entry points for extraction and steering:
 
 ```bash
-# Extract steering vectors
-uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3.5-2B"
+# Extract Robust DiM steering vectors
+uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3-1.7B"
 
-# Apply steering vectors
+# Apply Prefix Steering with a saved vector
 uv run python -m steering_geometry.apply_steering --vector outputs/vectors/sentiment/layer0.7.pt
-
-# Token analysis (visualize or probe subcommands)
-uv run python -m steering_geometry.token_analysis visualize --concept polite
-uv run python -m steering_geometry.token_analysis probe --concept refusal
-
-# TDNV metrics
-uv run python -m steering_geometry.tdnv --concept sentiment
-
-# Unembed analysis
-uv run python -m steering_geometry.unembed_analysis --concept polite
 ```
 
-Or use shell scripts for orchestration:
+Package metadata and shell configuration values are available through the package CLI:
 
 ```bash
-# Full pipeline (extract → steer → evaluate)
-./scripts/pipeline/run_pipeline.sh -c sentiment,refusal,polite -m "Qwen/Qwen3.5-2B"
-
-# Quick single-operation scripts
-./scripts/quick/quick_extract.sh -c polite -l 0.7
-./scripts/quick/quick_steering.sh -c sentiment -l 0.7
-./scripts/quick/quick_eval.sh -c refusal
-
-# Vector stability experiments
-./scripts/vector_analysis/run_diff_means_heatmaps.sh
-./scripts/vector_analysis/run_discriminative_heatmaps.sh
+uv run python -m steering_geometry --shell
 ```
 
-## Supported Models
+The experiment modules are imported by the shell scripts in `scripts/` rather than exposed as standalone module CLIs.
 
-This framework works with any causal language model from HuggingFace Transformers. Recommended models for steering vector extraction:
+## Paper Experiment Scripts
 
-### Qwen Family
-- **Qwen/Qwen3-1.7B** - Lightweight Qwen3 model (~1.7B parameters)
-- **Qwen/Qwen3.5-2B** - Improved Qwen3.5 (~2B parameters)
-- **Qwen/Qwen3.5-4B** - Larger Qwen3.5 model (~4B parameters)
+The `scripts/` tree contains shell entry points for the paper experiments:
 
-### Gemma Family
-- **google/gemma-2-2b** - Gemma 2 model (~2B parameters)
+```text
+scripts/extract/
+└── quick_discriminative.sh
 
-### Usage Example
-```bash
-# Extract with Qwen3.5
-uv run python -m steering_geometry.extract \
-    --concept sentiment \
-    --model "Qwen/Qwen3.5-2B" \
-    --num-pairs 500 \
-    --output data/vectors/
+scripts/apply_steering/
+└── run_steering.sh
 
-# Extract with Gemma 2
-uv run python -m steering_geometry.extract \
-    --concept polite \
-    --model "google/gemma-2-2b" \
-    --method pca \
-    --output data/vectors/
+scripts/pipeline/
+└── quick_pipeline.sh
 
-# Batch extraction via shell script
-./scripts/pipeline/run_pipeline.sh -c sentiment,refusal,polite -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
+scripts/token_experiments/
+├── 1_token_count.sh
+├── 2_token_position.sh
+├── 3_prompt_vs_response.sh
+└── 4_steering_scope.sh
+
+scripts/vector_analysis/
+├── plot_stability_sweep.sh
+├── quick_diff_means_heatmaps.sh
+├── quick_discriminative_heatmaps.sh
+├── run_stability_comparison.sh
+└── run_stability_sweep.sh
+
+scripts/stability_comparison/
+└── quick_vector_stability.sh
 ```
+
+Use these scripts for full experiment runs, token selection diagnostics, vector stability comparisons, heatmap generation, and Prefix Steering sweeps.
 
 ## Development
 
-### Code Quality
-
-This project uses:
-- **ruff** for linting and formatting
-- **mypy** for type checking
-- **pytest** for testing
-
-### Running Checks
+Run the standard checks before submitting changes:
 
 ```bash
-# Lint check
+# Lint
 uv run ruff check src/ tests/
 
 # Format check
 uv run ruff format --check src/ tests/
 
-# Format fix
-uv run ruff format src/ tests/
-
 # Type check
 uv run mypy src/
 
-# Run all tests
+# Tests
 uv run pytest
+```
 
-# Run single test file
-uv run pytest tests/test_hello.py
+To format code locally:
 
-# Run test by name
-uv run pytest -k "test_name"
+```bash
+uv run ruff format src/ tests/
 ```
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License. See `LICENSE` for details.
