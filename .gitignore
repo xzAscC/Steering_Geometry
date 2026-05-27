@@ -33,6 +33,9 @@ htmlcov/
 .env.local
 
 
+# Paper source (Overleaf export)
+69bcbe7d4df5c45bb65cfa76/
+
 # Project-specific directories
 data/
 # Uncomment to ignore generated files:
