@@ -105,8 +105,8 @@ class TestSafeModelName:
     def test_safe_model_name(self) -> None:
         from steering_geometry.utils import safe_model_name
 
-        assert safe_model_name("Qwen/Qwen3.5-2B") == "Qwen_Qwen3.5-2B"
-        assert safe_model_name("google/gemma-2-2b") == "google_gemma-2-2b"
+        assert safe_model_name("Qwen/Qwen3-1.7B") == "Qwen_Qwen3-1.7B"
+        assert safe_model_name("allenai/Olmo-3-1025-7B") == "allenai_Olmo-3-1025-7B"
         assert safe_model_name("simple-name") == "simple-name"
 
 
