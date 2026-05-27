@@ -17,7 +17,7 @@
 #   -h, --help         Show this help message
 #
 # Example:
-#   ./scripts/token_experiments/1_token_count.sh -c honesty -n "10 100 1000"
+#   ./scripts/token_experiments/1_token_count.sh -c refusal -n "10 100 1000"
 # =============================================================================
 
 set -euo pipefail
@@ -76,7 +76,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help         Show this help message"
             echo ""
             echo "Example:"
-            echo "  $0 -c honesty -n \"10 100 1000\""
+            echo "  $0 -c refusal -n \"10 100 1000\""
             exit 0
             ;;
         *)

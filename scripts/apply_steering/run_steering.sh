@@ -7,12 +7,12 @@
 #
 # Usage:
 #   ./scripts/apply_steering/run_steering.sh \
-#       --vector data/vectors/honesty_Qwen_Qwen3.5-2B_mean.pt \
-#       --model Qwen/Qwen3.5-2B
+#       --vector data/vectors/refusal_Qwen_Qwen3-1.7B_mean.pt \
+#       --model Qwen/Qwen3-1.7B
 #
 #   ./scripts/apply_steering/run_steering.sh \
-#       --vector data/vectors/toxicity.pt \
-#       --model Qwen/Qwen3.5-2B \
+#       --vector data/vectors/sentiment.pt \
+#       --model Qwen/Qwen3-1.7B \
 #       --samples 20 \
 #       --multipliers "0.1,1.0,10.0" \
 #       --evaluate
@@ -59,20 +59,20 @@ Optional Options:
 Examples:
     # Basic steering
     $(basename "$0") \\
-        --vector data/vectors/honesty_Qwen_Qwen3.5-2B_mean.pt \\
-        --model Qwen/Qwen3.5-2B
+        --vector data/vectors/refusal_Qwen_Qwen3-1.7B_mean.pt \\
+        --model Qwen/Qwen3-1.7B
 
     # Custom samples and multipliers
     $(basename "$0") \\
-        --vector data/vectors/toxicity.pt \\
-        --model Qwen/Qwen3.5-2B \\
+        --vector data/vectors/sentiment.pt \\
+        --model Qwen/Qwen3-1.7B \\
         --samples 20 \\
         --multipliers "0.1,1.0,10.0"
 
     # With evaluation
     $(basename "$0") \\
         --vector data/vectors/sentiment.pt \\
-        --model google/gemma-2-2b \\
+        --model Qwen/Qwen3-1.7B \\
         --evaluate \\
         --mmlu-questions 20
 

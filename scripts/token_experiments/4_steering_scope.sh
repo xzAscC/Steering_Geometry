@@ -20,7 +20,7 @@
 #   -h, --help           Show this help message
 #
 # Example:
-#   ./scripts/token_experiments/4_steering_scope.sh -c honesty --steer-tokens "5 10 15 20"
+#   ./scripts/token_experiments/4_steering_scope.sh -c refusal --steer-tokens "5 10 15 20"
 # =============================================================================
 
 set -euo pipefail
@@ -98,7 +98,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help           Show this help message"
             echo ""
             echo "Example:"
-            echo "  $0 -c honesty --steer-tokens \"5 10 15 20\""
+            echo "  $0 -c refusal --steer-tokens \"5 10 15 20\""
             exit 0
             ;;
         *)
