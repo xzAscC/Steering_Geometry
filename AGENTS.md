@@ -13,7 +13,11 @@ AI agents working in this repository MUST follow these rules.
 - Build: `hatchling`
 - Lint/Format: `ruff` (line-length 100, double quotes)
 - Type check: `mypy --strict`
-- Test: `pytest` (231 tests)
+- Test: `pytest`
+- Scope: NeurIPS 2026 paper experiments for Robust DiM and Prefix Steering
+- Paper models: `allenai/Olmo-3-1025-7B`, `allenai/Olmo-3-1125-32B`, `Qwen/Qwen3-1.7B`, `Qwen/Qwen3-14B`
+- Paper concepts: safety/refusal, sentiment, politeness
+- Evaluations: HarmBench, LLM-as-judge, MMLU-Pro
 
 ## 2) Build & Verify Commands
 
@@ -110,23 +114,23 @@ Enforced by ruff (see pyproject.toml):
 
 | Task | Location | Notes |
 |------|----------|-------|
-| Extract steering vector | `src/steering_geometry/extract.py` | `extract_vector()`, `load_contrast_pairs()` |
-| Add new concept | `extract.py:_DATASET_LOADERS` | Add loader + prefix constants |
+| Package exports | `src/steering_geometry/__init__.py` | Public package interface |
+| CLI shell values | `src/steering_geometry/__main__.py` | Shell eval entry point |
+| Core types | `src/steering_geometry/types.py` | Paper domain objects and result schemas |
+| Configuration | `src/steering_geometry/config.py` | Four paper models, three paper concepts, extraction and evaluation configs |
 | Load model with hooks | `src/steering_geometry/models.py` | `HookedModel` class |
-| Apply steering | `src/steering_geometry/apply_steering.py` | `apply_steering()` |
-| Evaluate steering | `src/steering_geometry/apply_steering.py` | `JudgeEvaluator`, `MMLUEvaluator` (merged into apply_steering) |
-| Core types | `src/steering_geometry/types.py` | `ContrastPair`, `SteeringVector`, etc. |
-| Config classes | `src/steering_geometry/config.py` | `ModelConfig`, `ExtractionConfig`, etc. |
-| Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
-| Pipeline scripts | `scripts/pipeline/run_pipeline.sh` | Full orchestration |
-| Quick scripts | `scripts/quick/` | Single-layer operations |
-| Vector stability experiments | `src/steering_geometry/stability_comparison.py` | `run_diff_means_experiment()`, `run_discriminative_experiment()` |
-| Vector analysis scripts | `scripts/vector_analysis/` | Cosine similarity heatmaps |
-| Token analysis | `src/steering_geometry/token_analysis.py` | `visualize()`, `probe()` subcommands |
-| Unembed analysis | `src/steering_geometry/unembed_analysis.py` | `analyze_unembed_cosine()` |
-| TDNV metrics | `src/steering_geometry/tdnv.py` | `compute_tdnv()`, `compute_tdnv_for_concept()` |
+| Extract Robust DiM directions | `src/steering_geometry/extract.py` | Steering vector extraction and contrast pair loading |
+| Apply Prefix Steering | `src/steering_geometry/apply_steering.py` | Steering application plus HarmBench, LLM-as-judge, and MMLU-Pro evaluation |
+| Vector stability experiments | `src/steering_geometry/stability_comparison.py` | Robust DiM stability sweeps and vector comparison helpers |
+| Construction diagnosis experiments | `src/steering_geometry/token_selection_experiments.py` | Token position, prompt vs response, example count, and steering scope experiments |
 | Shared utilities | `src/steering_geometry/utils.py` | `ensure_dir()`, `safe_model_name()`, `sample_with_seed()`, `configure_logging()` |
-| Configure logging | `src/steering_geometry/utils.py` | `configure_logging()` — idempotent, dual output (console + file) |
+| Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
+| Extraction scripts | `scripts/extract/` | Paper extraction entry points |
+| Prefix Steering scripts | `scripts/apply_steering/` | Steering and evaluation entry points |
+| Pipeline scripts | `scripts/pipeline/` | Paper pipeline orchestration |
+| Construction diagnosis scripts | `scripts/token_experiments/` | Token count, token position, prompt vs response, and steering scope runs |
+| Vector analysis scripts | `scripts/vector_analysis/` | Stability sweeps and heatmap generation |
+| Stability comparison scripts | `scripts/stability_comparison/` | Quick vector stability runs |
 
 ## 10) Anti-Patterns
 
@@ -140,18 +144,16 @@ Enforced by ruff (see pyproject.toml):
 ### Current Technical Debt
 | File | Issue | Fix |
 |------|-------|-----|
-| `models.py:90,174,229,240` | `Any` in hook params | Use Protocol or specific types |
-| `stability_comparison.py:17,543,589,618` | `Any` in result dicts | Use TypedDict |
-| `unembed_analysis.py:12,38` | `Any` for tokenizer | Use Protocol |
-| `apply_steering.py:32,328,607` | `Any` for model/config | Use specific types |
-| `extract.py` + `tdnv.py` | `_select_token_activations` duplicated | Extract to utils.py |
-| `__main__.py` | 3 `print()` for shell eval | Intentional — shell capture output, not logging |
-| `token_analysis.py` | 9 `print()` for CLI tables | Intentional — tabular CLI output, not logging |
+| `models.py` | Hook typing may depend on third-party model internals | Prefer Protocols or narrow callable types |
+| `apply_steering.py` | Evaluator boundaries touch model, tokenizer, and judge interfaces | Keep interfaces typed and isolate external calls |
+| `stability_comparison.py` | Experiment result dictionaries can drift as metrics change | Use TypedDict schemas for persisted results |
+| `token_selection_experiments.py` | Construction diagnosis outputs cover multiple experiment shapes | Keep result schemas explicit and test serialization |
+| `__main__.py` | `print()` used for shell eval output | Intentional, shell capture output, not logging |
 
 ### Known Violations (from audit)
-- `typing.Any`: 15 instances across 4 files
-- `print()`: 12 instances across 2 files (`__main__.py` shell eval + `token_analysis.py` CLI tables — intentional)
-- `scripts/validate_analysis_json.py`: Python file violates "scripts/ = shell only" rule
+- Keep `typing.Any` out of new code unless a third-party boundary has no typed alternative.
+- `print()` is allowed only in `src/steering_geometry/__main__.py` for shell eval output.
+- `scripts/` must contain shell entry points only. Put Python code in `src/steering_geometry/`.
 
 ## 11) Pipeline Workflow
 
@@ -180,59 +182,84 @@ When a plan from `.sisyphus/plans/` is complete:
 
 ### Extraction Scripts
 
-Run steering vector extractions:
+Run Robust DiM steering vector extractions for paper concepts and models:
 
 ```bash
 # Single extraction via Python module
-uv run python -m steering_geometry.extract --concept honesty --model "Qwen/Qwen3.5-2B"
-uv run python -m steering_geometry.extract --concept toxicity --method pca
+uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3-1.7B"
+uv run python -m steering_geometry.extract --concept politeness --model "allenai/Olmo-3-1025-7B"
 
 # Full pipeline (extract → steer → evaluate)
-./scripts/pipeline/run_pipeline.sh -c honesty,toxicity
+./scripts/pipeline/quick_pipeline.sh
 
-# Extraction only
-./scripts/pipeline/run_pipeline.sh -c all --extract-only
+# Quick paper extraction script
+./scripts/extract/quick_discriminative.sh
 
-# Multiple models
-./scripts/pipeline/run_pipeline.sh -c honesty -m "Qwen/Qwen3.5-2B,google/gemma-2-2b"
-
-# Quick single-layer extraction
-scripts/quick/quick_extract.sh -c honesty -l 0.7
+# Apply Prefix Steering with a saved vector
+./scripts/apply_steering/run_steering.sh
 ```
 
 ### Experiments
 
-Run cosine similarity experiments to analyze steering vector stability:
+Run the paper experiments through the shell entry points under `scripts/`:
 
 ```bash
-# Differential means experiment (varying example counts)
-./scripts/vector_analysis/run_diff_means_heatmaps.sh
+# Construction diagnosis: number of selected tokens
+./scripts/token_experiments/1_token_count.sh
 
-# Discriminative token selection experiment (varying K values)
-./scripts/vector_analysis/run_discriminative_heatmaps.sh
+# Construction diagnosis: token position
+./scripts/token_experiments/2_token_position.sh
+
+# Construction diagnosis: prompt tokens vs response tokens
+./scripts/token_experiments/3_prompt_vs_response.sh
+
+# Prefix Steering: steering scope and prefix length
+./scripts/token_experiments/4_steering_scope.sh
+
+# Robust DiM vector stability comparison
+./scripts/stability_comparison/quick_vector_stability.sh
+
+# Stability sweep plots and heatmaps
+./scripts/vector_analysis/run_stability_sweep.sh
+./scripts/vector_analysis/plot_stability_sweep.sh
+./scripts/vector_analysis/quick_diff_means_heatmaps.sh
+./scripts/vector_analysis/quick_discriminative_heatmaps.sh
+./scripts/vector_analysis/run_stability_comparison.sh
 ```
 
 **Parameters:**
-- Concepts: honesty, sentiment, toxicity, sycophancy, refusal
-- Model: Qwen/Qwen3-1.7B
-- Layers: 0.4, 0.5, 0.6, 0.7, 0.8
-- Diff means n_examples: 10, 30, 100, 300, 1000, 3000, 6000, 10000
-- Discriminative K values: 16, 32, 64, 128, 256
+- Models: `allenai/Olmo-3-1025-7B`, `allenai/Olmo-3-1125-32B`, `Qwen/Qwen3-1.7B`, `Qwen/Qwen3-14B`
+- Concepts: safety/refusal, sentiment, politeness
+- Methods: Robust DiM and Prefix Steering
+- Construction diagnosis: token position, prompt vs response tokens, selected token count, number of examples
+- Evaluations: HarmBench for safety/refusal, LLM-as-judge for sentiment and politeness, MMLU-Pro for capability retention
 
 **Output Structure:**
 ```
 outputs/
 ├── vectors/
-│   ├── {concept}/diff_means/n{count}_layer{frac}.pt
-│   └── {concept}/discriminative/k{K}_layer{frac}.pt
-└── heatmaps/
-    ├── diff_means/{concept}_layer{frac}.pdf
-    └── discriminative/{concept}_layer{frac}.pdf
+│   └── {concept}/
+│       └── {model}/
+│           └── robust_dim_layer{frac}.pt
+├── steering/
+│   └── {concept}/
+│       └── {model}/
+│           └── prefix_steering_*.json
+├── token_experiments/
+│   ├── token_count/
+│   ├── token_position/
+│   ├── prompt_vs_response/
+│   └── steering_scope/
+└── vector_analysis/
+    ├── stability_sweep/
+    └── heatmaps/
 ```
 
-**Expected Output Counts:**
-- 50 PDF heatmaps (5 concepts × 5 layers × 2 methods)
-- 325 steering vectors (200 diff_means + 125 discriminative)
+**Expected Paper Outputs:**
+- Robust DiM steering vectors for the configured paper model, concept, and layer combinations
+- Prefix Steering evaluation JSON for HarmBench, LLM-as-judge, and MMLU-Pro runs
+- Construction diagnosis outputs for token count, token position, prompt vs response, and example count sweeps
+- Stability plots and heatmaps for Robust DiM direction comparisons
 
 ### Directory Rules
 

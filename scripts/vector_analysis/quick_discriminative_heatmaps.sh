@@ -2,13 +2,13 @@
 # =============================================================================
 # run_discriminative_heatmaps.sh - Discriminative Token Selection Experiment
 # =============================================================================
-# Runs discriminative token selection experiments for all 5 concepts to generate
+# Runs discriminative token selection experiments for all 3 concepts to generate
 # cosine similarity heatmaps across varying K values and layers.
 #
 # Usage:
 #   ./scripts/vector_analysis/run_discriminative_heatmaps.sh
 #
-# Concepts: honesty, sentiment, toxicity, sycophancy, refusal
+# Concepts: sentiment, refusal, polite
 # K values: [16, 32, 64, 128, 256]
 # Layers: [0.4, 0.5, 0.6, 0.7, 0.8]
 # Model: Qwen/Qwen3-1.7B

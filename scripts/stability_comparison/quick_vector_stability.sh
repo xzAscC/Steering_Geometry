@@ -19,7 +19,7 @@
 #   -h, --help         Show this help message
 #
 # Example:
-#   ./scripts/stability_comparison/run_stability.sh -c honesty -n 1000 -r 3
+#   ./scripts/stability_comparison/run_stability.sh -c refusal -n 1000 -r 3
 # =============================================================================
 
 set -euo pipefail
@@ -88,7 +88,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help         Show this help message"
             echo ""
             echo "Example:"
-            echo "  $0 -c honesty -n 1000 -r 3"
+            echo "  $0 -c refusal -n 1000 -r 3"
             exit 0
             ;;
         *)

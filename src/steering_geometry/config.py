@@ -9,13 +9,7 @@ from pathlib import Path
 
 SUPPORTED_MODELS: tuple[str, ...] = (
     "Qwen/Qwen3-1.7B",
-    "Qwen/Qwen3-4B",
     "Qwen/Qwen3-14B",
-    "Qwen/Qwen3.5-4B",
-    "Qwen/Qwen3.5-9B",
-    "google/gemma-2-2b",
-    "google/gemma-2-9b",
-    "allenai/OLMo-2-1124-7B",
     "allenai/Olmo-3-1025-7B",
     "allenai/Olmo-3-1125-32B",
 )
@@ -85,7 +79,7 @@ class ConceptConfig:
     """Configuration for a behavioral concept.
 
     Attributes:
-        concept_name: Name of the concept (e.g., "honesty", "sycophancy").
+        concept_name: Name of the concept (e.g., "sentiment", "refusal").
         dataset_name: Name or path of the dataset containing contrast pairs.
         num_pairs: Number of contrast pairs to use for extraction.
     """
@@ -164,54 +158,11 @@ class EvaluationConfig:
 
 
 @dataclass
-class TDNVConfig:
-    """Configuration for TDNV metrics computation.
-
-    Attributes:
-        num_pairs: Number of contrast pairs to use.
-        batch_size: Batch size for processing activations.
-        output_dir: Directory to save JSON results.
-        plot_dir: Directory to save visualization plots.
-        read_token_index: Token position to read activations from (-1 for last token).
-    """
-
-    num_pairs: int = 500
-    batch_size: int = 8
-    output_dir: str = "data/tdnv/"
-    plot_dir: str = "plot/tdnv/"
-    read_token_index: int = -1
-
-
-@dataclass
-class TokenAnalysisConfig:
-    """Configuration for discriminative token analysis experiments.
-
-    Attributes:
-        top_k: Number of top tokens to select per layer for analysis.
-        tokens_per_class: Number of tokens to sample per class (positive/negative).
-        test_size: Fraction of tokens to use for testing (0.0-1.0).
-        layers: Relative layer positions (0.0-1.0) to analyze.
-        batch_size: Batch size for processing activations.
-        random_seed: Random seed for reproducible token sampling.
-        last_n: If set, only use the last N tokens per sequence for scoring.
-            None means use all tokens (default behavior).
-    """
-
-    top_k: int = 50
-    tokens_per_class: int = 10000
-    test_size: float = 0.2
-    layers: list[float] = field(default_factory=lambda: [i / 9 for i in range(10)])
-    batch_size: int = 8
-    random_seed: int = 42
-    last_n: int | None = None
-
-
-@dataclass
 class StabilityComparisonConfig:
     """Configuration for steering vector stability comparison experiments.
 
     Attributes:
-        concept: Name of the concept to analyze (e.g., "sentiment", "honesty").
+        concept: Name of the concept to analyze (e.g., "sentiment", "refusal").
         num_tokens: Number of tokens to use for extraction.
         num_runs: Number of extraction runs for comparison (must be >= 2).
         layers: Relative layer positions (0.0-1.0) to extract activations from.
@@ -410,21 +361,6 @@ class HarmBenchConfig:
 
 
 @dataclass
-class ORBenchConfig:
-    """Configuration for OR-Bench over-refusal evaluation.
-
-    Attributes:
-        split: HuggingFace dataset split name for OR-Bench prompts.
-        num_samples: Number of samples to use (0 = all prompts in split).
-        seed: Random seed for reproducible sample selection.
-    """
-
-    split: str = "or-bench-hard-1k"
-    num_samples: int = 0
-    seed: int = 42
-
-
-@dataclass
 class MMLUProConfig:
     """Configuration for MMLU-Pro benchmark evaluation.
 
@@ -456,12 +392,9 @@ __all__ = [
     "JudgeConfig",
     "MMLUConfig",
     "EvaluationConfig",
-    "TDNVConfig",
-    "TokenAnalysisConfig",
     "StabilityComparisonConfig",
     "StabilitySweepConfig",
     "StabilitySweepBatchConfig",
     "HarmBenchConfig",
-    "ORBenchConfig",
     "MMLUProConfig",
 ]

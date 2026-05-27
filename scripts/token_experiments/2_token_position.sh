@@ -19,7 +19,7 @@
 #   -h, --help         Show this help message
 #
 # Example:
-#   ./scripts/token_experiments/2_token_position.sh -c honesty -n 200
+#   ./scripts/token_experiments/2_token_position.sh -c refusal -n 200
 #   ./scripts/token_experiments/2_token_position.sh --last-n "1 2 4 8" --include-all false
 # =============================================================================
 
@@ -89,7 +89,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -h, --help         Show this help message"
             echo ""
             echo "Example:"
-            echo "  $0 -c honesty -n 200"
+            echo "  $0 -c refusal -n 200"
             echo "  $0 --last-n \"1 2 4 8\" --include-all false"
             exit 0
             ;;

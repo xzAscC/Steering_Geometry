@@ -7,7 +7,7 @@
 # Usage:
 #   ./scripts/pipeline/run_pipeline.sh                                    # Full pipeline, default model
 #   ./scripts/pipeline/run_pipeline.sh -c sentiment,refusal                # Specific concepts
-#   ./scripts/pipeline/run_pipeline.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
+#   ./scripts/pipeline/run_pipeline.sh -m Qwen/Qwen3-1.7B,allenai/Olmo-3-1025-7B  # Multiple models
 #   ./scripts/pipeline/run_pipeline.sh --skip-extract                     # Skip extraction step
 #   ./scripts/pipeline/run_pipeline.sh --eval-only                        # Only run evaluation
 #
@@ -46,7 +46,7 @@ Pipeline Steps:
 Options:
     -c, --concepts LIST    Comma-separated list of concepts (default: all)
                            Available: sentiment, refusal, polite
-    -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3.5-2B)
+    -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3-1.7B)
     
     # Extraction options
     -p, --pairs N          Number of contrast pairs (default: 500)
@@ -80,7 +80,7 @@ Options:
 Examples:
     $(basename "$0")                                    # Full pipeline, all concepts
     $(basename "$0") -c sentiment,refusal                # Specific concepts
-    $(basename "$0") -m Qwen/Qwen3.5-2B --evaluate      # With evaluation
+    $(basename "$0") -m Qwen/Qwen3-1.7B --evaluate      # With evaluation
     $(basename "$0") --skip-extract                     # Skip extraction
     $(basename "$0") -c all -m all                      # All concepts × all models
 
@@ -99,7 +99,7 @@ list_available() {
 
 # Default values
 CONCEPTS=""
-MODELS="Qwen/Qwen3.5-2B"
+MODELS="Qwen/Qwen3-1.7B"
 NUM_PAIRS=100
 METHOD="mean"
 NUM_SAMPLES=10

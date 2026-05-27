@@ -195,7 +195,7 @@ def run_diff_means_experiment(
     cosine similarities across all example counts at each layer.
 
     Args:
-        concept: Concept to extract (e.g., "honesty", "toxicity").
+        concept: Concept to extract (e.g., "sentiment", "refusal").
         n_examples_list: List of example counts to test (e.g., [10, 30, 100]).
         layers: Relative layer positions (0.0-1.0) to analyze.
         model_name: HuggingFace model name.
@@ -328,7 +328,7 @@ def run_discriminative_experiment(
     and computes pairwise cosine similarities across all K values at each layer.
 
     Args:
-        concept: Concept to extract (e.g., "honesty", "toxicity").
+        concept: Concept to extract (e.g., "sentiment", "refusal").
         k_values: List of top_k values to test (e.g., [16, 32, 64, 128]).
         layers: Relative layer positions (0.0-1.0) to analyze.
         model_name: HuggingFace model name.

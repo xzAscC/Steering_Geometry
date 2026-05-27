@@ -2,20 +2,20 @@
 # =============================================================================
 # run_diff_means_heatmaps.sh - Differential Means Experiment Runner
 # =============================================================================
-# Runs differential means experiments for all 5 concepts to generate
+# Runs differential means experiments for all 3 concepts to generate
 # cosine similarity heatmaps across varying example counts and layers.
 #
 # Usage:
 #   ./scripts/vector_analysis/run_diff_means_heatmaps.sh
 #
-# Concepts: honesty, sentiment, toxicity, sycophancy, refusal
+# Concepts: sentiment, refusal, polite
 # Example counts: [10, 30, 100, 300, 1000, 3000, 6000, 10000] (capped per concept)
 # Layers: [0.4, 0.5, 0.6, 0.7, 0.8]
 # Model: Qwen/Qwen3-1.7B
 #
 # Dataset limits (from Task 0 validation):
-#   - honesty: 800
-#   - sycophancy: 4000
+#   - sentiment: 800
+#   - polite: 4000
 #   - refusal: 1000
 # =============================================================================
 

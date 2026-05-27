@@ -1,6 +1,6 @@
 """Core type definitions for steering geometry package."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TypedDict
 
 from torch import Tensor
@@ -18,7 +18,7 @@ class ContrastPairMetadata(TypedDict, total=False):
         dataset: Name of the source dataset.
         source: Specific source identifier within the dataset.
         pair_index: Index of this pair in the sampled set.
-        original_question: Original question text (for honesty concept).
+        original_question: Original question text (for refusal concept).
     """
 
     concept: str
@@ -210,57 +210,6 @@ class HarmBenchResult:
     predictions: list[HarmBenchPrediction]
 
 
-class ORBenchPrompt(TypedDict):
-    """A single OR-Bench prompt for evaluation.
-
-    Attributes:
-        prompt: The prompt text (should be a hard/boundary case).
-        category: Category of the prompt.
-    """
-
-    prompt: str
-    category: str
-
-
-class ORBenchPrediction(TypedDict):
-    """Single OR-Bench over-refusal prediction.
-
-    Attributes:
-        prompt: The prompt text.
-        category: Category of the prompt.
-        response: Model's generated response.
-        is_refused: Whether the response was detected as a refusal.
-        refusal_type: Type of refusal detection ("keyword" or "none").
-    """
-
-    prompt: str
-    category: str
-    response: str
-    is_refused: bool
-    refusal_type: str
-
-
-@dataclass
-class ORBenchResult:
-    """Results from OR-Bench over-refusal evaluation.
-
-    Attributes:
-        orr: Over-Refusal Rate (0-100).
-        total: Total number of prompts evaluated.
-        refused: Number of responses detected as refusals.
-        answered: Number of responses that were answered.
-        per_category: Per-category ORR mapping.
-        predictions: List of per-prompt predictions.
-    """
-
-    orr: float
-    total: int
-    refused: int
-    answered: int
-    per_category: dict[str, float]
-    predictions: list[ORBenchPrediction]
-
-
 class MMLUProQuestion(TypedDict):
     """A single MMLU-Pro question for evaluation.
 
@@ -343,7 +292,6 @@ class EvaluationResult:
         mmlu_result: MMLU benchmark results if evaluation was run.
         metadata: Additional context (model, concept, steering strength, etc.).
         harmbench_result: HarmBench evaluation results, if run.
-        orbench_result: OR-Bench evaluation results, if run.
         mmlu_pro_result: MMLU-Pro evaluation results, if run.
     """
 
@@ -351,7 +299,6 @@ class EvaluationResult:
     mmlu_result: MMLUResult
     metadata: EvaluationMetadata
     harmbench_result: HarmBenchResult | None = None
-    orbench_result: ORBenchResult | None = None
     mmlu_pro_result: MMLUProResult | None = None
 
 
@@ -380,179 +327,6 @@ class StabilitySweepResult:
     all_layers_data: dict[float, dict[int, dict[str, float]]]
 
 
-@dataclass
-class TDNVLayerMetrics:
-    """Per-layer TDNV metrics.
-
-    Contains the TDNV value and normalized components for a single layer.
-
-    Attributes:
-        tdnv: Topic-Discriminative Normalized Variance value.
-        norm_num: Normalized numerator (avg within-topic variance / avg energy).
-        norm_den: Normalized denominator (avg between-topic distance / avg energy).
-        energy: Average activation energy (s = (1/N) * sum ||h||^2).
-    """
-
-    tdnv: float
-    norm_num: float
-    norm_den: float
-    energy: float
-
-
-@dataclass
-class TDNVResult:
-    """Complete TDNV analysis results for a concept and model.
-
-    Contains layer-wise TDNV metrics measuring separability of positive/negative
-    contrast pairs across all model layers.
-
-    Attributes:
-        concept: The behavioral concept analyzed (e.g., "honesty", "toxicity").
-        model_name: Name/identifier of the model.
-        num_pairs: Number of contrast pairs used.
-        layers: List of layer indices analyzed.
-        tdnv_values: TDNV value per layer (lower = better separability).
-        norm_num_values: Normalized numerator per layer.
-        norm_den_values: Normalized denominator per layer.
-        layerwise_energy: Average activation energy per layer.
-    """
-
-    concept: str
-    model_name: str
-    num_pairs: int
-    layers: list[int]
-    tdnv_values: list[float]
-    norm_num_values: list[float]
-    norm_den_values: list[float]
-    layerwise_energy: list[float]
-
-
-@dataclass
-class TokenRecord:
-    """Record for a single token with its activation data.
-
-    Used to track individual tokens during discriminative token analysis,
-    capturing both the token identity and its activation pattern.
-
-    Attributes:
-        token_id: Integer token ID from the tokenizer vocabulary.
-        token_text: Decoded text representation of the token.
-        activation: Activation tensor for this token at a specific layer.
-        contrast_pair_idx: Index of the contrast pair this token belongs to.
-        position_in_sequence: Position of this token within its sequence.
-        label: Label indicating "positive" or "negative" class membership.
-        score: Discriminative score (higher = more discriminative for its class).
-    """
-
-    token_id: int
-    token_text: str
-    activation: Tensor
-    contrast_pair_idx: int
-    position_in_sequence: int
-    label: str
-    score: float = 0.0
-
-
-@dataclass
-class DiscriminativeTokenResult:
-    """Results from discriminative token selection at a single layer.
-
-    Contains the top-k most discriminative tokens for both positive and
-    negative classes, useful for visualization and analysis.
-
-    Attributes:
-        concept: The behavioral concept being analyzed.
-        layer: Layer index where tokens were extracted.
-        top_positive: Top tokens that discriminate toward positive class.
-        top_negative: Top tokens that discriminate toward negative class.
-    """
-
-    concept: str
-    layer: int
-    top_positive: list[TokenRecord] = field(default_factory=list)
-    top_negative: list[TokenRecord] = field(default_factory=list)
-
-
-@dataclass
-class ProbeLayerResult:
-    """Probe classification metrics for a single layer.
-
-    Contains accuracy and AUC scores from training a linear probe to
-    classify positive vs negative tokens at a specific layer.
-
-    Attributes:
-        layer_idx: Index of the layer where the probe was trained.
-        train_accuracy: Classification accuracy on training set.
-        test_accuracy: Classification accuracy on held-out test set.
-        auc_score: Area under ROC curve for binary classification.
-    """
-
-    layer_idx: int
-    train_accuracy: float
-    test_accuracy: float
-    auc_score: float
-
-
-@dataclass
-class ProbeExperimentResult:
-    """Complete probe experiment results across all layers.
-
-    Aggregates layer-wise probe metrics for analyzing how well different
-    layers encode the target concept.
-
-    Attributes:
-        concept: The behavioral concept being probed.
-        model_name: Name/identifier of the model analyzed.
-        tokens_per_class: Number of tokens sampled per class for probing.
-        layer_results: List of probe metrics for each analyzed layer.
-    """
-
-    concept: str
-    model_name: str
-    tokens_per_class: int
-    layer_results: list[ProbeLayerResult] = field(default_factory=list)
-
-
-@dataclass
-class UnembedAnalysisResult:
-    """Single steering vector unembedding analysis result.
-
-    Contains the top tokens and their cosine similarities when projecting
-    a steering vector through the unembedding matrix.
-
-    Attributes:
-        layer: Layer fraction where the steering vector was extracted (0.1-1.0).
-        method: Extraction method used (e.g., "diff_means", "discriminative").
-        tokens: Top-5 decoded tokens from unembedding projection.
-        similarities: Cosine similarity scores for each token.
-    """
-
-    layer: float
-    method: str
-    tokens: list[str]
-    similarities: list[float]
-
-
-@dataclass
-class ConceptAnalysisResult:
-    """Full concept analysis result across multiple layers.
-
-    Aggregates unembedding analysis results for a single concept and model,
-    organized by layer fraction for comparison across extraction methods.
-
-    Attributes:
-        concept: The behavioral concept analyzed (e.g., "honesty", "toxicity").
-        model: Name/identifier of the model.
-        method: Extraction method used for all results.
-        results: Mapping from layer key (e.g., "layer_0.5") to analysis result.
-    """
-
-    concept: str
-    model: str
-    method: str
-    results: dict[str, UnembedAnalysisResult]
-
-
 __all__ = [
     "ContrastPair",
     "ContrastPairMetadata",
@@ -564,20 +338,9 @@ __all__ = [
     "EvaluationResult",
     "EvaluationMetadata",
     "StabilitySweepResult",
-    "TDNVLayerMetrics",
-    "TDNVResult",
-    "TokenRecord",
-    "DiscriminativeTokenResult",
-    "ProbeLayerResult",
-    "ProbeExperimentResult",
-    "UnembedAnalysisResult",
-    "ConceptAnalysisResult",
     "HarmBenchBehavior",
     "HarmBenchPrediction",
     "HarmBenchResult",
-    "ORBenchPrompt",
-    "ORBenchPrediction",
-    "ORBenchResult",
     "MMLUProQuestion",
     "MMLUProPrediction",
     "MMLUProResult",

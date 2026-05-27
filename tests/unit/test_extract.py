@@ -229,7 +229,7 @@ class TestPoliteLoader:
             num_pairs=3,
         )
         pairs = load_polite_data(config)
-        # Unlike sycophancy, polite uses direct text like sentiment
+        # Unlike refusal, polite uses direct text like sentiment
         # Check that text doesn't have artificial prefixes
         for pair in pairs:
             # Should be original text, not prefixed with instructions

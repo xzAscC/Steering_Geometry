@@ -63,10 +63,10 @@ def safe_model_name(model_name: str) -> str:
     """Convert model name to safe filesystem name.
 
     Args:
-        model_name: Original model name (e.g., "Qwen/Qwen3.5-2B").
+        model_name: Original model name (e.g., "Qwen/Qwen3-1.7B").
 
     Returns:
-        Safe name for filesystem use (e.g., "Qwen_Qwen3.5-2B").
+        Safe name for filesystem use (e.g., "Qwen_Qwen3-1.7B").
     """
     return model_name.replace("/", "_")
 

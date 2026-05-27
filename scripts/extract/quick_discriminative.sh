@@ -12,8 +12,8 @@
 #
 # Usage:
 #   ./scripts/extract/run_discriminative.sh                                    # All concepts, default model
-#   ./scripts/extract/run_discriminative.sh -c honesty,toxicity                # Specific concepts
-#   ./scripts/extract/run_discriminative.sh -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
+#   ./scripts/extract/run_discriminative.sh -c refusal,sentiment                # Specific concepts
+#   ./scripts/extract/run_discriminative.sh -m Qwen/Qwen3-1.7B,allenai/Olmo-3-1025-7B  # Multiple models
 #   ./scripts/extract/run_discriminative.sh --top-k 50                         # Custom top-k value
 #
 # Output:
@@ -25,8 +25,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-ALL_CONCEPTS=("honesty" "sycophancy" "toxicity" "sentiment" "refusal")
-ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3.5-2B" "Qwen/Qwen3.5-4B" "google/gemma-2-2b")
+ALL_CONCEPTS=("sentiment" "refusal" "polite")
+ALL_MODELS=("Qwen/Qwen3-1.7B" "Qwen/Qwen3-14B" "allenai/Olmo-3-1025-7B" "allenai/Olmo-3-1125-32B")
 
 # Colors for output
 RED='\033[0;31m'
@@ -53,8 +53,8 @@ Scoring Formula:
 
 Options:
     -c, --concepts LIST    Comma-separated list of concepts (default: all)
-                           Available: honesty, sycophancy, toxicity, sentiment, refusal
-    -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3.5-2B)
+                           Available: sentiment, refusal, polite
+    -m, --models LIST      Comma-separated list of models (default: Qwen/Qwen3-1.7B)
     -p, --pairs N          Number of contrast pairs (default: 500)
     -k, --top-k N          Number of top tokens to select (default: 100)
     -o, --output DIR       Output directory (default: data/vectors)
@@ -63,8 +63,8 @@ Options:
 
 Examples:
     $(basename "$0")                                    # All concepts, default model
-    $(basename "$0") -c honesty,toxicity                # Specific concepts
-    $(basename "$0") -m Qwen/Qwen3.5-2B,google/gemma-2-2b  # Multiple models
+    $(basename "$0") -c refusal,sentiment                # Specific concepts
+    $(basename "$0") -m Qwen/Qwen3-1.7B,allenai/Olmo-3-1025-7B  # Multiple models
     $(basename "$0") -c sentiment -p 100 --top-k 50    # Custom params
     $(basename "$0") -c all -m all                      # All concepts × all models
 
@@ -85,8 +85,8 @@ list_available() {
 }
 
 # Default values
-CONCEPTS="honesty"
-MODELS="Qwen/Qwen3.5-2B"
+CONCEPTS="refusal"
+MODELS="Qwen/Qwen3-1.7B"
 NUM_PAIRS=500
 TOP_K=10
 OUTPUT_DIR="$PROJECT_ROOT/data/vectors"
