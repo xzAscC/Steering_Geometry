@@ -1,0 +1,3 @@
+- 2026-03-07: Unresolved workspace-level type-check failures in `src/steering_geometry/models.py` prevent claiming full `uv run mypy src/` green status for this task alone.
+- 2026-03-07: Unresolved local-tooling gap: Python LSP diagnostics cannot be executed until `basedpyright-langserver` is installed in the runtime environment.
+- 2026-03-07: Tooling gap resolved for this task after installing `basedpyright`; no additional unresolved sentiment-task blockers remain.

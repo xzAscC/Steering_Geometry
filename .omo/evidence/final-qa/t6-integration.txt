@@ -1,0 +1,14 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.9, pytest-9.0.2, pluggy-1.6.0 -- /home/xzascc/Documents/code/Steering_Geometry/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/xzascc/Documents/code/Steering_Geometry
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 33 items / 29 deselected / 4 selected
+
+tests/unit/test_extract.py::TestRefusalIntegration::test_integration_prompt_only_all PASSED [ 25%]
+tests/unit/test_extract.py::TestRefusalIntegration::test_integration_prompt_only_last_n PASSED [ 50%]
+tests/unit/test_extract.py::TestRefusalIntegration::test_integration_prompt_response_all PASSED [ 75%]
+tests/unit/test_extract.py::TestRefusalIntegration::test_integration_prompt_response_last_n PASSED [100%]
+
+======================= 4 passed, 29 deselected in 0.01s =======================

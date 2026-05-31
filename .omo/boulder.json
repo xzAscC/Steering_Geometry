@@ -1,0 +1,68 @@
+{
+  "active_plan": "/home/xzascc/Documents/code/Steering_Geometry/.sisyphus/plans/stability-cosim-figures.md",
+  "started_at": "2026-04-28T23:08:29.750Z",
+  "session_ids": [
+    "ses_229be20faffeL12r3rVe4Bshs5",
+    "ses_229a277b7ffeJx681YmwDlVLIj",
+    "ses_2299b8a12ffe2qAAoUAMzLRADi",
+    "ses_22997825dffeou5KXyc7OJ3N1p",
+    "ses_2299184b1ffec4KG1UP7osa96D",
+    "ses_22991848bffeyZRrFlmMHFUXyy",
+    "ses_2298d7769ffeiLB3msYh7Q15zT",
+    "ses_2298ddf79ffe89hQMshJQmF5jC",
+    "ses_2298dfbacffehCQ39OesYSiXLo",
+    "ses_2298d7766ffes8VOocB4lz5yNM",
+    "ses_22981cacfffeYv0gUpnTStMlIV",
+    "ses_22981ca9effePTDMR0LnmqWOT2",
+    "ses_2297c7b93ffeGpF71hNNbfBtqB"
+  ],
+  "plan_name": "stability-cosim-figures",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Add OLMo3-32B + Qwen3-14B to SUPPORTED_MODELS + trust_remote_code handling",
+      "session_id": "ses_229a277b7ffeJx681YmwDlVLIj",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-28T23:16:36.587Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "Implement run_stability_sweep() experiment runner",
+      "session_id": "ses_2299b8a12ffe2qAAoUAMzLRADi",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-28T23:22:37.127Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Implement sweep results persistence (JSON save/load)",
+      "session_id": "ses_22997825dffeou5KXyc7OJ3N1p",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-28T23:27:41.605Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "Create run_stability_sweep.sh orchestration script",
+      "session_id": "ses_2299184b1ffec4KG1UP7osa96D",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-28T23:31:44.539Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_2297c7b93ffeGpF71hNNbfBtqB",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-28T23:58:28.317Z"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.9, pytest-9.0.2, pluggy-1.6.0 -- /home/xzascc/Documents/code/Steering_Geometry/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/xzascc/Documents/code/Steering_Geometry
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 33 items / 28 deselected / 5 selected
+
+tests/unit/test_extract.py::TestExtractionConfig::test_default_values PASSED [ 20%]
+tests/unit/test_extract.py::TestExtractionConfig::test_custom_values PASSED [ 40%]
+tests/unit/test_extract.py::TestExtractionConfig::test_new_field_defaults PASSED [ 60%]
+tests/unit/test_extract.py::TestExtractionConfig::test_new_fields_custom_values PASSED [ 80%]
+tests/unit/test_extract.py::TestExtractionConfig::test_new_fields_with_existing_fields PASSED [100%]
+
+======================= 5 passed, 28 deselected in 0.01s =======================
