@@ -242,8 +242,6 @@ def _make_steering_hook(
     def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
         step_counter[0] += 1
         if steer_tokens is not None and step_counter[0] > steer_tokens:
-            if isinstance(output, tuple):
-                return output
             return output
         tensor_output = output[0] if isinstance(output, tuple) else output
         sv = steering_vector.to(device=tensor_output.device, dtype=tensor_output.dtype)
