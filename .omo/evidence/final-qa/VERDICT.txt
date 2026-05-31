@@ -1,0 +1,48 @@
+========================================
+FINAL QA VERDICT REPORT
+========================================
+Date: 2026-04-09
+Evidence dir: .omo/evidence/final-qa/
+
+----------------------------------------
+Task 1 QA Scenarios [3/3 pass]:
+----------------------------------------
+- uv run pytest tests/test_apply_steering.py -v: ✅ 7 passed in 0.15s (evidence: task1_apply_steering.txt)
+- uv run pytest tests/ -v: ✅ 187 passed, 2 skipped, 0 failures (evidence: task1_all_tests.txt)
+- uv run pytest tests/test_token_selection_experiments.py -k "steer_tokens" -v: ✅ 3 passed (evidence: task1_steer_tokens.txt)
+
+----------------------------------------
+Task 2 QA Scenarios [2/2 pass]:
+----------------------------------------
+- Import check (run_token_count_experiment, run_token_position_experiment, run_prompt_response_experiment): ✅ All 3 importable (evidence: task2_imports.txt)
+- No print() calls in token_selection_experiments.py: ✅ 0 matches found (evidence: task2_no_print.txt)
+
+----------------------------------------
+Task 3-6 QA Scenarios [8/8 pass]:
+----------------------------------------
+- bash -n scripts/token_experiments/1_token_count.sh: ✅ Exit code 0
+- bash 1_token_count.sh --help has -c,-m,-n,-l,-o: ✅ All flags present
+- bash -n scripts/token_experiments/2_token_position.sh: ✅ Exit code 0
+- bash 2_token_position.sh --help has -c,-m,-n,--last-n,-l,-o: ✅ All flags present
+- bash -n scripts/token_experiments/3_prompt_vs_response.sh: ✅ Exit code 0
+- bash 3_prompt_vs_response.sh --help has -c,-m,-n,--data-modes,-l,-o: ✅ All flags present
+- bash -n scripts/token_experiments/4_steering_scope.sh: ✅ Exit code 0
+- bash 4_steering_scope.sh --help has --steer-tokens,-l,--multipliers,-o: ✅ All flags present
+
+----------------------------------------
+Integration Tests [2/2 pass]:
+----------------------------------------
+- from steering_geometry.token_selection_experiments import run_steering_scope_experiment: ✅ OK (evidence: integration_import.txt)
+- uv run pytest tests/test_token_selection_experiments.py -v: ✅ 14 passed in 0.02s (evidence: integration_full_suite.txt)
+
+----------------------------------------
+Edge Case Tests [2 tested, 2 pass]:
+----------------------------------------
+- steer_tokens=0 produces unsteered output: ✅ PASSED (evidence: edge_steer_tokens_zero.txt)
+- steer_tokens>=max_new_tokens: ✅ PASSED (evidence: edge_steer_tokens_large.txt)
+
+========================================
+VERDICT: APPROVE
+========================================
+All 17 QA scenarios passed. 0 failures detected.
+Full test suite: 187 passed, 2 skipped, 0 failures.

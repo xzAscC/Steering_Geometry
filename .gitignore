@@ -22,6 +22,9 @@ build/
 *.swo
 .DS_Store
 
+# AI tool configs
+.claude/
+
 # Testing
 .coverage
 htmlcov/
