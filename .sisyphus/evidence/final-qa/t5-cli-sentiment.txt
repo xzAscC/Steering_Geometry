@@ -1,4 +1,0 @@
-Loaded 500 contrast pairs for sentiment
-Avg positive length: 9.07 words
-Avg negative length: 9.24 words
-Dry run complete

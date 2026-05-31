@@ -1,4 +1,0 @@
-- 2026-03-07: Implemented aggregator dispatch via `ExtractionConfig.method` with strict support for `mean` and `pca` only.
-- 2026-03-07: Kept extraction output unnormalized by design to preserve downstream control over scaling and normalization strategy.
-- 2026-03-07: Sentiment concept evaluator uses neutral prompt templates plus keyword polarity scoring to measure steered vs unsteered sentiment shift in a deterministic lightweight way.
-- 2026-03-07: `scripts/extract_sentiment.py` dry-run mode exits before model loading/inference and reports dataset/pair statistics to validate pipeline wiring quickly.

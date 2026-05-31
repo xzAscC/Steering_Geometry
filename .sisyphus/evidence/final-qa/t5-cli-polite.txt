@@ -1,4 +1,0 @@
-Loaded 500 contrast pairs for polite
-Avg positive length: 32.59 words
-Avg negative length: 23.38 words
-Dry run complete

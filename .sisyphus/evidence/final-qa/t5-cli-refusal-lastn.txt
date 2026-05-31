@@ -1,8 +1,0 @@
-Loaded 500 contrast pairs for refusal
-Data mode: prompt_response
-Token select: last_n
-Last N: 5
-Seed: 42
-Avg positive length: 368.78 words
-Avg negative length: 111.71 words
-Dry run complete

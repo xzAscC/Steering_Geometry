@@ -1,4 +1,0 @@
-- 2026-03-07: `lsp_diagnostics` could not run because `basedpyright-langserver` is not installed in the environment.
-- 2026-03-07: `uv run mypy src/` currently fails due to pre-existing errors in `src/steering_geometry/models.py` unrelated to extraction changes.
-- 2026-03-07: `lsp_diagnostics` remains unavailable for Python files in this environment because `basedpyright-langserver` is missing, so static validation used `uv run mypy src/` instead.
-- 2026-03-07: Installed `basedpyright` via `uv tool install basedpyright`; `lsp_diagnostics` is now available and clean for new sentiment files.
