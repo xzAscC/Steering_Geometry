@@ -10,7 +10,7 @@
 # is consistent across different steering concepts.
 #
 # Usage:
-#   ./run_all_concepts.sh [model] [layer_frac] [steer_tokens] [num_prompts]
+#   ./run_all_concepts.sh [model] [layer_frac] [steer_tokens] [num_prompts] [max_new_tokens] [scale_mult]
 #
 # Examples:
 #   ./run_all_concepts.sh                                    # defaults

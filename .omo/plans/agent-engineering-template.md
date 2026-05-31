@@ -298,7 +298,7 @@ Max Concurrent: 8 (Wave 1)
     - IDE: `.idea/`, `.vscode/`, `*.swp`, `*.swo`, `.DS_Store`
     - Testing: `.coverage`, `htmlcov/`, `.pytest_cache/`, `.mypy_cache/`
     - uv: `.uv/` (if applicable, check uv docs)
-    - Sisyphus: `.omo/evidence/`
+    - Omo: `.omo/evidence/`
     - Environment: `.env`, `.env.local`
 
   **Must NOT do**:

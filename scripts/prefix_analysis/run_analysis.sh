@@ -111,6 +111,6 @@ print(f'Output dir: ${OUTPUT_DIR}')
 
 echo ""
 echo -e "${GREEN}=== Analysis Complete ===${NC}"
-echo -e "Output directory: ${BLUE}${OUTPUT_DIR}${NC}"
-echo -e "Report:           ${BLUE}${OUTPUT_DIR}/analysis_report.md${NC}"
-echo -e "Plots:            ${BLUE}${OUTPUT_DIR}/plots/${NC}"
+echo -e "Output directory: ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}${NC}"
+echo -e "Report:           ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/analysis_report.md${NC}"
+echo -e "Plots:            ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/plots/${NC}"

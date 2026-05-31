@@ -16,6 +16,7 @@ Usage:
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
@@ -212,6 +213,49 @@ def per_token_kl_divergence(
 
 
 # =============================================================================
+# Shared Steering Hook
+# =============================================================================
+
+
+def _make_steering_hook(
+    steering_vector: Tensor,
+    scale: float,
+    steer_tokens: int | None,
+    step_counter: list[int],
+) -> Callable[[object, object, Tensor], Tensor]:
+    """Create a forward-hook that adds a steering vector for a limited number of steps.
+
+    The hook increments ``step_counter[0]`` on every forward call and applies
+    ``output + steering_vector * scale`` while the counter has not exceeded
+    ``steer_tokens``.
+
+    Args:
+        steering_vector: Normalized steering direction.
+        scale: Steering scale factor.
+        steer_tokens: Max generation steps to steer (``None`` = all).
+        step_counter: Mutable single-element list used as a counter.
+
+    Returns:
+        A callable suitable for ``register_forward_hook``.
+    """
+
+    def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
+        step_counter[0] += 1
+        if steer_tokens is not None and step_counter[0] > steer_tokens:
+            if isinstance(output, tuple):
+                return output
+            return output
+        tensor_output = output[0] if isinstance(output, tuple) else output
+        sv = steering_vector.to(device=tensor_output.device, dtype=tensor_output.dtype)
+        tensor_output = tensor_output + sv * scale
+        if isinstance(output, tuple):
+            return (tensor_output,) + output[1:]
+        return tensor_output
+
+    return steering_hook
+
+
+# =============================================================================
 # Manual Autoregressive Generation with Logit Capture
 # =============================================================================
 
@@ -257,31 +301,18 @@ def _generate_with_logits(
 
     handle: torch.utils.hooks.RemovableHandle | None = None
     if steering_vector is not None:
-
-        def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
-            step_counter[0] += 1
-            if steer_tokens is not None and step_counter[0] > steer_tokens:
-                if isinstance(output, tuple):
-                    return output
-                return output
-            tensor_output = output[0] if isinstance(output, tuple) else output
-            sv = steering_vector.to(device=tensor_output.device, dtype=tensor_output.dtype)
-            tensor_output = tensor_output + sv * scale
-            if isinstance(output, tuple):
-                return (tensor_output,) + output[1:]
-            return tensor_output
-
-        handle = model_layers[layer_idx].register_forward_hook(steering_hook)
+        hook_fn = _make_steering_hook(steering_vector, scale, steer_tokens, step_counter)
+        handle = model_layers[layer_idx].register_forward_hook(hook_fn)
 
     try:
         with torch.no_grad():
-            # Prefill: process prompt
             outputs = model.model(input_ids=input_ids, use_cache=True)
             next_logits = outputs.logits[:, -1, :]
             all_logits.append(next_logits.cpu())
             past_kv = outputs.past_key_values
 
-            # First token
+            step_counter[0] = 0
+
             if temperature > 0:
                 probs = functional.softmax(next_logits / temperature, dim=-1)
                 next_token = torch.multinomial(probs, num_samples=1)
@@ -634,35 +665,22 @@ def _generate_with_attention(
 
     handle: torch.utils.hooks.RemovableHandle | None = None
     if steering_vector is not None:
-
-        def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
-            step_counter[0] += 1
-            if steer_tokens is not None and step_counter[0] > steer_tokens:
-                if isinstance(output, tuple):
-                    return output
-                return output
-            tensor_output = output[0] if isinstance(output, tuple) else output
-            sv = steering_vector.to(device=tensor_output.device, dtype=tensor_output.dtype)
-            tensor_output = tensor_output + sv * scale
-            if isinstance(output, tuple):
-                return (tensor_output,) + output[1:]
-            return tensor_output
-
-        handle = model_layers[layer_idx].register_forward_hook(steering_hook)
+        hook_fn = _make_steering_hook(steering_vector, scale, steer_tokens, step_counter)
+        handle = model_layers[layer_idx].register_forward_hook(hook_fn)
 
     try:
         with torch.no_grad():
-            # Prefill
             outputs = model.model(input_ids=input_ids, use_cache=True, output_attentions=True)
             past_kv = outputs.past_key_values
 
-            # Extract attention for target layers from prefill
             if outputs.attentions is not None:
                 step_attns: dict[int, Tensor] = {}
                 for li, attn in enumerate(outputs.attentions):
                     if target_layers is None or li in target_layers:
                         step_attns[li] = attn.detach().cpu()
                 all_attns.append(step_attns)
+
+            step_counter[0] = 0
 
             next_logits = outputs.logits[:, -1, :]
             next_token = next_logits.argmax(dim=-1, keepdim=True)
