@@ -170,7 +170,7 @@ Enforced by ruff (see pyproject.toml):
 
 ### Plan Completion
 
-When a plan from `.sisyphus/plans/` is complete:
+When a plan from `.omo/plans/` is complete:
 
 ```bash
 # Move plan to docs/exec-plans/completed/
