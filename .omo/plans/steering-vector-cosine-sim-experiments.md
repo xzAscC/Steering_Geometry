@@ -97,7 +97,7 @@ Create reusable experiment infrastructure to analyze steering vector stability a
 - **Pattern**: TDD - unit tests for math/logic, GPU tests for model-dependent code
 
 ### QA Policy
-Every task includes agent-executed QA scenarios. Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Every task includes agent-executed QA scenarios. Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Library/Module**: Use Bash (uv run pytest) - Run tests, verify pass/fail counts
 - **Visualization**: Use Bash (pdfinfo, ls) - Verify PDF creation, check file metadata
@@ -202,7 +202,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: grep -E "(honesty|sentiment|toxicity|sycophancy|refusal)" src/steering_geometry/extract.py | grep "_DATASET_LOADERS"
       2. Count matches (expect 5)
     Expected Result: 5 concept loaders found in registry
-    Evidence: .sisyphus/evidence/task-0-validate-loaders.txt
+    Evidence: .omo/evidence/task-0-validate-loaders.txt
   
   Scenario: Validate discriminative method
     Tool: Bash (grep)
@@ -210,7 +210,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: grep -A5 "discriminative_token_aggregator" src/steering_geometry/extract.py
       2. Verify function signature exists
     Expected Result: Function definition found with correct signature
-    Evidence: .sisyphus/evidence/task-0-discriminative-method.txt
+    Evidence: .omo/evidence/task-0-discriminative-method.txt
   
   Scenario: Test dataset loading
     Tool: Bash (uv run python)
@@ -218,7 +218,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run python -c "from steering_geometry.extract import load_contrast_pairs; pairs = load_contrast_pairs('honesty', 10); print(f'Loaded {len(pairs)} pairs')"
       2. Repeat for all 5 concepts
     Expected Result: All datasets load successfully
-    Evidence: .sisyphus/evidence/task-0-dataset-loading.txt
+    Evidence: .omo/evidence/task-0-dataset-loading.txt
   ```
 
   **Commit**: NO
@@ -273,7 +273,7 @@ Max Concurrent: 1 (most tasks depend on previous)
     Steps:
       1. Run: uv run python -c "from steering_geometry.experiments import compute_cosine_similarity_matrix, plot_heatmap, save_vector, load_vector; print('OK')"
     Expected Result: Import succeeds without errors
-    Evidence: .sisyphus/evidence/task-1-module-import.txt
+    Evidence: .omo/evidence/task-1-module-import.txt
   
   Scenario: Type checking passes
     Tool: Bash (uv run mypy)
@@ -281,7 +281,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run mypy src/steering_geometry/experiments.py
       2. Check for errors
     Expected Result: Success with 0 errors
-    Evidence: .sisyphus/evidence/task-1-mypy-check.txt
+    Evidence: .omo/evidence/task-1-mypy-check.txt
   ```
 
   **Commit**: NO
@@ -339,7 +339,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run pytest tests/test_experiments.py -v -k "not gpu"
       2. Check all tests pass
     Expected Result: 4 passed, 0 failed
-    Evidence: .sisyphus/evidence/task-2-unit-tests.txt
+    Evidence: .omo/evidence/task-2-unit-tests.txt
   
   Scenario: PDF test creates valid output
     Tool: Bash (uv run pytest)
@@ -347,7 +347,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run pytest tests/test_experiments.py::test_heatmap_generation -v
       2. Verify test passes
     Expected Result: Test passes, PDF has valid header
-    Evidence: .sisyphus/evidence/task-2-pdf-test.txt
+    Evidence: .omo/evidence/task-2-pdf-test.txt
   ```
 
   **Commit**: YES (groups with Task 1)
@@ -407,7 +407,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run python -c "from steering_geometry.experiments import run_diff_means_experiment; from pathlib import Path; run_diff_means_experiment('honesty', [10, 30], [0.5], 'Qwen/Qwen3-1.7B', Path('outputs'))"
       2. Check outputs exist
     Expected Result: 1 PDF and 2 .pt files created
-    Evidence: .sisyphus/evidence/task-3-single-concept.txt
+    Evidence: .omo/evidence/task-3-single-concept.txt
   
   Scenario: Dataset capping works correctly
     Tool: Bash (uv run python)
@@ -415,7 +415,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run python -c "from steering_geometry.experiments import run_diff_means_experiment; from pathlib import Path; run_diff_means_experiment('honesty', [10, 10000], [0.5], 'Qwen/Qwen3-1.7B', Path('outputs'))"
       2. Check logs show capping to 800
     Expected Result: Warning logged about capping to dataset max
-    Evidence: .sisyphus/evidence/task-3-capping.txt
+    Evidence: .omo/evidence/task-3-capping.txt
   ```
 
   **Commit**: NO
@@ -465,7 +465,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: grep -c "@pytest.mark.gpu" tests/test_experiments.py
       2. Expect count >= 2
     Expected Result: At least 2 GPU markers found
-    Evidence: .sisyphus/evidence/task-4-gpu-markers.txt
+    Evidence: .omo/evidence/task-4-gpu-markers.txt
   
   Scenario: GPU tests run successfully (if GPU available)
     Tool: Bash (uv run pytest)
@@ -473,7 +473,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run pytest tests/test_experiments.py -m gpu -v
       2. Check results
     Expected Result: Tests pass or skip (if no GPU)
-    Evidence: .sisyphus/evidence/task-4-gpu-tests.txt
+    Evidence: .omo/evidence/task-4-gpu-tests.txt
   ```
 
   **Commit**: NO
@@ -527,7 +527,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: bash -n scripts/experiments/run_diff_means_heatmaps.sh
       2. Check for syntax errors
     Expected Result: No output (syntax OK)
-    Evidence: .sisyphus/evidence/task-5-syntax-check.txt
+    Evidence: .omo/evidence/task-5-syntax-check.txt
   
   Scenario: Script has execute permission
     Tool: Bash (ls)
@@ -535,7 +535,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: ls -l scripts/experiments/run_diff_means_heatmaps.sh
       2. Check for execute bit
     Expected Result: Script has -rwxr-xr-x or similar
-    Evidence: .sisyphus/evidence/task-5-permissions.txt
+    Evidence: .omo/evidence/task-5-permissions.txt
   ```
 
   **Commit**: YES (groups with Tasks 3-4)
@@ -593,7 +593,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run python -c "from steering_geometry.experiments import run_discriminative_experiment; from pathlib import Path; run_discriminative_experiment('honesty', [16, 32], [0.5], 'Qwen/Qwen3-1.7B', Path('outputs'))"
       2. Check outputs exist
     Expected Result: 1 PDF and 2 .pt files created
-    Evidence: .sisyphus/evidence/task-6-discr-extraction.txt
+    Evidence: .omo/evidence/task-6-discr-extraction.txt
   ```
 
   **Commit**: NO
@@ -641,7 +641,7 @@ Max Concurrent: 1 (most tasks depend on previous)
     Steps:
       1. Run: bash -n scripts/experiments/run_discriminative_heatmaps.sh
     Expected Result: No output (syntax OK)
-    Evidence: .sisyphus/evidence/task-7-syntax-check.txt
+    Evidence: .omo/evidence/task-7-syntax-check.txt
   ```
 
   **Commit**: YES (groups with Task 6)
@@ -694,7 +694,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: grep -A10 "Experiments" AGENTS.md
       2. Verify section exists with commands
     Expected Result: Section found with run_diff_means_heatmaps.sh and run_discriminative_heatmaps.sh mentioned
-    Evidence: .sisyphus/evidence/task-8-agents-md.txt
+    Evidence: .omo/evidence/task-8-agents-md.txt
   ```
 
   **Commit**: NO
@@ -752,7 +752,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       2. Run: uv run ruff format --check src/ tests/
       3. Run: uv run mypy src/
     Expected Result: All commands complete with 0 errors
-    Evidence: .sisyphus/evidence/task-9-quality-checks.txt
+    Evidence: .omo/evidence/task-9-quality-checks.txt
   
   Scenario: All tests pass
     Tool: Bash (uv run pytest)
@@ -760,7 +760,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: uv run pytest tests/test_experiments.py -v
       2. Check results
     Expected Result: All tests pass
-    Evidence: .sisyphus/evidence/task-9-tests.txt
+    Evidence: .omo/evidence/task-9-tests.txt
   
   Scenario: Commits created
     Tool: Bash (git log)
@@ -768,7 +768,7 @@ Max Concurrent: 1 (most tasks depend on previous)
       1. Run: git log --oneline -4
       2. Verify 4 commits with correct messages
     Expected Result: 4 commits visible
-    Evidence: .sisyphus/evidence/task-9-commits.txt
+    Evidence: .omo/evidence/task-9-commits.txt
   ```
 
   **Commit**: YES
@@ -781,7 +781,7 @@ Max Concurrent: 1 (most tasks depend on previous)
 ## Final Verification Wave
 
 - [x] F1. **Plan Compliance Audit** — `oracle`
-   Verify all Must Have items present, all Must NOT Have items absent. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+   Verify all Must Have items present, all Must NOT Have items absent. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
    Output: `Must Have [7/7] | Must NOT Have [0/7] | Tasks [10/10] | VERDICT: APPROVE
 
 - [x] F2. **Code Quality Review** — `unspecified-high`

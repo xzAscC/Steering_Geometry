@@ -170,7 +170,7 @@ Parallel Speedup: Wave 1 (T1, T2 parallel)
     Steps:
       1. Run: uv run python -c "from steering_geometry.config import SteeringConfig; c = SteeringConfig(); print(c.multipliers)"
     Expected Result: Output contains "[0.01, 0.1, 1.0, 10.0]"
-    Evidence: .sisyphus/evidence/task-1-import-config.txt
+    Evidence: .omo/evidence/task-1-import-config.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -226,7 +226,7 @@ result = model.generate_with_steering('Hello', layer_idx=0, steering_vector=vect
 print(type(result), len(result) > 0)
 "
     Expected Result: Output contains "<class 'str'> True"
-    Evidence: .sisyphus/evidence/task-2-generate-steering.txt
+    Evidence: .omo/evidence/task-2-generate-steering.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -297,7 +297,7 @@ else:
     print('SKIP: vector file not found')
 "
     Expected Result: Output contains "OK" or "SKIP"
-    Evidence: .sisyphus/evidence/task-3-apply-steering.txt
+    Evidence: .omo/evidence/task-3-apply-steering.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -344,7 +344,7 @@ else:
     Steps:
       1. Run: uv run python -m steering_geometry.apply_steering --help
     Expected Result: Output contains "--vector" and "--model"
-    Evidence: .sisyphus/evidence/task-4-cli-help.txt
+    Evidence: .omo/evidence/task-4-cli-help.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -390,7 +390,7 @@ else:
     Steps:
       1. Run: uv run pytest tests/test_apply_steering.py -v
     Expected Result: All tests pass, exit code 0
-    Evidence: .sisyphus/evidence/task-5-tests.txt
+    Evidence: .omo/evidence/task-5-tests.txt
   ```
 
   **Commit**: YES

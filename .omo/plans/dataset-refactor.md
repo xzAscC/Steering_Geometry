@@ -93,7 +93,7 @@ Simplify the concept system to 3 focused concepts (sentiment, refusal, polite) w
 
 ### QA Policy
 Every task includes agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **CLI commands**: Use Bash — Run extraction commands, check exit codes, parse output
 - **Type checking**: Use Bash — Run mypy and verify "Success" output
@@ -194,7 +194,7 @@ FINAL: Verification wave
       3. Check stdout contains "Loaded 5 contrast pairs for polite"
     Expected Result: Exit code 0, correct output
     Failure Indicators: Exit code non-zero, or "Invalid concept" error
-    Evidence: .sisyphus/evidence/task-01-polite-load.txt
+    Evidence: .omo/evidence/task-01-polite-load.txt
 
   Scenario: Polite loader validates num_pairs
     Tool: Bash
@@ -204,7 +204,7 @@ FINAL: Verification wave
       2. Check stderr contains "must be positive"
     Expected Result: ValueError raised with message
     Failure Indicators: No error or different error
-    Evidence: .sisyphus/evidence/task-01-polite-validation.txt
+    Evidence: .omo/evidence/task-01-polite-validation.txt
   ```
 
   **Commit**: YES
@@ -256,7 +256,7 @@ FINAL: Verification wave
       2. Check output contains "Invalid concept" or "invalid choice"
       3. Check exit code is non-zero
     Expected Result: Error with "Invalid concept"
-    Evidence: .sisyphus/evidence/task-02-honesty-removed.txt
+    Evidence: .omo/evidence/task-02-honesty-removed.txt
   ```
 
   **Commit**: YES
@@ -301,7 +301,7 @@ FINAL: Verification wave
       1. Run: uv run python -m steering_geometry.extract --concept toxicity --dry-run 2>&1
       2. Check output contains "Invalid concept"
     Expected Result: Error with "Invalid concept"
-    Evidence: .sisyphus/evidence/task-03-toxicity-removed.txt
+    Evidence: .omo/evidence/task-03-toxicity-removed.txt
   ```
 
   **Commit**: YES
@@ -347,7 +347,7 @@ FINAL: Verification wave
       1. Run: uv run python -m steering_geometry.extract --concept sycophancy --dry-run 2>&1
       2. Check output contains "Invalid concept"
     Expected Result: Error with "Invalid concept"
-    Evidence: .sisyphus/evidence/task-04-sycophancy-removed.txt
+    Evidence: .omo/evidence/task-04-sycophancy-removed.txt
   ```
 
   **Commit**: YES
@@ -395,7 +395,7 @@ FINAL: Verification wave
       3. Run: grep -c "sycophancy" README.md → expect 0
       4. Run: grep -c "polite" README.md → expect >= 1
     Expected Result: No mentions of removed concepts, polite mentioned
-    Evidence: .sisyphus/evidence/task-05-docs-updated.txt
+    Evidence: .omo/evidence/task-05-docs-updated.txt
   ```
 
   **Commit**: YES
@@ -442,7 +442,7 @@ FINAL: Verification wave
       1. Run: uv run pytest tests/ -v --tb=short
       2. Check for "passed" and no "failed" or "error"
     Expected Result: All tests pass
-    Evidence: .sisyphus/evidence/task-06-tests-pass.txt
+    Evidence: .omo/evidence/task-06-tests-pass.txt
   ```
 
   **Commit**: YES
@@ -483,7 +483,7 @@ FINAL: Verification wave
       1. Run: grep "ALL_CONCEPTS\|honesty\|toxicity\|sycophancy" scripts/pipeline/quick_pipeline.sh
       2. Check no matches for removed concepts
     Expected Result: Only sentiment, refusal, polite in script
-    Evidence: .sisyphus/evidence/task-07-scripts-updated.txt
+    Evidence: .omo/evidence/task-07-scripts-updated.txt
   ```
 
   **Commit**: YES

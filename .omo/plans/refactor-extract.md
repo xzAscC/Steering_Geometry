@@ -99,7 +99,7 @@ Create a minimal, focused vector extraction library with:
 Every task includes agent-executed QA scenarios with:
 - Exact commands to run
 - Expected outputs
-- Evidence capture to `.sisyphus/evidence/`
+- Evidence capture to `.omo/evidence/`
 
 ---
 
@@ -188,7 +188,7 @@ Wave 4 (Tests and verification - sequential):
       2. uv run python -c "from datasets import load_dataset; d = load_dataset('glue', 'sst2'); print('sst2:', list(d.keys()))"
       3. uv run python -c "from datasets import load_dataset; d = load_dataset('google/civil_comments'); print('civil_comments:', list(d.keys()))"
     Expected Result: All commands print split names without errors
-    Evidence: .sisyphus/evidence/task-01-dataset-verify.txt
+    Evidence: .omo/evidence/task-01-dataset-verify.txt
   ```
 
   **Commit**: NO (verification only)
@@ -241,14 +241,14 @@ Wave 4 (Tests and verification - sequential):
     Steps:
       1. uv run python -m steering_geometry.extract --help
     Expected Result: Shows --concept, --model, --method, --num-pairs, --output, --dry-run options
-    Evidence: .sisyphus/evidence/task-02-cli-help.txt
+    Evidence: .omo/evidence/task-02-cli-help.txt
 
   Scenario: Invalid concept rejected
     Tool: Bash
     Steps:
       1. uv run python -m steering_geometry.extract --concept invalid --model sshleifer/tiny-gpt2
     Expected Result: Exit code != 0, error message mentions valid concepts
-    Evidence: .sisyphus/evidence/task-02-invalid-concept.txt
+    Evidence: .omo/evidence/task-02-invalid-concept.txt
   ```
 
   **Commit**: NO (wait for complete implementation)
@@ -294,7 +294,7 @@ Wave 4 (Tests and verification - sequential):
     Steps:
       1. uv run mypy src/steering_geometry/types.py src/steering_geometry/config.py
     Expected Result: Success with 0 errors
-    Evidence: .sisyphus/evidence/task-04-mypy.txt
+    Evidence: .omo/evidence/task-04-mypy.txt
   ```
 
   **Commit**: NO (wait for complete implementation)
@@ -363,7 +363,7 @@ Wave 4 (Tests and verification - sequential):
       4. uv run python -m steering_geometry.extract --concept sycophancy --model sshleifer/tiny-gpt2 --dry-run
       5. uv run python -m steering_geometry.extract --concept refusal --model sshleifer/tiny-gpt2 --dry-run
     Expected Result: All print "Loaded N contrast pairs" and exit with code 0
-    Evidence: .sisyphus/evidence/task-05-all-concepts-dryrun.txt
+    Evidence: .omo/evidence/task-05-all-concepts-dryrun.txt
   ```
 
   **Commit**: NO (wait for complete implementation)
@@ -430,7 +430,7 @@ Wave 4 (Tests and verification - sequential):
     Steps:
       1. uv run pytest tests/unit/test_extract.py -v
     Expected Result: All tests pass, 0 failures
-    Evidence: .sisyphus/evidence/task-07-tests-pass.txt
+    Evidence: .omo/evidence/task-07-tests-pass.txt
   ```
 
   **Commit**: NO (wait for complete implementation)
@@ -481,7 +481,7 @@ Wave 4 (Tests and verification - sequential):
     Steps:
       1. grep -q "steering_geometry.extract --concept" scripts/run_extractions.sh
     Expected Result: grep finds matches
-    Evidence: .sisyphus/evidence/task-08-script-updated.txt
+    Evidence: .omo/evidence/task-08-script-updated.txt
   ```
 
   **Commit**: NO (wait for complete implementation)
@@ -551,7 +551,7 @@ Wave 4 (Tests and verification - sequential):
       4. uv run mypy src/
       5. uv run pytest
     Expected Result: All commands exit with code 0
-    Evidence: .sisyphus/evidence/task-09-quality-checks.txt
+    Evidence: .omo/evidence/task-09-quality-checks.txt
 
   Scenario: Extraction produces valid output
     Tool: Bash
@@ -559,7 +559,7 @@ Wave 4 (Tests and verification - sequential):
       1. uv run python -m steering_geometry.extract --concept honesty --model sshleifer/tiny-gpt2 --num-pairs 10 --output /tmp/test_vectors/
       2. uv run python -c "import torch; d = torch.load('/tmp/test_vectors/honesty_sshleifer_tiny-gpt2_mean.pt'); print('vector' in d, 'num_pairs' in d, 'evaluation' not in d)"
     Expected Result: Prints "True True True"
-    Evidence: .sisyphus/evidence/task-09-extraction-output.txt
+    Evidence: .omo/evidence/task-09-extraction-output.txt
   ```
 
   **Commit**: YES
@@ -698,7 +698,7 @@ test ! -d src/steering_geometry/concepts
       4. test ! -d src/steering_geometry/concepts
       5. test ! -f src/steering_geometry/extract_honesty.py
     Expected Result: All tests pass (files don't exist)
-    Evidence: .sisyphus/evidence/task-06-files-deleted.txt
+    Evidence: .omo/evidence/task-06-files-deleted.txt
   ```
 
   **Commit**: NO (wait for complete implementation)
@@ -743,7 +743,7 @@ test ! -d src/steering_geometry/concepts
     Steps:
       1. uv run mypy src/steering_geometry/models.py
     Expected Result: Success with 0 errors
-    Evidence: .sisyphus/evidence/task-03-mypy.txt
+    Evidence: .omo/evidence/task-03-mypy.txt
   ```
 
   **Commit**: NO (wait for complete implementation)

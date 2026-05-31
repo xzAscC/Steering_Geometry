@@ -98,7 +98,7 @@ Create a reproducible experiment comparing steering vector stability between dif
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Python module**: Use Bash (uv run pytest) - Run tests, assert all pass
 - **Shell script**: Use Bash - Execute script, verify output files exist
@@ -208,7 +208,7 @@ Max Concurrent: 3 (Wave 1)
       1. uv run python -c "from steering_geometry.config import StabilityComparisonConfig; c = StabilityComparisonConfig(); assert c.concept == 'sentiment'; assert c.num_tokens == 10000; assert c.num_runs == 3"
     Expected Result: No error, assertions pass
     Failure Indicators: ImportError, AssertionError
-    Evidence: .sisyphus/evidence/task-01-config-defaults.txt
+    Evidence: .omo/evidence/task-01-config-defaults.txt
 
   Scenario: Config validation rejects invalid num_runs
     Tool: Bash
@@ -216,7 +216,7 @@ Max Concurrent: 3 (Wave 1)
       1. uv run python -c "from steering_geometry.config import StabilityComparisonConfig; StabilityComparisonConfig(num_runs=1)"
     Expected Result: ValueError raised with message about num_runs >= 2
     Failure Indicators: No exception raised
-    Evidence: .sisyphus/evidence/task-01-config-validation.txt
+    Evidence: .omo/evidence/task-01-config-validation.txt
   ```
 
   **Commit**: NO (groups with Task 3)
@@ -271,7 +271,7 @@ Max Concurrent: 3 (Wave 1)
       1. uv run pytest tests/test_stability_comparison.py -v
     Expected Result: At least 4 tests FAIL with import errors or assertion failures
     Failure Indicators: All tests PASS (should not happen in RED phase)
-    Evidence: .sisyphus/evidence/task-02-tests-red.txt
+    Evidence: .omo/evidence/task-02-tests-red.txt
 
   Scenario: Test file follows pytest conventions
     Tool: Bash
@@ -279,7 +279,7 @@ Max Concurrent: 3 (Wave 1)
       1. uv run python -c "import ast; ast.parse(open('tests/test_stability_comparison.py').read())"
     Expected Result: No syntax errors
     Failure Indicators: SyntaxError
-    Evidence: .sisyphus/evidence/task-02-syntax.txt
+    Evidence: .omo/evidence/task-02-syntax.txt
   ```
 
   **Commit**: NO (groups with Task 3)
@@ -339,7 +339,7 @@ Max Concurrent: 3 (Wave 1)
       1. uv run python -c "from steering_geometry.stability_comparison import select_token_subsets, run_single_extraction, compute_stability_statistics, save_results_json, generate_stability_heatmap, run_stability_comparison_experiment"
     Expected Result: No ImportError
     Failure Indicators: ImportError
-    Evidence: .sisyphus/evidence/task-03-import.txt
+    Evidence: .omo/evidence/task-03-import.txt
 
   Scenario: Type checking passes on stubs
     Tool: Bash
@@ -347,7 +347,7 @@ Max Concurrent: 3 (Wave 1)
       1. uv run mypy src/steering_geometry/stability_comparison.py
     Expected Result: Success: no issues found
     Failure Indicators: Type errors
-    Evidence: .sisyphus/evidence/task-03-mypy.txt
+    Evidence: .omo/evidence/task-03-mypy.txt
   ```
 
   **Commit**: YES
@@ -411,7 +411,7 @@ print('OK: Different subsets generated')
 "
     Expected Result: "OK: Different subsets generated"
     Failure Indicators: AssertionError
-    Evidence: .sisyphus/evidence/task-04-different-subsets.txt
+    Evidence: .omo/evidence/task-04-different-subsets.txt
 
   Scenario: Handles insufficient pairs gracefully
     Tool: Bash
@@ -424,7 +424,7 @@ print('OK: Empty handling works')
 "
     Expected Result: "OK: Empty handling works"
     Failure Indicators: Exception raised
-    Evidence: .sisyphus/evidence/task-04-empty-handling.txt
+    Evidence: .omo/evidence/task-04-empty-handling.txt
   ```
 
   **Commit**: NO (groups with Task 8)
@@ -489,7 +489,7 @@ print(f'OK: Vector shape {tuple(vector.shape)}')
 " 2>/dev/null || echo "Note: Requires model download on first run"
     Expected Result: Vector shape printed or note about model download
     Failure Indicators: Exception unrelated to model download
-    Evidence: .sisyphus/evidence/task-05-single-extraction.txt
+    Evidence: .omo/evidence/task-05-single-extraction.txt
   ```
 
   **Commit**: NO (groups with Task 8)
@@ -571,7 +571,7 @@ print('OK: Correct structure')
 " 2>/dev/null || echo "Note: May require model"
     Expected Result: "OK: Correct structure" or note about model
     Failure Indicators: KeyError, AssertionError
-    Evidence: .sisyphus/evidence/task-06-main-structure.txt
+    Evidence: .omo/evidence/task-06-main-structure.txt
 
   Scenario: Statistics computed correctly
     Tool: Bash
@@ -590,7 +590,7 @@ print(f'OK: Stats = {stats}')
 "
     Expected Result: Stats dict printed with values in valid range
     Failure Indicators: KeyError, ValueError
-    Evidence: .sisyphus/evidence/task-06-stats.txt
+    Evidence: .omo/evidence/task-06-stats.txt
   ```
 
   **Commit**: NO (groups with Task 8)
@@ -652,7 +652,7 @@ print('OK: JSON saved and loaded correctly')
 "
     Expected Result: "OK: JSON saved and loaded correctly"
     Failure Indicators: JSONDecodeError, AssertionError
-    Evidence: .sisyphus/evidence/task-07-json.txt
+    Evidence: .omo/evidence/task-07-json.txt
   ```
 
   **Commit**: NO (groups with Task 8)
@@ -715,7 +715,7 @@ print('OK: Heatmap PDF generated')
 "
     Expected Result: "OK: Heatmap PDF generated"
     Failure Indicators: FileNotFoundError, PDF creation error
-    Evidence: .sisyphus/evidence/task-08-heatmap.txt
+    Evidence: .omo/evidence/task-08-heatmap.txt
   ```
 
   **Commit**: YES
@@ -780,7 +780,7 @@ print('OK: Heatmap PDF generated')
       2. ./scripts/vector_analysis/run_stability_comparison.sh --help || echo "Script exists"
     Expected Result: Script file exists and is executable
     Failure Indicators: File not found, permission denied
-    Evidence: .sisyphus/evidence/task-09-script-exists.txt
+    Evidence: .omo/evidence/task-09-script-exists.txt
 
   Scenario: Script produces outputs (short run)
     Tool: Bash
@@ -788,7 +788,7 @@ print('OK: Heatmap PDF generated')
       1. ./scripts/vector_analysis/run_stability_comparison.sh -c sentiment -n 10 -l "0.5" -k 16 2>&1 | head -20
     Expected Result: Script starts execution, shows progress
     Failure Indicators: Immediate error
-    Evidence: .sisyphus/evidence/task-09-script-run.txt
+    Evidence: .omo/evidence/task-09-script-run.txt
   ```
 
   **Commit**: YES
@@ -845,7 +845,7 @@ print('OK: Heatmap PDF generated')
       4. uv run pytest tests/test_stability_comparison.py -v
     Expected Result: All commands succeed with 0 errors/violations
     Failure Indicators: Any command exits non-zero
-    Evidence: .sisyphus/evidence/task-10-verification.txt
+    Evidence: .omo/evidence/task-10-verification.txt
   ```
 
   **Commit**: NO (verification only)
@@ -902,7 +902,7 @@ print('OK: Heatmap PDF generated')
       6. test -f outputs/heatmaps/stability/discriminative_stability.pdf && echo "Discriminative PDF exists"
     Expected Result: All files exist, 30 .pt files per method (3 runs × 10 layers)
     Failure Indicators: Missing files
-    Evidence: .sisyphus/evidence/task-11-full-run.txt
+    Evidence: .omo/evidence/task-11-full-run.txt
 
   Scenario: JSON has correct structure
     Tool: Bash
@@ -920,7 +920,7 @@ print('OK: JSON structure correct')
 "
     Expected Result: "OK: JSON structure correct"
     Failure Indicators: KeyError, AssertionError
-    Evidence: .sisyphus/evidence/task-11-json-structure.txt
+    Evidence: .omo/evidence/task-11-json-structure.txt
   ```
 
   **Commit**: YES
@@ -941,7 +941,7 @@ print('OK: JSON structure correct')
   Output: `Type Check [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | VERDICT`
 
 - [ ] F3. **Real Manual QA** — `unspecified-high`
-  Start from clean state. Execute EVERY QA scenario from EVERY task. Test cross-task integration. Test edge cases. Save to `.sisyphus/evidence/final-qa/`.
+  Start from clean state. Execute EVERY QA scenario from EVERY task. Test cross-task integration. Test edge cases. Save to `.omo/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
 - [ ] F4. **Scope Fidelity Check** — `deep`

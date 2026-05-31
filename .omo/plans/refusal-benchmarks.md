@@ -101,7 +101,7 @@ Add three production-quality benchmark evaluators to the steering evaluation pip
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Evaluator logic**: Use Bash (pytest) — Run tests, verify pass/fail counts
 - **Integration**: Use Bash (mypy + ruff) — Type checking and linting
@@ -298,7 +298,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run python -c "from steering_geometry.types import HarmBenchResult, ORBenchResult, MMLUProResult, EvaluationResult; print('OK')"
       2. Assert output contains "OK"
     Expected Result: All types import without error
-    Evidence: .sisyphus/evidence/task-1-types-import.txt
+    Evidence: .omo/evidence/task-1-types-import.txt
 
   Scenario: EvaluationResult accepts new optional fields
     Tool: Bash
@@ -307,7 +307,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run python -c "from steering_geometry.types import EvaluationResult, EvaluationMetadata, MMLUResult; mr = MMLUResult(correct=0, total=0, accuracy=0.0, predictions=[]); r = EvaluationResult(judge_scores=[], mmlu_result=mr, metadata=EvaluationMetadata(concept='test', model='test', layer=0, multiplier=1.0), harmbench_result=None, orbench_result=None, mmlu_pro_result=None); assert r.harmbench_result is None; assert r.orbench_result is None; assert r.mmlu_pro_result is None; print('OK')"
       2. Assert output contains "OK"
     Expected Result: EvaluationResult instantiates with existing required fields + new optional fields (all None)
-    Evidence: .sisyphus/evidence/task-1-eval-result.txt
+    Evidence: .omo/evidence/task-1-eval-result.txt
 
   Scenario: Existing tests still pass
     Tool: Bash
@@ -316,7 +316,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/ -v
       2. Assert all existing tests pass (no regressions)
     Expected Result: All 21 existing tests pass
-    Evidence: .sisyphus/evidence/task-1-existing-tests.txt
+    Evidence: .omo/evidence/task-1-existing-tests.txt
   ```
 
   **Commit**: YES
@@ -400,7 +400,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run python -c "from steering_geometry.config import HarmBenchConfig, ORBenchConfig, MMLUProConfig; h = HarmBenchConfig(); o = ORBenchConfig(); m = MMLUProConfig(); assert h.classifier_model == 'google/gemma-4-31B'; assert o.split == 'or-bench-hard-1k'; assert m.n_shot == 5; print('OK')"
       2. Assert output contains "OK"
     Expected Result: All configs instantiate with correct defaults
-    Evidence: .sisyphus/evidence/task-2-configs-import.txt
+    Evidence: .omo/evidence/task-2-configs-import.txt
 
   Scenario: Existing tests still pass
     Tool: Bash
@@ -409,7 +409,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/ -v
       2. Assert all existing tests pass
     Expected Result: All 21 existing tests pass
-    Evidence: .sisyphus/evidence/task-2-existing-tests.txt
+    Evidence: .omo/evidence/task-2-existing-tests.txt
   ```
 
   **Commit**: YES
@@ -559,7 +559,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_evaluation.py::TestHarmBenchEvaluator -v
       2. Assert: all tests pass (8 tests, 0 failures)
     Expected Result: 8 passed
-    Evidence: .sisyphus/evidence/task-3-harmbench-tests.txt
+    Evidence: .omo/evidence/task-3-harmbench-tests.txt
 
   Scenario: Existing evaluator tests still pass
     Tool: Bash
@@ -568,7 +568,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_evaluation.py::TestJudgeEvaluator tests/unit/test_evaluation.py::TestMMLUEvaluator -v
       2. Assert: all existing tests still pass
     Expected Result: 0 failures
-    Evidence: .sisyphus/evidence/task-3-existing-tests.txt
+    Evidence: .omo/evidence/task-3-existing-tests.txt
 
   Scenario: Type checking passes for new code
     Tool: Bash
@@ -577,7 +577,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run mypy src/steering_geometry/apply_steering.py
       2. Assert: 0 errors
     Expected Result: Success: no issues found
-    Evidence: .sisyphus/evidence/task-3-mypy.txt
+    Evidence: .omo/evidence/task-3-mypy.txt
 
   Scenario: Lint passes
     Tool: Bash
@@ -586,7 +586,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run ruff check src/steering_geometry/apply_steering.py tests/unit/test_evaluation.py
       2. Assert: 0 violations
     Expected Result: No output (clean)
-    Evidence: .sisyphus/evidence/task-3-lint.txt
+    Evidence: .omo/evidence/task-3-lint.txt
   ```
 
   **Commit**: YES
@@ -730,7 +730,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_evaluation.py::TestORBenchEvaluator -v
       2. Assert: all tests pass (9 tests, 0 failures)
     Expected Result: 9 passed
-    Evidence: .sisyphus/evidence/task-4-orbench-tests.txt
+    Evidence: .omo/evidence/task-4-orbench-tests.txt
 
   Scenario: Existing evaluator tests still pass
     Tool: Bash
@@ -739,7 +739,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_evaluation.py::TestJudgeEvaluator tests/unit/test_evaluation.py::TestMMLUEvaluator tests/unit/test_evaluation.py::TestHarmBenchEvaluator -v
       2. Assert: all tests pass, 0 failures
     Expected Result: All previously passing tests still pass
-    Evidence: .sisyphus/evidence/task-4-existing-tests.txt
+    Evidence: .omo/evidence/task-4-existing-tests.txt
 
   Scenario: Type checking and lint
     Tool: Bash
@@ -749,7 +749,7 @@ Max Concurrent: 3 (Wave 2)
       2. Run: uv run ruff check src/steering_geometry/apply_steering.py tests/unit/test_evaluation.py
       3. Assert: 0 errors, 0 violations
     Expected Result: Clean mypy + clean ruff
-    Evidence: .sisyphus/evidence/task-4-mypy-lint.txt
+    Evidence: .omo/evidence/task-4-mypy-lint.txt
   ```
 
   **Commit**: YES
@@ -933,7 +933,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_evaluation.py::TestMMLUProEvaluator -v
       2. Assert: all tests pass (14 tests, 0 failures)
     Expected Result: 14 passed
-    Evidence: .sisyphus/evidence/task-5-mmlupro-tests.txt
+    Evidence: .omo/evidence/task-5-mmlupro-tests.txt
 
   Scenario: Full test suite passes (all evaluators)
     Tool: Bash
@@ -942,7 +942,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_evaluation.py -v
       2. Assert: ALL evaluator tests pass (existing + new)
     Expected Result: 0 failures
-    Evidence: .sisyphus/evidence/task-5-full-eval-tests.txt
+    Evidence: .omo/evidence/task-5-full-eval-tests.txt
 
   Scenario: Type checking and lint for entire file
     Tool: Bash
@@ -952,7 +952,7 @@ Max Concurrent: 3 (Wave 2)
       2. Run: uv run ruff check src/steering_geometry/apply_steering.py tests/unit/test_evaluation.py
       3. Assert: 0 errors, 0 violations
     Expected Result: Clean
-    Evidence: .sisyphus/evidence/task-5-mypy-lint.txt
+    Evidence: .omo/evidence/task-5-mypy-lint.txt
   ```
 
   **Commit**: YES
@@ -1111,7 +1111,7 @@ Max Concurrent: 3 (Wave 2)
       2. Assert output contains: "--harmbench", "--orbench", "--mmlu-pro"
       3. Assert output contains: "--harmbench-classifier-model", "--harmbench-classifier-api-base"
     Expected Result: All new flags listed with descriptions
-    Evidence: .sisyphus/evidence/task-6-cli-help.txt
+    Evidence: .omo/evidence/task-6-cli-help.txt
 
   Scenario: Default behavior unchanged (no new evaluators)
     Tool: Bash
@@ -1120,7 +1120,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/test_apply_steering.py -v
       2. Assert: all existing integration tests pass
     Expected Result: 0 failures (backward compatible)
-    Evidence: .sisyphus/evidence/task-6-backward-compat.txt
+    Evidence: .omo/evidence/task-6-backward-compat.txt
 
   Scenario: Full test suite passes
     Tool: Bash
@@ -1129,7 +1129,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest -v
       2. Assert: all tests pass (existing + new evaluator tests)
     Expected Result: 0 failures
-    Evidence: .sisyphus/evidence/task-6-full-suite.txt
+    Evidence: .omo/evidence/task-6-full-suite.txt
 
   Scenario: Type checking and lint
     Tool: Bash
@@ -1139,7 +1139,7 @@ Max Concurrent: 3 (Wave 2)
       2. Run: uv run ruff check src/steering_geometry/apply_steering.py
       3. Assert: 0 errors, 0 violations
     Expected Result: Clean
-    Evidence: .sisyphus/evidence/task-6-mypy-lint.txt
+    Evidence: .omo/evidence/task-6-mypy-lint.txt
   ```
 
   **Commit**: YES
@@ -1210,7 +1210,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_evaluation.py::TestGenerateHtmlReport -v
       2. Assert: existing HTML report tests still pass
     Expected Result: 0 failures
-    Evidence: .sisyphus/evidence/task-7-html-tests.txt
+    Evidence: .omo/evidence/task-7-html-tests.txt
 
   Scenario: Full test suite passes
     Tool: Bash
@@ -1219,7 +1219,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest -v
       2. Assert: all tests pass
     Expected Result: 0 failures
-    Evidence: .sisyphus/evidence/task-7-full-suite.txt
+    Evidence: .omo/evidence/task-7-full-suite.txt
 
   Scenario: All quality checks pass
     Tool: Bash
@@ -1230,7 +1230,7 @@ Max Concurrent: 3 (Wave 2)
       3. Run: uv run ruff format --check src/ tests/
       4. Assert: all clean
     Expected Result: 0 errors, 0 violations, all formatted
-    Evidence: .sisyphus/evidence/task-7-quality.txt
+    Evidence: .omo/evidence/task-7-quality.txt
   ```
 
   **Commit**: YES
@@ -1248,7 +1248,7 @@ Max Concurrent: 3 (Wave 2)
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
 
 - [x] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [x] F2. **Code Quality Review** — `unspecified-high`

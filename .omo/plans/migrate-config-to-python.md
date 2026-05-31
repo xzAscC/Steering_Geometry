@@ -90,7 +90,7 @@ Create a single source of truth for model and concept lists that both Python mod
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 ---
 
@@ -199,14 +199,14 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. uv run python -c "from steering_geometry.config import SUPPORTED_MODELS, SUPPORTED_CONCEPTS, DEFAULT_MODEL; print(len(SUPPORTED_MODELS), len(SUPPORTED_CONCEPTS), DEFAULT_MODEL)"
     Expected Result: "7 3 Qwen/Qwen3-1.7B"
-    Evidence: .sisyphus/evidence/task-01-import-constants.txt
+    Evidence: .omo/evidence/task-01-import-constants.txt
 
   Scenario: Constants are immutable tuples
     Tool: Bash
     Steps:
       1. uv run python -c "from steering_geometry.config import SUPPORTED_MODELS; print(type(SUPPORTED_MODELS).__name__)"
     Expected Result: "tuple"
-    Evidence: .sisyphus/evidence/task-01-tuple-type.txt
+    Evidence: .omo/evidence/task-01-tuple-type.txt
   ```
 
   **Commit**: NO (groups with Task 2)
@@ -260,7 +260,7 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. uv run python -m steering_geometry --shell
     Expected Result: Lines starting with ALL_MODELS=, ALL_CONCEPTS=, DEFAULT_MODEL=
-    Evidence: .sisyphus/evidence/task-02-shell-output.txt
+    Evidence: .omo/evidence/task-02-shell-output.txt
 
   Scenario: Shell eval works
     Tool: Bash
@@ -269,14 +269,14 @@ Max Concurrent: 5 (Waves 2 & 3)
       2. echo "${ALL_MODELS[0]}"
       3. echo "${ALL_CONCEPTS[0]}"
     Expected Result: "Qwen/Qwen3-1.7B" then "refusal"
-    Evidence: .sisyphus/evidence/task-02-shell-eval.txt
+    Evidence: .omo/evidence/task-02-shell-eval.txt
 
   Scenario: Error handling
     Tool: Bash
     Steps:
       1. uv run python -m steering_geometry --invalid-flag 2>/dev/null; echo "EXIT=$?"
     Expected Result: EXIT=2 (argparse error code)
-    Evidence: .sisyphus/evidence/task-02-error-handling.txt
+    Evidence: .omo/evidence/task-02-error-handling.txt
   ```
 
   **Commit**: YES (with Task 3)
@@ -327,7 +327,7 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. uv run pytest tests/unit/test_config_main.py -v
     Expected Result: All tests pass (4+ tests)
-    Evidence: .sisyphus/evidence/task-03-tests-pass.txt
+    Evidence: .omo/evidence/task-03-tests-pass.txt
   ```
 
   **Commit**: YES (with Task 2)
@@ -379,14 +379,14 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. uv run python -c "from steering_geometry.extract import VALID_CONCEPTS; print(sorted(VALID_CONCEPTS))"
     Expected Result: "['polite', 'refusal', 'sentiment']"
-    Evidence: .sisyphus/evidence/task-04-extract-import.txt
+    Evidence: .omo/evidence/task-04-extract-import.txt
 
   Scenario: No circular import
     Tool: Bash
     Steps:
       1. uv run python -c "import steering_geometry.extract; import steering_geometry.config; print('OK')"
     Expected Result: "OK"
-    Evidence: .sisyphus/evidence/task-04-no-circular.txt
+    Evidence: .omo/evidence/task-04-no-circular.txt
   ```
 
   **Commit**: NO (groups with Tasks 5, 6)
@@ -432,14 +432,14 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. uv run python -c "from steering_geometry.unembed_analysis import VALID_CONCEPTS; print(sorted(VALID_CONCEPTS))"
     Expected Result: "['polite', 'refusal', 'sentiment']"
-    Evidence: .sisyphus/evidence/task-05-unembed-import.txt
+    Evidence: .omo/evidence/task-05-unembed-import.txt
 
   Scenario: Module still loads
     Tool: Bash
     Steps:
       1. uv run python -c "import steering_geometry.unembed_analysis; print('OK')"
     Expected Result: "OK"
-    Evidence: .sisyphus/evidence/task-05-unembed-load.txt
+    Evidence: .omo/evidence/task-05-unembed-load.txt
   ```
 
   **Commit**: NO (groups with Tasks 4, 6)
@@ -485,14 +485,14 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. uv run python -m steering_geometry.token_analysis visualize --help 2>&1 | grep -A2 "concept"
     Expected Result: Shows refusal, polite, sentiment as choices
-    Evidence: .sisyphus/evidence/task-06-token-choices.txt
+    Evidence: .omo/evidence/task-06-token-choices.txt
 
   Scenario: Invalid concept is rejected
     Tool: Bash
     Steps:
       1. uv run python -m steering_geometry.token_analysis visualize --concept invalid_concept 2>&1; echo "EXIT=$?"
     Expected Result: Exit code non-zero, error mentions invalid choice
-    Evidence: .sisyphus/evidence/task-06-invalid-concept.txt
+    Evidence: .omo/evidence/task-06-invalid-concept.txt
   ```
 
   **Commit**: YES (with Tasks 4, 5)
@@ -546,14 +546,14 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. ./scripts/pipeline/quick_pipeline.sh -h 2>&1 | head -5
     Expected Result: Usage information displayed, exit code 0
-    Evidence: .sisyphus/evidence/task-07-pipeline-help.txt
+    Evidence: .omo/evidence/task-07-pipeline-help.txt
 
   Scenario: All concepts work
     Tool: Bash
     Steps:
       1. ./scripts/pipeline/quick_pipeline.sh -c all --help 2>&1 | grep -i "concept"
     Expected Result: Shows all 3 concepts
-    Evidence: .sisyphus/evidence/task-07-pipeline-concepts.txt
+    Evidence: .omo/evidence/task-07-pipeline-concepts.txt
   ```
 
   **Commit**: NO (groups with Tasks 8-11)
@@ -602,14 +602,14 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. ./scripts/tdnv/quick_tdnv.sh -h 2>&1 | head -5
     Expected Result: Usage information displayed, exit code 0
-    Evidence: .sisyphus/evidence/task-08-tdnv-help.txt
+    Evidence: .omo/evidence/task-08-tdnv-help.txt
 
   Scenario: Concepts show centralized list
     Tool: Bash
     Steps:
       1. ./scripts/tdnv/quick_tdnv.sh -h 2>&1 | grep -A5 "Available:"
     Expected Result: Shows refusal, polite, sentiment (not honesty, sycophancy)
-    Evidence: .sisyphus/evidence/task-08-tdnv-concepts.txt
+    Evidence: .omo/evidence/task-08-tdnv-concepts.txt
   ```
 
   **Commit**: NO (groups with Tasks 7, 9, 10, 11)
@@ -657,14 +657,14 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. ./scripts/unembed_analysis/run_unembed_analysis.sh -h 2>&1 | head -5
     Expected Result: Usage information displayed, exit code 0
-    Evidence: .sisyphus/evidence/task-09-unembed-help.txt
+    Evidence: .omo/evidence/task-09-unembed-help.txt
 
   Scenario: Concepts show centralized list
     Tool: Bash
     Steps:
       1. ./scripts/unembed_analysis/run_unembed_analysis.sh -h 2>&1 | grep -i "concept"
     Expected Result: Shows refusal, polite, sentiment
-    Evidence: .sisyphus/evidence/task-09-unembed-concepts.txt
+    Evidence: .omo/evidence/task-09-unembed-concepts.txt
   ```
 
   **Commit**: NO (groups with Tasks 7, 8, 10, 11)
@@ -712,7 +712,7 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. ./scripts/vector_analysis/quick_discriminative_heatmaps.sh -h 2>&1 | head -5
     Expected Result: Usage information displayed
-    Evidence: .sisyphus/evidence/task-10-discr-help.txt
+    Evidence: .omo/evidence/task-10-discr-help.txt
   ```
 
   **Commit**: NO (groups with Tasks 7, 8, 9, 11)
@@ -760,7 +760,7 @@ Max Concurrent: 5 (Waves 2 & 3)
     Steps:
       1. ./scripts/vector_analysis/quick_diff_means_heatmaps.sh -h 2>&1 | head -5
     Expected Result: Usage information displayed
-    Evidence: .sisyphus/evidence/task-11-diff-help.txt
+    Evidence: .omo/evidence/task-11-diff-help.txt
   ```
 
   **Commit**: YES (with Tasks 7, 8, 9, 10)
@@ -773,7 +773,7 @@ Max Concurrent: 5 (Waves 2 & 3)
 ## Final Verification Wave (MANDATORY)
 
 - [x] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, curl endpoint, run command). For each "Must NOT Have": search codebase for forbidden patterns. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [x] F2. **Code Quality Review** — `unspecified-high`
@@ -781,7 +781,7 @@ Max Concurrent: 5 (Waves 2 & 3)
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Format [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
 - [x] F3. **Real Manual QA** — `unspecified-high`
-  Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test shell export: `eval $(uv run python -m steering_geometry --shell)`. Test updated scripts: run with `-h` flag, verify no errors. Test Python imports: `from steering_geometry.config import SUPPORTED_MODELS`. Save to `.sisyphus/evidence/final-qa/`.
+  Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test shell export: `eval $(uv run python -m steering_geometry --shell)`. Test updated scripts: run with `-h` flag, verify no errors. Test Python imports: `from steering_geometry.config import SUPPORTED_MODELS`. Save to `.omo/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | VERDICT`
 
 - [x] F4. **Scope Fidelity Check** — `deep`

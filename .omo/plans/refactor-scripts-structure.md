@@ -88,7 +88,7 @@
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Shell Scripts**: Use Bash — Run `--help`, check exit code, verify module import
 - **Directory Structure**: Use Bash — `ls -la`, `find`, verify structure
@@ -186,7 +186,7 @@ Max Concurrent: 6 (Wave 3)
       2. For each script, check if the module it calls exists
     Expected Result: All modules exist
     Failure Indicators: Module file not found
-    Evidence: .sisyphus/evidence/task-01-module-verification.txt
+    Evidence: .omo/evidence/task-01-module-verification.txt
   ```
 
 - [ ] 2. **Document Current Script Locations**
@@ -223,7 +223,7 @@ Max Concurrent: 6 (Wave 3)
       2. Count total scripts
     Expected Result: Complete list with ~10 scripts
     Failure Indicators: Missing scripts
-    Evidence: .sisyphus/evidence/task-02-script-inventory.txt
+    Evidence: .omo/evidence/task-02-script-inventory.txt
   ```
 
 - [ ] 3. **Create Target Directory Structure**
@@ -260,7 +260,7 @@ Max Concurrent: 6 (Wave 3)
       2. Verify extract, apply_steering, tdnv, unembed_analysis, token_analysis, stability_comparison, pipeline, quick directories exist
     Expected Result: 8 directories present (including quick/)
     Failure Indicators: Missing directories
-    Evidence: .sisyphus/evidence/task-03-directory-structure.txt
+    Evidence: .omo/evidence/task-03-directory-structure.txt
   ```
 
 - [ ] 4. **Move Extraction Scripts**
@@ -308,7 +308,7 @@ Max Concurrent: 6 (Wave 3)
       4. Verify output shows usage info
     Expected Result: Both scripts show help text
     Failure Indicators: Script not found or error
-    Evidence: .sisyphus/evidence/task-04-extraction-scripts.txt
+    Evidence: .omo/evidence/task-04-extraction-scripts.txt
   ```
 
 - [ ] 5. **Move Pipeline Script**
@@ -346,7 +346,7 @@ Max Concurrent: 6 (Wave 3)
       2. Verify output shows usage info with correct paths
     Expected Result: Script shows help text
     Failure Indicators: Script not found or path errors
-    Evidence: .sisyphus/evidence/task-05-pipeline-script.txt
+    Evidence: .omo/evidence/task-05-pipeline-script.txt
   ```
 
 - [ ] 6. **Move TDNV Script**
@@ -382,7 +382,7 @@ Max Concurrent: 6 (Wave 3)
       2. Verify output shows usage info
     Expected Result: Script shows help text
     Failure Indicators: Script not found
-    Evidence: .sisyphus/evidence/task-06-tdnv-script.txt
+    Evidence: .omo/evidence/task-06-tdnv-script.txt
   ```
 
 - [ ] 7. **Move Unembed Script**
@@ -418,7 +418,7 @@ Max Concurrent: 6 (Wave 3)
       2. Verify output shows usage info
     Expected Result: Script shows help text
     Failure Indicators: Script not found
-    Evidence: .sisyphus/evidence/task-07-unembed-script.txt
+    Evidence: .omo/evidence/task-07-unembed-script.txt
   ```
 
 - [ ] 8. **Handle vector_analysis/ Directory**
@@ -456,7 +456,7 @@ Max Concurrent: 6 (Wave 3)
       2. If scripts exist, run --help on each
     Expected Result: Directory exists with working scripts
     Failure Indicators: Directory missing
-    Evidence: .sisyphus/evidence/task-08-vector-analysis-dir.txt
+    Evidence: .omo/evidence/task-08-vector-analysis-dir.txt
   ```
 
 - [ ] 9. **Create apply_steering Script**
@@ -494,7 +494,7 @@ Max Concurrent: 6 (Wave 3)
       2. Verify output shows usage info
     Expected Result: Script shows help text
     Failure Indicators: Script not found
-    Evidence: .sisyphus/evidence/task-09-apply-steering-script.txt
+    Evidence: .omo/evidence/task-09-apply-steering-script.txt
   ```
 
 - [ ] 10. **Create token_analysis Scripts**
@@ -532,7 +532,7 @@ Max Concurrent: 6 (Wave 3)
       3. ./run_probe.sh --help
     Expected Result: Both scripts show help text
     Failure Indicators: Scripts not found
-    Evidence: .sisyphus/evidence/task-10-token-analysis-scripts.txt
+    Evidence: .omo/evidence/task-10-token-analysis-scripts.txt
   ```
 
 - [ ] 11. **Create stability_comparison Script**
@@ -568,7 +568,7 @@ Max Concurrent: 6 (Wave 3)
       2. Verify output shows usage info
     Expected Result: Script shows help text
     Failure Indicators: Script not found
-    Evidence: .sisyphus/evidence/task-11-stability-script.txt
+    Evidence: .omo/evidence/task-11-stability-script.txt
   ```
 
 - [ ] 12. **Update Documentation References**
@@ -608,7 +608,7 @@ Max Concurrent: 6 (Wave 3)
       4. Verify new paths present
     Expected Result: No old paths, new paths present
     Failure Indicators: Old paths still referenced
-    Evidence: .sisyphus/evidence/task-12-doc-paths.txt
+    Evidence: .omo/evidence/task-12-doc-paths.txt
   ```
 
 ---
@@ -619,7 +619,7 @@ Max Concurrent: 6 (Wave 3)
 > Present consolidated results to user and get explicit "okay" before completing.
 
 - [ ] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, check directory). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, check directory). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [ ] F2. **Script Functionality Review** — `unspecified-high`

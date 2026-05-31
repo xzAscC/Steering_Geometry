@@ -96,7 +96,7 @@ Replace the unnormalized discriminative score formula with the total-variance no
 
 ### QA Policy
 Every task includes agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 ---
 
@@ -186,7 +186,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run python -c "from steering_geometry.utils import DISCRIMINATIVE_EPS; assert DISCRIMINATIVE_EPS == 1e-8; print(f'PASS: DISCRIMINATIVE_EPS = {DISCRIMINATIVE_EPS}')"
     Expected Result: Output contains "PASS: DISCRIMINATIVE_EPS = 1e-08"
     Failure Indicators: ImportError, AssertionError, or wrong value
-    Evidence: .sisyphus/evidence/task-1-constant-importable.txt
+    Evidence: .omo/evidence/task-1-constant-importable.txt
   ```
 
   **Commit**: YES
@@ -272,7 +272,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/test_token_analysis.py::TestComputeDiscriminativeScores -v
     Expected Result: All tests pass including test_normalized_score_range and test_exact_normalized_value
     Failure Indicators: Any test FAIL or ERROR
-    Evidence: .sisyphus/evidence/task-2-token-analysis-tests.txt
+    Evidence: .omo/evidence/task-2-token-analysis-tests.txt
 
   Scenario: Exact formula verification
     Tool: Bash
@@ -290,7 +290,7 @@ Max Concurrent: 3 (Wave 2)
          "
     Expected Result: "PASS: pos score = 0.99999999"
     Failure Indicators: AssertionError or score far from 1.0
-    Evidence: .sisyphus/evidence/task-2-exact-formula.txt
+    Evidence: .omo/evidence/task-2-exact-formula.txt
   ```
 
   **Commit**: NO (groups with Task 3, 4 into Commit 2)
@@ -372,7 +372,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_aggregators.py -v
     Expected Result: All tests pass including test_normalized_scores_bounded and test_well_separated_classes
     Failure Indicators: Any test FAIL or ERROR
-    Evidence: .sisyphus/evidence/task-3-aggregator-tests.txt
+    Evidence: .omo/evidence/task-3-aggregator-tests.txt
 
   Scenario: Float16 input handled correctly (float32 cast)
     Tool: Bash
@@ -390,7 +390,7 @@ Max Concurrent: 3 (Wave 2)
          "
     Expected Result: "PASS: dtype=torch.float32, finite=True"
     Failure Indicators: RuntimeError, non-finite values, wrong dtype
-    Evidence: .sisyphus/evidence/task-3-float16-cast.txt
+    Evidence: .omo/evidence/task-3-float16-cast.txt
   ```
 
   **Commit**: NO (groups with Tasks 2, 4 into Commit 2)
@@ -486,7 +486,7 @@ Max Concurrent: 3 (Wave 2)
       1. Run: uv run pytest tests/unit/test_tdnv.py -v
     Expected Result: All tests pass including test_binary_exact_normalized_score
     Failure Indicators: Any test FAIL or ERROR
-    Evidence: .sisyphus/evidence/task-4-tdnv-tests.txt
+    Evidence: .omo/evidence/task-4-tdnv-tests.txt
 
   Scenario: EPS constant properly replaced
     Tool: Bash
@@ -498,7 +498,7 @@ Max Concurrent: 3 (Wave 2)
       4. Verify: at least 3 matches (import + scoring + compute_tdnv usage)
     Expected Result: No standalone `EPS = ` definition; DISCRIMINATIVE_EPS used throughout
     Failure Indicators: Old `EPS = 1e-8` still present, or DISCRIMINATIVE_EPS not imported
-    Evidence: .sisyphus/evidence/task-4-eps-replacement.txt
+    Evidence: .omo/evidence/task-4-eps-replacement.txt
   ```
 
   **Commit**: NO (groups with Tasks 2, 3 into Commit 2)
@@ -553,7 +553,7 @@ Max Concurrent: 3 (Wave 2)
       4. Run: uv run pytest && echo "PYTEST: PASS"
     Expected Result: All 4 commands print PASS
     Failure Indicators: Any command exits non-zero
-    Evidence: .sisyphus/evidence/task-5-quality-gate.txt
+    Evidence: .omo/evidence/task-5-quality-gate.txt
 
   Scenario: No scope creep — only allowed files changed
     Tool: Bash
@@ -570,7 +570,7 @@ Max Concurrent: 3 (Wave 2)
          - tests/unit/test_tdnv.py
     Expected Result: Exactly 7 files listed, no others
     Failure Indicators: Any file outside the allowed set
-    Evidence: .sisyphus/evidence/task-5-scope-check.txt
+    Evidence: .omo/evidence/task-5-scope-check.txt
   ```
 
   **Commit**: YES (creates Commit 2 if not already committed)

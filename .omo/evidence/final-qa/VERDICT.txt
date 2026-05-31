@@ -2,7 +2,7 @@
 FINAL QA VERDICT REPORT
 ========================================
 Date: 2026-04-09
-Evidence dir: .sisyphus/evidence/final-qa/
+Evidence dir: .omo/evidence/final-qa/
 
 ----------------------------------------
 Task 1 QA Scenarios [3/3 pass]:

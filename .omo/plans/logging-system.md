@@ -103,7 +103,7 @@
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Infrastructure**: Use Bash (pytest) — Run tests, assert pass/fail
 - **Module migration**: Use Bash (grep + pytest + mypy) — Verify print removal, type check, test pass
@@ -241,7 +241,7 @@ Max Concurrent: 6 (Wave 2)
       3. Specifically check test_configure_logging_idempotent passes
     Expected Result: 7 passed, 0 failed
     Failure Indicators: Any test failure, especially idempotency test
-    Evidence: .sisyphus/evidence/task-1-test-results.txt
+    Evidence: .omo/evidence/task-1-test-results.txt
 
   Scenario: Type checking passes for new code
     Tool: Bash (mypy)
@@ -251,7 +251,7 @@ Max Concurrent: 6 (Wave 2)
       2. Assert 0 errors
     Expected Result: Success: no issues found
     Failure Indicators: Any type error in utils.py
-    Evidence: .sisyphus/evidence/task-1-mypy.txt
+    Evidence: .omo/evidence/task-1-mypy.txt
   ```
 
   **Commit**: YES
@@ -304,7 +304,7 @@ Max Concurrent: 6 (Wave 2)
       5. rm -rf logs/
     Expected Result: logs/ directory is ignored by git
     Failure Indicators: logs/ appears in git status output
-    Evidence: .sisyphus/evidence/task-2-gitignore.txt
+    Evidence: .omo/evidence/task-2-gitignore.txt
   ```
 
   **Commit**: NO (groups with Task 9 docs commit)
@@ -366,7 +366,7 @@ Max Concurrent: 6 (Wave 2)
       2. Assert: no output (zero matches)
     Expected Result: grep returns exit code 1 (no matches found)
     Failure Indicators: Any print() line found
-    Evidence: .sisyphus/evidence/task-3-no-print.txt
+    Evidence: .omo/evidence/task-3-no-print.txt
 
   Scenario: --log-level flag accepted and configure_logging called
     Tool: Bash (python)
@@ -376,7 +376,7 @@ Max Concurrent: 6 (Wave 2)
       2. Assert: --log-level appears in help output
     Expected Result: --log-level flag present in CLI help
     Failure Indicators: Flag not found in help output
-    Evidence: .sisyphus/evidence/task-3-cli-help.txt
+    Evidence: .omo/evidence/task-3-cli-help.txt
 
   Scenario: Type checking passes
     Tool: Bash (mypy)
@@ -385,7 +385,7 @@ Max Concurrent: 6 (Wave 2)
       1. Run: uv run mypy src/steering_geometry/extract.py
     Expected Result: Success: no issues found
     Failure Indicators: Any type error
-    Evidence: .sisyphus/evidence/task-3-mypy.txt
+    Evidence: .omo/evidence/task-3-mypy.txt
   ```
 
   **Commit**: YES
@@ -446,7 +446,7 @@ Max Concurrent: 6 (Wave 2)
       2. Assert: no output
     Expected Result: grep returns exit code 1
     Failure Indicators: Any print() found
-    Evidence: .sisyphus/evidence/task-4-no-print.txt
+    Evidence: .omo/evidence/task-4-no-print.txt
 
   Scenario: --log-level flag present
     Tool: Bash
@@ -454,7 +454,7 @@ Max Concurrent: 6 (Wave 2)
     Steps:
       1. Run: uv run python -m steering_geometry.apply_steering --help 2>&1 | grep -q "\-\-log-level"
     Expected Result: Flag found
-    Evidence: .sisyphus/evidence/task-4-cli-help.txt
+    Evidence: .omo/evidence/task-4-cli-help.txt
 
   Scenario: Existing tests still pass
     Tool: Bash (pytest)
@@ -464,7 +464,7 @@ Max Concurrent: 6 (Wave 2)
       2. Assert all tests pass
     Expected Result: All existing tests pass (no regression)
     Failure Indicators: Any test failure
-    Evidence: .sisyphus/evidence/task-4-test-results.txt
+    Evidence: .omo/evidence/task-4-test-results.txt
   ```
 
   **Commit**: YES
@@ -522,14 +522,14 @@ Max Concurrent: 6 (Wave 2)
       1. Run: grep -n "print(" src/steering_geometry/tdnv.py
       2. Assert: no output
     Expected Result: grep returns exit code 1
-    Evidence: .sisyphus/evidence/task-5-no-print.txt
+    Evidence: .omo/evidence/task-5-no-print.txt
 
   Scenario: --log-level flag present
     Tool: Bash
     Steps:
       1. Run: uv run python -m steering_geometry.tdnv --help 2>&1 | grep -q "\-\-log-level"
     Expected Result: Flag found
-    Evidence: .sisyphus/evidence/task-5-cli-help.txt
+    Evidence: .omo/evidence/task-5-cli-help.txt
   ```
 
   **Commit**: YES
@@ -590,7 +590,7 @@ Max Concurrent: 6 (Wave 2)
       3. Assert output does NOT contain timestamp or "INFO" prefix
     Expected Result: Shell eval output identical to pre-migration
     Failure Indicators: Output changed, contains logging prefix, or missing variables
-    Evidence: .sisyphus/evidence/task-6-shell-eval.txt
+    Evidence: .omo/evidence/task-6-shell-eval.txt
 
   Scenario: Error case uses logger instead of print
     Tool: Bash (grep)
@@ -600,7 +600,7 @@ Max Concurrent: 6 (Wave 2)
       3. Run: grep -n "logger" src/steering_geometry/__main__.py
       4. Assert: logger.error present
     Expected Result: 3 prints remain (shell eval), 1 logger.error added
-    Evidence: .sisyphus/evidence/task-6-no-extra-print.txt
+    Evidence: .omo/evidence/task-6-no-extra-print.txt
   ```
 
   **Commit**: YES (groups with Task 7)
@@ -664,14 +664,14 @@ Max Concurrent: 6 (Wave 2)
       4. Assert: logger call count increased from 14 to >= 20
     Expected Result: Only CLI table prints remain, all info prints migrated
     Failure Indicators: Info-level prints still using print()
-    Evidence: .sisyphus/evidence/task-7-remaining-prints.txt
+    Evidence: .omo/evidence/task-7-remaining-prints.txt
 
   Scenario: --log-level flag present
     Tool: Bash
     Steps:
       1. Run: uv run python -m steering_geometry.token_analysis --help 2>&1 | grep -q "\-\-log-level"
     Expected Result: Flag found
-    Evidence: .sisyphus/evidence/task-7-cli-help.txt
+    Evidence: .omo/evidence/task-7-cli-help.txt
   ```
 
   **Commit**: YES (groups with Task 6)
@@ -727,14 +727,14 @@ Max Concurrent: 6 (Wave 2)
       2. Assert: no output (zero matches across all files)
     Expected Result: grep returns exit code 1
     Failure Indicators: Any basicConfig() found
-    Evidence: .sisyphus/evidence/task-8-no-basicconfig.txt
+    Evidence: .omo/evidence/task-8-no-basicconfig.txt
 
   Scenario: --log-level flag present
     Tool: Bash
     Steps:
       1. Run: uv run python -m steering_geometry.unembed_analysis --help 2>&1 | grep -q "\-\-log-level"
     Expected Result: Flag found
-    Evidence: .sisyphus/evidence/task-8-cli-help.txt
+    Evidence: .omo/evidence/task-8-cli-help.txt
   ```
 
   **Commit**: YES
@@ -791,7 +791,7 @@ Max Concurrent: 6 (Wave 2)
       4. Assert: configure_logging mentioned in "Where to Look" section
     Expected Result: Tech debt table reflects completed migration
     Failure Indicators: Old print() entries still present as unresolved
-    Evidence: .sisyphus/evidence/task-9-agents-md.txt
+    Evidence: .omo/evidence/task-9-agents-md.txt
   ```
 
   **Commit**: YES (includes Task 2 .gitignore change)
@@ -807,7 +807,7 @@ Max Concurrent: 6 (Wave 2)
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 
 - [x] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [x] F2. **Code Quality Review** — `unspecified-high`
@@ -815,7 +815,7 @@ Max Concurrent: 6 (Wave 2)
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
 - [x] F3. **Real Manual QA** — `unspecified-high`
-  Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration: run `uv run python -m steering_geometry.extract --concept sentiment --model Qwen/Qwen3-1.7B --log-level DEBUG` and verify log file appears in logs/ with timestamp. Verify `uv run python -m steering_geometry --shell` still works. Save to `.sisyphus/evidence/final-qa/`.
+  Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration: run `uv run python -m steering_geometry.extract --concept sentiment --model Qwen/Qwen3-1.7B --log-level DEBUG` and verify log file appears in logs/ with timestamp. Verify `uv run python -m steering_geometry --shell` still works. Save to `.omo/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
 - [x] F4. **Scope Fidelity Check** — `deep`

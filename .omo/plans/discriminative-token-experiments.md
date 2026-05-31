@@ -176,7 +176,7 @@ Task 10: Final verification
       1. git checkout -b experiment/token-analysis
       2. git branch --show-current
     Expected Result: "experiment/token-analysis"
-    Evidence: .sisyphus/evidence/task-01-branch.txt
+    Evidence: .omo/evidence/task-01-branch.txt
   ```
 
   **Commit**: NO (branch only)
@@ -224,7 +224,7 @@ Task 10: Final verification
     Steps:
       1. uv run python -c "from steering_geometry.types import TokenRecord, DiscriminativeTokenResult, ProbeLayerResult, ProbeExperimentResult; print('OK')"
     Expected Result: "OK"
-    Evidence: .sisyphus/evidence/task-02-types.txt
+    Evidence: .omo/evidence/task-02-types.txt
   ```
 
   **Commit**: NO (groups with task 3)
@@ -271,7 +271,7 @@ Task 10: Final verification
     Steps:
       1. uv run python -c "from steering_geometry.config import TokenAnalysisConfig; c = TokenAnalysisConfig(); print(len(c.layers))"
     Expected Result: "10"
-    Evidence: .sisyphus/evidence/task-03-config.txt
+    Evidence: .omo/evidence/task-03-config.txt
   ```
 
   **Commit**: YES
@@ -325,7 +325,7 @@ Task 10: Final verification
     Steps:
       1. uv run python -m steering_geometry.token_analysis --help
     Expected Result: Exit code 0, shows help text with visualize and probe subcommands
-    Evidence: .sisyphus/evidence/task-04-cli-help.txt
+    Evidence: .omo/evidence/task-04-cli-help.txt
   ```
 
   **Commit**: NO (groups with task 7)
@@ -385,7 +385,7 @@ result = extract_all_token_activations(model, texts, [0], config=TokenAnalysisCo
 print(f'Tokens collected: {len(result[0])}')
 "
     Expected Result: Prints token count > 0
-    Evidence: .sisyphus/evidence/task-05-extraction.txt
+    Evidence: .omo/evidence/task-05-extraction.txt
   ```
 
   **Commit**: NO (groups with task 7)
@@ -437,7 +437,7 @@ print(f'Tokens collected: {len(result[0])}')
       2. Call compute_discriminative_scores()
       3. Verify scores are finite and sorted
     Expected Result: Scores are finite floats, sorted correctly
-    Evidence: .sisyphus/evidence/task-06-scoring.txt
+    Evidence: .omo/evidence/task-06-scoring.txt
   ```
 
   **Commit**: NO (groups with task 7)
@@ -491,7 +491,7 @@ print(f'Tokens collected: {len(result[0])}')
       2. ls outputs/token_viz/
       3. cat outputs/token_viz/honesty_Qwen_Qwen3-1.7B.json | head -50
     Expected Result: JSON file exists, contains top_positive and top_negative arrays with 50 items each
-    Evidence: .sisyphus/evidence/task-07-visualize.txt
+    Evidence: .omo/evidence/task-07-visualize.txt
 
   Scenario: All concepts work
     Tool: Bash
@@ -501,7 +501,7 @@ print(f'Tokens collected: {len(result[0])}')
          done
       2. ls outputs/token_viz/*.json | wc -l
     Expected Result: 5 JSON files created
-    Evidence: .sisyphus/evidence/task-07-all-concepts.txt
+    Evidence: .omo/evidence/task-07-all-concepts.txt
   ```
 
   **Commit**: YES
@@ -564,14 +564,14 @@ print(f'Tokens collected: {len(result[0])}')
       1. uv run python -m steering_geometry.token_analysis probe --concept honesty --model Qwen/Qwen3-1.7B --output outputs/probes/ --tokens-per-class 1000
       2. cat outputs/probes/honesty_Qwen_Qwen3-1.7B_probe.json | python -c "import json,sys; d=json.load(sys.stdin); print(f'Layers: {len(d[\"layer_results\"])}'); print(f'Accuracies: {[r[\"test_accuracy\"] for r in d[\"layer_results\"]]}')"
     Expected Result: 10 layers, all accuracies between 0 and 1
-    Evidence: .sisyphus/evidence/task-08-probe.txt
+    Evidence: .omo/evidence/task-08-probe.txt
 
   Scenario: Probe uses PyTorch
     Tool: Bash
     Steps:
       1. grep -n "nn.Linear\|CrossEntropyLoss" src/steering_geometry/token_analysis.py
     Expected Result: Found PyTorch imports
-    Evidence: .sisyphus/evidence/task-08-pytorch.txt
+    Evidence: .omo/evidence/task-08-pytorch.txt
   ```
 
   **Commit**: YES
@@ -620,7 +620,7 @@ print(f'Tokens collected: {len(result[0])}')
     Steps:
       1. uv run pytest tests/test_token_analysis.py -v
     Expected Result: All tests pass
-    Evidence: .sisyphus/evidence/task-09-tests.txt
+    Evidence: .omo/evidence/task-09-tests.txt
   ```
 
   **Commit**: YES
@@ -671,7 +671,7 @@ print(f'Tokens collected: {len(result[0])}')
       3. uv run mypy src/
       4. uv run pytest
     Expected Result: All checks pass
-    Evidence: .sisyphus/evidence/task-10-quality.txt
+    Evidence: .omo/evidence/task-10-quality.txt
   ```
 
   **Commit**: NO (verification only)

@@ -87,7 +87,7 @@ Stop loading entire datasets when only a small subset is needed, and eliminate a
 
 ### QA Policy
 Every task includes agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 ---
 
@@ -200,7 +200,7 @@ Wave FINAL (After ALL tasks):
       2. Assert: test passes (load_contrast_pairs mocked, called exactly 0 times in _run_concept non-dry-run, delegated to compute_tdnv_for_concept)
     Expected Result: Test passes with 0 failures
     Failure Indicators: Mock assertion fails (function called more than once)
-    Evidence: .sisyphus/evidence/task-1-no-double-load.txt
+    Evidence: .omo/evidence/task-1-no-double-load.txt
 
   Scenario: Verify dry-run still works
     Tool: Bash
@@ -210,7 +210,7 @@ Wave FINAL (After ALL tasks):
       2. Assert: test passes (dry-run loads once, prints count, returns early)
     Expected Result: Test passes
     Failure Indicators: Dry-run fails or load_contrast_pairs not called
-    Evidence: .sisyphus/evidence/task-1-dry-run.txt
+    Evidence: .omo/evidence/task-1-dry-run.txt
   ```
 
   **Commit**: YES
@@ -297,7 +297,7 @@ Wave FINAL (After ALL tasks):
       2. Assert: test passes (mock dataset iteration, verify break happens before full iteration)
     Expected Result: Test passes, dataset iteration count < total rows
     Failure Indicators: Full dataset iterated despite small num_pairs
-    Evidence: .sisyphus/evidence/task-2-sentiment-early-stop.txt
+    Evidence: .omo/evidence/task-2-sentiment-early-stop.txt
 
   Scenario: Verify early-stop reduces iterations for polite
     Tool: Bash
@@ -307,7 +307,7 @@ Wave FINAL (After ALL tasks):
       2. Assert: test passes (same verification as sentiment)
     Expected Result: Test passes
     Failure Indicators: Full dataset iterated
-    Evidence: .sisyphus/evidence/task-2-polite-early-stop.txt
+    Evidence: .omo/evidence/task-2-polite-early-stop.txt
 
   Scenario: Verify sample_with_seed still called (determinism preserved)
     Tool: Bash
@@ -317,7 +317,7 @@ Wave FINAL (After ALL tasks):
       2. Assert: test passes (mock sample_with_seed, verify it's called with collected data)
     Expected Result: sample_with_seed called with the buffer data, not skipped
     Failure Indicators: sample_with_seed not called or called with wrong data
-    Evidence: .sisyphus/evidence/task-2-determinism.txt
+    Evidence: .omo/evidence/task-2-determinism.txt
   ```
 
   **Commit**: YES
@@ -383,7 +383,7 @@ Wave FINAL (After ALL tasks):
       2. Assert: all tests pass, 0 failures
     Expected Result: All tests pass
     Failure Indicators: Any test failure
-    Evidence: .sisyphus/evidence/task-3-all-tests.txt
+    Evidence: .omo/evidence/task-3-all-tests.txt
 
   Scenario: Existing tests still pass
     Tool: Bash
@@ -393,7 +393,7 @@ Wave FINAL (After ALL tasks):
       2. Assert: all tests pass (existing + new)
     Expected Result: All tests pass
     Failure Indicators: Any regression in existing tests
-    Evidence: .sisyphus/evidence/task-3-regression.txt
+    Evidence: .omo/evidence/task-3-regression.txt
   ```
 
   **Commit**: YES (grouped with Task 1 and Task 2 commits)

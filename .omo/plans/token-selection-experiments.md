@@ -104,7 +104,7 @@ Create infrastructure for 4 token selection experiments that produce steering ve
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Python modules**: Use Bash (`uv run pytest`, `uv run mypy`) — run tests, check types
 - **Shell scripts**: Use Bash (`bash -n`, `--help`) — syntax check, verify arg parsing
@@ -246,7 +246,7 @@ Max Concurrent: 4 (Wave 2)
       4. Verify 0 failures
     Expected Result: All existing tests pass. No regression.
     Failure Indicators: Any test failure, mypy error on existing callers
-    Evidence: .sisyphus/evidence/task-1-backward-compat.txt
+    Evidence: .omo/evidence/task-1-backward-compat.txt
 
   Scenario: steer_tokens=0 produces unsteered output
     Tool: Bash (uv run pytest)
@@ -256,7 +256,7 @@ Max Concurrent: 4 (Wave 2)
       2. Verify test passes — output with steer_tokens=0 matches unsteered output
     Expected Result: PASS — no steering applied when steer_tokens=0
     Failure Indicators: Test fails, or steering is still applied
-    Evidence: .sisyphus/evidence/task-1-steer-zero.txt
+    Evidence: .omo/evidence/task-1-steer-zero.txt
   ```
 
   **Commit**: YES
@@ -364,7 +364,7 @@ Max Concurrent: 4 (Wave 2)
       2. Verify output contains "OK"
     Expected Result: All 3 functions importable without error
     Failure Indicators: ImportError, ModuleNotFoundError, AttributeError
-    Evidence: .sisyphus/evidence/task-2-import-check.txt
+    Evidence: .omo/evidence/task-2-import-check.txt
 
   Scenario: No print() calls in module
     Tool: Bash (grep)
@@ -374,7 +374,7 @@ Max Concurrent: 4 (Wave 2)
       2. Verify no matches found
     Expected Result: 0 matches — all output uses logging
     Failure Indicators: Any match found
-    Evidence: .sisyphus/evidence/task-2-no-print.txt
+    Evidence: .omo/evidence/task-2-no-print.txt
   ```
 
   **Commit**: YES
@@ -443,7 +443,7 @@ Max Concurrent: 4 (Wave 2)
       4. Verify output contains "-c", "-m", "-n", "-l", "-o" flags
     Expected Result: Syntax check passes, help output shows all expected flags
     Failure Indicators: bash -n fails, --help doesn't list expected flags
-    Evidence: .sisyphus/evidence/task-3-syntax-help.txt
+    Evidence: .omo/evidence/task-3-syntax-help.txt
   ```
 
   **Commit**: YES (groups with Commit 4)
@@ -504,7 +504,7 @@ Max Concurrent: 4 (Wave 2)
       4. Verify output contains "-c", "-m", "-n", "--last-n", "-l", "-o" flags
     Expected Result: Syntax check passes, help shows all flags
     Failure Indicators: bash -n fails, missing flags in help
-    Evidence: .sisyphus/evidence/task-4-syntax-help.txt
+    Evidence: .omo/evidence/task-4-syntax-help.txt
   ```
 
   **Commit**: YES (groups with Commit 4)
@@ -558,7 +558,7 @@ Max Concurrent: 4 (Wave 2)
       3. Run `bash scripts/token_experiments/3_prompt_vs_response.sh --help`
       4. Verify output contains "-c", "-m", "-n", "--data-modes", "-l", "-o"
     Expected Result: Syntax check passes, help shows all flags
-    Evidence: .sisyphus/evidence/task-5-syntax-help.txt
+    Evidence: .omo/evidence/task-5-syntax-help.txt
   ```
 
   **Commit**: YES (groups with Commit 4)
@@ -642,7 +642,7 @@ Max Concurrent: 4 (Wave 2)
       2. Verify output contains "OK"
     Expected Result: Function imports without error
     Failure Indicators: ImportError, AttributeError
-    Evidence: .sisyphus/evidence/task-6-import-check.txt
+    Evidence: .omo/evidence/task-6-import-check.txt
 
   Scenario: Script syntax and help
     Tool: Bash
@@ -653,7 +653,7 @@ Max Concurrent: 4 (Wave 2)
       3. Run `bash scripts/token_experiments/4_steering_scope.sh --help`
       4. Verify output contains "-v", "-m", "--steer-tokens", "-l", "--multipliers", "-o"
     Expected Result: Syntax check passes, help shows all flags
-    Evidence: .sisyphus/evidence/task-6-syntax-help.txt
+    Evidence: .omo/evidence/task-6-syntax-help.txt
   ```
 
   **Commit**: YES (two commits)
@@ -665,7 +665,7 @@ Max Concurrent: 4 (Wave 2)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
 - [x] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [x] F2. **Code Quality Review** — `unspecified-high`
@@ -673,7 +673,7 @@ Max Concurrent: 4 (Wave 2)
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
 - [x] F3. **Real Manual QA** — `unspecified-high`
-  Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (experiment functions callable from scripts, hook modification doesn't break existing callers). Test edge cases: steer_tokens=0, steer_tokens>=max_new_tokens. Save to `.sisyphus/evidence/final-qa/`.
+  Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (experiment functions callable from scripts, hook modification doesn't break existing callers). Test edge cases: steer_tokens=0, steer_tokens>=max_new_tokens. Save to `.omo/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
 - [x] F4. **Scope Fidelity Check** — `deep`

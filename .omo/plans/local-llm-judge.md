@@ -82,7 +82,7 @@ Enable local vLLM servers as LLM-as-judge by adding `--judge-api-base` CLI optio
 
 ### QA Policy
 Every task includes agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **CLI**: Use Bash — Run commands, check exit codes, verify output
 - **Python**: Use Bash (uv run pytest) — Run tests, assert pass/fail
@@ -168,7 +168,7 @@ Max Concurrent: 3 (Wave 1)
       1. Run: uv run python -m steering_geometry.apply_steering --help
       2. Grep for "judge-api-base"
     Expected Result: Exit code 0, output contains "--judge-api-base"
-    Evidence: .sisyphus/evidence/task-1-cli-help.txt
+    Evidence: .omo/evidence/task-1-cli-help.txt
   ```
 
   **Commit**: NO (groups with Task 3)
@@ -215,7 +215,7 @@ Max Concurrent: 3 (Wave 1)
       1. Write test that verifies JudgeEvaluator uses dummy key for localhost
       2. Run: uv run pytest tests/unit/test_evaluation.py -k "test_localhost" -v
     Expected Result: Test passes
-    Evidence: .sisyphus/evidence/task-2-localhost-key.txt
+    Evidence: .omo/evidence/task-2-localhost-key.txt
 
   Scenario: Remote URL uses environment API key
     Tool: Bash (pytest)
@@ -223,7 +223,7 @@ Max Concurrent: 3 (Wave 1)
       1. Write test that verifies OPENROUTER_API_KEY is used for remote URLs
       2. Run: uv run pytest tests/unit/test_evaluation.py -k "test_remote" -v
     Expected Result: Test passes
-    Evidence: .sisyphus/evidence/task-2-remote-key.txt
+    Evidence: .omo/evidence/task-2-remote-key.txt
   ```
 
   **Commit**: NO (groups with Task 3)
@@ -269,7 +269,7 @@ Max Concurrent: 3 (Wave 1)
       1. Run: ./scripts/pipeline/quick_pipeline.sh --help
       2. Grep for "judge-api-base"
     Expected Result: Exit code 0, output contains "--judge-api-base"
-    Evidence: .sisyphus/evidence/task-3-shell-help.txt
+    Evidence: .omo/evidence/task-3-shell-help.txt
   ```
 
   **Commit**: YES
@@ -312,7 +312,7 @@ Max Concurrent: 3 (Wave 1)
     Steps:
       1. Run: uv run pytest tests/unit/test_evaluation.py -k "test_judge_config" -v
     Expected Result: Exit code 0, test passes
-    Evidence: .sisyphus/evidence/task-4-test-pass.txt
+    Evidence: .omo/evidence/task-4-test-pass.txt
   ```
 
   **Commit**: NO (included in Task 3 commit)
@@ -353,7 +353,7 @@ Max Concurrent: 3 (Wave 1)
     Steps:
       1. Run: uv run pytest tests/unit/test_evaluation.py -k "test_judge_evaluator_uses_custom_api_base" -v
     Expected Result: Exit code 0, test passes
-    Evidence: .sisyphus/evidence/task-5-test-pass.txt
+    Evidence: .omo/evidence/task-5-test-pass.txt
   ```
 
   **Commit**: NO (included in Task 3 commit)
@@ -397,7 +397,7 @@ Max Concurrent: 3 (Wave 1)
     Steps:
       1. Run: uv run pytest tests/unit/test_evaluation.py -k "test_judge_evaluator_connection_error" -v
     Expected Result: Exit code 0, test passes
-    Evidence: .sisyphus/evidence/task-6-test-pass.txt
+    Evidence: .omo/evidence/task-6-test-pass.txt
   ```
 
   **Commit**: NO (included in Task 3 commit)

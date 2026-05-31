@@ -219,7 +219,7 @@ Max Concurrent: 5 (Wave 1)
       3. uv run python -c "import transformers; print(transformers.__version__)"
       4. uv run python -c "import datasets; print(datasets.__version__)"
     Expected Result: 三个 import 均成功，版本号在指定范围内
-    Evidence: .sisyphus/evidence/task-1-deps-install.txt
+    Evidence: .omo/evidence/task-1-deps-install.txt
   ```
 
   **Commit**: YES (groups with T2)
@@ -267,7 +267,7 @@ Max Concurrent: 5 (Wave 1)
       3. grep -c "extraction" ARCHITECTURE.md → expect >= 1
       4. grep -c "concepts" ARCHITECTURE.md → expect >= 1
     Expected Result: 旧描述已移除，新描述存在
-    Evidence: .sisyphus/evidence/task-2-docs-verify.txt
+    Evidence: .omo/evidence/task-2-docs-verify.txt
   ```
 
   **Commit**: YES (groups with T1)
@@ -329,7 +329,7 @@ Max Concurrent: 5 (Wave 1)
          print(f'SteeringVector layers: {list(sv.layer_activations.keys())}')
          "
     Expected Result: 两个类型均可正常实例化和访问属性
-    Evidence: .sisyphus/evidence/task-3-types-verify.txt
+    Evidence: .omo/evidence/task-3-types-verify.txt
   ```
 
   **Commit**: YES (groups with Wave 1)
@@ -385,7 +385,7 @@ Max Concurrent: 5 (Wave 1)
          print(f'ExtractionConfig defaults OK: {cfg}')
          "
     Expected Result: 默认值符合规范
-    Evidence: .sisyphus/evidence/task-4-config-verify.txt
+    Evidence: .omo/evidence/task-4-config-verify.txt
   ```
 
   **Commit**: YES (groups with Wave 1)
@@ -446,14 +446,14 @@ Max Concurrent: 5 (Wave 1)
          print('HookedModel interface OK')
          "
     Expected Result: 接口导入和配置创建成功
-    Evidence: .sisyphus/evidence/task-5-models-verify.txt
+    Evidence: .omo/evidence/task-5-models-verify.txt
 
   Scenario: resolve_layers 相对层计算
     Tool: Bash
     Steps:
       1. uv run pytest tests/unit/test_models.py -k "test_resolve_layers" -v
     Expected Result: [0.5] on 32-layer model → [16], [0.4, 0.6, 0.8] → [12, 19, 25]
-    Evidence: .sisyphus/evidence/task-5-resolve-layers.txt
+    Evidence: .omo/evidence/task-5-resolve-layers.txt
   ```
 
   **Commit**: YES (groups with Wave 1)
@@ -509,14 +509,14 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run pytest tests/unit/test_extraction.py -k "test_mean_aggregator" -v
     Expected Result: mean_aggregator(ones(10,4096), zeros(10,4096)) ≈ ones(4096)
-    Evidence: .sisyphus/evidence/task-6-mean-agg.txt
+    Evidence: .omo/evidence/task-6-mean-agg.txt
 
   Scenario: pca_aggregator 返回正确维度
     Tool: Bash
     Steps:
       1. uv run pytest tests/unit/test_extraction.py -k "test_pca_aggregator" -v
     Expected Result: 返回 shape == (hidden_dim,) 的向量
-    Evidence: .sisyphus/evidence/task-6-pca-agg.txt
+    Evidence: .omo/evidence/task-6-pca-agg.txt
   ```
 
   **Commit**: YES (groups with Wave 1)
@@ -576,7 +576,7 @@ Max Concurrent: 5 (Wave 1)
          print(f'Cosine similarity: {sim}')
          "
     Expected Result: 返回 layer 0 的余弦相似度，值在 [-1, 1] 范围
-    Evidence: .sisyphus/evidence/task-7-cosine-sim.txt
+    Evidence: .omo/evidence/task-7-cosine-sim.txt
   ```
 
   **Commit**: YES (groups with Wave 1)
@@ -647,14 +647,14 @@ Max Concurrent: 5 (Wave 1)
          print(f'Loaded {len(pairs)} pairs. First: {pairs[0].positive[:50]}...')
          "
     Expected Result: 成功加载 10 个 contrast pairs，positive 和 negative 均非空
-    Evidence: .sisyphus/evidence/task-8-sentiment-data.txt
+    Evidence: .omo/evidence/task-8-sentiment-data.txt
 
   Scenario: dry-run 脚本执行
     Tool: Bash
     Steps:
       1. uv run python scripts/extract_sentiment.py --dry-run --num-pairs 5
     Expected Result: 打印数据统计信息，不进行模型推理，退出码 0
-    Evidence: .sisyphus/evidence/task-8-sentiment-dryrun.txt
+    Evidence: .omo/evidence/task-8-sentiment-dryrun.txt
 
   Scenario: 端到端小模型测试（如可用）
     Tool: Bash
@@ -662,7 +662,7 @@ Max Concurrent: 5 (Wave 1)
       1. uv run python scripts/extract_sentiment.py --model Qwen/Qwen2.5-0.5B --num-pairs 10 --method mean --output data/vectors/
     Expected Result: data/vectors/sentiment_Qwen2.5-0.5B_mean.pt 文件生成，可 torch.load
     Failure Indicators: OOM error, shape mismatch, file not created
-    Evidence: .sisyphus/evidence/task-8-sentiment-e2e.txt
+    Evidence: .omo/evidence/task-8-sentiment-e2e.txt
   ```
 
   **Commit**: YES
@@ -726,7 +726,7 @@ Max Concurrent: 5 (Wave 1)
          print(f'Negative: {pairs[0].negative[:80]}...')
          "
     Expected Result: 5 个 contrast pairs，positive 含 honest 前缀，negative 含 dishonest 前缀
-    Evidence: .sisyphus/evidence/task-9-honesty-data.txt
+    Evidence: .omo/evidence/task-9-honesty-data.txt
   ```
 
   **Commit**: YES (groups with T10-T12)
@@ -786,7 +786,7 @@ Max Concurrent: 5 (Wave 1)
          print(f'Loaded {len(pairs)} sycophancy pairs')
          "
     Expected Result: 5 个 contrast pairs 加载成功
-    Evidence: .sisyphus/evidence/task-10-sycophancy-data.txt
+    Evidence: .omo/evidence/task-10-sycophancy-data.txt
   ```
 
   **Commit**: YES (groups with T9, T11, T12)
@@ -849,7 +849,7 @@ Max Concurrent: 5 (Wave 1)
          "
       2. grep -r "offensive_word_placeholder" tests/unit/test_toxicity.py || echo "No harmful text in tests"
     Expected Result: 数据加载成功，测试文件不含有害文本
-    Evidence: .sisyphus/evidence/task-11-toxicity-data.txt
+    Evidence: .omo/evidence/task-11-toxicity-data.txt
   ```
 
   **Commit**: YES (groups with T9, T10, T12)
@@ -911,7 +911,7 @@ Max Concurrent: 5 (Wave 1)
          print(f'Loaded {len(pairs)} refusal pairs')
          "
     Expected Result: 加载成功，使用 sanitized pairs
-    Evidence: .sisyphus/evidence/task-12-refusal-data.txt
+    Evidence: .omo/evidence/task-12-refusal-data.txt
   ```
 
   **Commit**: YES (groups with T9, T10, T11)
@@ -962,7 +962,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run pytest tests/unit/test_compare.py -v
     Expected Result: 使用 mock vectors 成功生成 comparison JSON
-    Evidence: .sisyphus/evidence/task-13-compare.txt
+    Evidence: .omo/evidence/task-13-compare.txt
   ```
 
   **Commit**: YES (groups with T14)
@@ -1024,14 +1024,14 @@ Max Concurrent: 5 (Wave 1)
       4. uv run pytest tests/unit/ -v
       5. uv run pytest tests/integration/ -m "not gpu" -v
     Expected Result: 全部通过，0 errors, 0 violations
-    Evidence: .sisyphus/evidence/task-14-final-verify.txt
+    Evidence: .omo/evidence/task-14-final-verify.txt
 
   Scenario: 所有脚本 CLI 可用
     Tool: Bash
     Steps:
       1. for script in scripts/extract_*.py scripts/compare_concepts.py; do uv run python "$script" --help; done
     Expected Result: 所有脚本显示 --help 信息，退出码 0
-    Evidence: .sisyphus/evidence/task-14-scripts-cli.txt
+    Evidence: .omo/evidence/task-14-scripts-cli.txt
   ```
 
   **Commit**: YES

@@ -146,7 +146,7 @@ Wave FINAL (After Wave 1):
     Steps:
       1. Run: uv run python -c "from steering_geometry.evaluation import JudgeEvaluator, MMLUEvaluator, generate_html_report; print('OK')"
     Expected Result: Output contains "OK"
-    Evidence: .sisyphus/evidence/task-1-import-evaluation.txt
+    Evidence: .omo/evidence/task-1-import-evaluation.txt
   ```
 
   **Commit**: YES
@@ -203,7 +203,7 @@ Wave FINAL (After Wave 1):
     Steps:
       1. Run: uv run python -c "from steering_geometry.vector_analysis import run_diff_means_experiment, plot_heatmap, load_vector; print('OK')"
     Expected Result: Output contains "OK"
-    Evidence: .sisyphus/evidence/task-2-import-vector-analysis.txt
+    Evidence: .omo/evidence/task-2-import-vector-analysis.txt
   ```
 
   **Commit**: YES
@@ -231,7 +231,7 @@ Wave FINAL (After Wave 1):
       2. Run: uv run mypy src/
       3. Run: uv run ruff check src/ tests/
     Expected Result: All commands exit with code 0
-    Evidence: .sisyphus/evidence/final-qa-checks.txt
+    Evidence: .omo/evidence/final-qa-checks.txt
 
   Scenario: Old and new imports both work
     Tool: Bash (python -c)
@@ -239,7 +239,7 @@ Wave FINAL (After Wave 1):
       1. Run: uv run python -c "from steering_geometry.evaluation import JudgeEvaluator; from steering_geometry.apply_steering import JudgeEvaluator as JS2; print('OK')"
       2. Run: uv run python -c "from steering_geometry.vector_analysis import plot_heatmap; from steering_geometry.stability_comparison import plot_heatmap as ph2; print('OK')"
     Expected Result: Both output "OK"
-    Evidence: .sisyphus/evidence/final-import-compat.txt
+    Evidence: .omo/evidence/final-import-compat.txt
   ```
 
   **Commit**: YES (squash with previous commits)

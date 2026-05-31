@@ -92,7 +92,7 @@ Rewrite the polite data loader to use `Intel/polite-guard` with extreme labels o
 
 ### QA Policy
 Every task includes agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Python module**: Use Bash (uv run pytest, uv run ruff, uv run mypy, grep)
 - **Data loader**: Use Bash (uv run pytest with specific test class)
@@ -198,7 +198,7 @@ No parallelization possible (linear TDD chain)
       4. Verify match count = 0 (old reference removed)
     Expected Result: grep for "Intel/polite-guard" returns at least 1 match, grep for "Cleanlab" returns nothing
     Failure Indicators: "Cleanlab" still found in tests, or "Intel/polite-guard" not found
-    Evidence: .sisyphus/evidence/task-1-test-references.txt
+    Evidence: .omo/evidence/task-1-test-references.txt
 
   Scenario: Tests fail (RED phase - loader not yet updated)
     Tool: Bash (uv run pytest)
@@ -208,7 +208,7 @@ No parallelization possible (linear TDD chain)
       2. Check exit code is non-zero
     Expected Result: Tests FAIL because loader still returns old metadata (source="Cleanlab/stanford-politeness")
     Failure Indicators: Tests pass (means loader was already changed — wrong order)
-    Evidence: .sisyphus/evidence/task-1-red-phase.txt
+    Evidence: .omo/evidence/task-1-red-phase.txt
   ```
 
   **Commit**: NO (groups with Task 2-3)
@@ -287,7 +287,7 @@ No parallelization possible (linear TDD chain)
       2. Check exit code is 0
     Expected Result: All 3 TestPoliteLoader tests pass
     Failure Indicators: Any test failure — inspect output for mismatched assertions
-    Evidence: .sisyphus/evidence/task-2-green-phase.txt
+    Evidence: .omo/evidence/task-2-green-phase.txt
 
   Scenario: No dead imports remain
     Tool: Bash (grep)
@@ -298,7 +298,7 @@ No parallelization possible (linear TDD chain)
       3. Verify both return no matches (exit code 1)
     Expected Result: No matches for pandas or hf_hub_download in extract.py
     Failure Indicators: Any match found — dead import still present
-    Evidence: .sisyphus/evidence/task-2-no-dead-imports.txt
+    Evidence: .omo/evidence/task-2-no-dead-imports.txt
 
   Scenario: Type checking passes
     Tool: Bash (uv run mypy)
@@ -308,7 +308,7 @@ No parallelization possible (linear TDD chain)
       2. Check exit code is 0
     Expected Result: mypy reports Success with 0 errors
     Failure Indicators: Any type error — likely from leftover pandas types or missing import
-    Evidence: .sisyphus/evidence/task-2-mypy.txt
+    Evidence: .omo/evidence/task-2-mypy.txt
 
   Scenario: Lint passes
     Tool: Bash (uv run ruff)
@@ -318,7 +318,7 @@ No parallelization possible (linear TDD chain)
       2. uv run ruff format --check src/steering_geometry/extract.py 2>&1
     Expected Result: 0 violations, already formatted
     Failure Indicators: Any ruff violation or format diff
-    Evidence: .sisyphus/evidence/task-2-ruff.txt
+    Evidence: .omo/evidence/task-2-ruff.txt
 
   Scenario: Old dataset name fully removed
     Tool: Bash (grep)
@@ -328,7 +328,7 @@ No parallelization possible (linear TDD chain)
       2. grep -rn "stanford-politeness" src/steering_geometry/extract.py
     Expected Result: No matches for either pattern
     Failure Indicators: Any match — old dataset name still referenced
-    Evidence: .sisyphus/evidence/task-2-no-old-refs.txt
+    Evidence: .omo/evidence/task-2-no-old-refs.txt
   ```
 
   **Commit**: NO (groups with Task 1, 3)
@@ -380,7 +380,7 @@ No parallelization possible (linear TDD chain)
       2. Verify exit code is 1 (no matches)
     Expected Result: No matches for "pandas" in pyproject.toml
     Failure Indicators: Any match found — pandas reference still present
-    Evidence: .sisyphus/evidence/task-3-no-pandas.txt
+    Evidence: .omo/evidence/task-3-no-pandas.txt
 
   Scenario: uv sync succeeds
     Tool: Bash (uv sync)
@@ -390,7 +390,7 @@ No parallelization possible (linear TDD chain)
       2. Check exit code is 0
     Expected Result: Sync completes without errors, lock file updated
     Failure Indicators: Any error — likely a dependent package issue
-    Evidence: .sisyphus/evidence/task-3-uv-sync.txt
+    Evidence: .omo/evidence/task-3-uv-sync.txt
   ```
 
   **Commit**: NO (groups with Task 1-2)
@@ -449,7 +449,7 @@ No parallelization possible (linear TDD chain)
       5. uv run pytest 2>&1
     Expected Result: All 5 commands exit with code 0
     Failure Indicators: Any non-zero exit code
-    Evidence: .sisyphus/evidence/task-4-full-verification.txt
+    Evidence: .omo/evidence/task-4-full-verification.txt
 
   Scenario: No dead references anywhere
     Tool: Bash (grep)
@@ -461,7 +461,7 @@ No parallelization possible (linear TDD chain)
       4. grep -r "hf_hub_download" src/ 2>&1
     Expected Result: All 4 greps return no matches (exit code 1)
     Failure Indicators: Any match found — dead reference remains
-    Evidence: .sisyphus/evidence/task-4-dead-ref-sweep.txt
+    Evidence: .omo/evidence/task-4-dead-ref-sweep.txt
   ```
 
   **Commit**: YES
@@ -476,7 +476,7 @@ No parallelization possible (linear TDD chain)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
 - [ ] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, grep for references). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, grep for references). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [ ] F2. **Code Quality Review** — `unspecified-high`
@@ -484,7 +484,7 @@ No parallelization possible (linear TDD chain)
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
 - [ ] F3. **Real Manual QA** — `unspecified-high`
-  Run all QA scenarios from every task. Test cross-task integration: the loader works end-to-end when called via `load_contrast_pairs("polite", 10)`. Save evidence to `.sisyphus/evidence/final-qa/`.
+  Run all QA scenarios from every task. Test cross-task integration: the loader works end-to-end when called via `load_contrast_pairs("polite", 10)`. Save evidence to `.omo/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
 - [ ] F4. **Scope Fidelity Check** — `deep`

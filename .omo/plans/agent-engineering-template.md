@@ -115,7 +115,7 @@ Create a production-ready Python template repo that enables an AI agent (Claude 
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Config files**: Use Bash — run tool commands, verify exit codes, check output
 - **Markdown files**: Use Bash — check file exists, verify line count, grep for required sections
@@ -263,7 +263,7 @@ Max Concurrent: 8 (Wave 1)
       6. Run `uv run pytest --version` — expected: exits 0, shows pytest version
     Expected Result: All 6 commands exit 0, tools are installed and runnable
     Failure Indicators: Any command returns non-zero exit code, "not found" errors
-    Evidence: .sisyphus/evidence/task-1-uv-sync.txt
+    Evidence: .omo/evidence/task-1-uv-sync.txt
 
   Scenario: pyproject.toml has all required sections
     Tool: Bash
@@ -276,7 +276,7 @@ Max Concurrent: 8 (Wave 1)
       5. Run `grep 'name.*=.*"my_project"' pyproject.toml` — expected: match found
     Expected Result: All sections present, project name is my_project
     Failure Indicators: grep returns 0 matches for any section
-    Evidence: .sisyphus/evidence/task-1-pyproject-sections.txt
+    Evidence: .omo/evidence/task-1-pyproject-sections.txt
   ```
 
   **Evidence to Capture:**
@@ -298,7 +298,7 @@ Max Concurrent: 8 (Wave 1)
     - IDE: `.idea/`, `.vscode/`, `*.swp`, `*.swo`, `.DS_Store`
     - Testing: `.coverage`, `htmlcov/`, `.pytest_cache/`, `.mypy_cache/`
     - uv: `.uv/` (if applicable, check uv docs)
-    - Sisyphus: `.sisyphus/evidence/`
+    - Sisyphus: `.omo/evidence/`
     - Environment: `.env`, `.env.local`
 
   **Must NOT do**:
@@ -347,7 +347,7 @@ Max Concurrent: 8 (Wave 1)
       5. Run `grep 'uv.lock' .gitignore` — expected: NO match (should NOT be ignored)
     Expected Result: All standard patterns present, uv.lock not ignored
     Failure Indicators: Missing essential patterns, or uv.lock found in ignore list
-    Evidence: .sisyphus/evidence/task-2-gitignore-check.txt
+    Evidence: .omo/evidence/task-2-gitignore-check.txt
   ```
 
   **Evidence to Capture:**
@@ -434,7 +434,7 @@ Max Concurrent: 8 (Wave 1)
       6. Run `grep -i 'STOP\|stop and' AGENTS.md` — expected: at least 1 match (escalation rule)
     Expected Result: Under 150 lines, all Python/uv commands, no JS references, has escalation rules
     Failure Indicators: Over 150 lines, contains JS references, missing escalation section
-    Evidence: .sisyphus/evidence/task-3-agents-md-check.txt
+    Evidence: .omo/evidence/task-3-agents-md-check.txt
 
   Scenario: AGENTS.md has no prose bloat
     Tool: Bash
@@ -444,7 +444,7 @@ Max Concurrent: 8 (Wave 1)
       2. Run `grep -c '^#\|^-\|^  -\|^\`\`\`\|^$' AGENTS.md` — expected: >70% of total lines
     Expected Result: Majority of lines are structured (headers, bullets, code) not flowing prose
     Failure Indicators: Large blocks of paragraph text
-    Evidence: .sisyphus/evidence/task-3-agents-md-structure.txt
+    Evidence: .omo/evidence/task-3-agents-md-structure.txt
   ```
 
   **Evidence to Capture:**
@@ -518,7 +518,7 @@ Max Concurrent: 8 (Wave 1)
       5. Run `wc -l ARCHITECTURE.md` — expected: 40-150 lines
     Expected Result: Renamed, populated, contains tech stack info
     Failure Indicators: Old file still exists, new file empty or missing tech stack
-    Evidence: .sisyphus/evidence/task-4-architecture-check.txt
+    Evidence: .omo/evidence/task-4-architecture-check.txt
   ```
 
   **Evidence to Capture:**
@@ -593,7 +593,7 @@ Max Concurrent: 8 (Wave 1)
       5. Run `wc -l README.md` — expected: 50-200 lines
     Expected Result: All key sections present, reasonable length
     Failure Indicators: Missing sections, too short (<30 lines), no rename instructions
-    Evidence: .sisyphus/evidence/task-5-readme-check.txt
+    Evidence: .omo/evidence/task-5-readme-check.txt
   ```
 
   **Evidence to Capture:**
@@ -663,7 +663,7 @@ Max Concurrent: 8 (Wave 1)
       4. Run `grep -i 'core-beliefs' docs/design-docs/index.md` — expected: match (referenced in index)
     Expected Result: Both files exist, core-beliefs has 5+ beliefs, index references core-beliefs
     Failure Indicators: Missing files, too few beliefs, index doesn't reference core-beliefs
-    Evidence: .sisyphus/evidence/task-6-design-docs-check.txt
+    Evidence: .omo/evidence/task-6-design-docs-check.txt
   ```
 
   **Evidence to Capture:**
@@ -747,7 +747,7 @@ Max Concurrent: 8 (Wave 1)
       4. Run `grep -i 'ruff\|mypy\|pytest' docs/QUALITY_SCORE.md` — expected: tools referenced in automated gates
     Expected Result: Both files have proper structure and content
     Failure Indicators: Missing files, missing kanban sections, missing quality layers
-    Evidence: .sisyphus/evidence/task-7-plans-quality-check.txt
+    Evidence: .omo/evidence/task-7-plans-quality-check.txt
   ```
 
   **Evidence to Capture:**
@@ -812,7 +812,7 @@ Max Concurrent: 8 (Wave 1)
       4. Run `grep -i 'severity\|category\|status' docs/exec-plans/tech-debt-tracker.md` — expected: matches
     Expected Result: Directory structure exists, tracker has proper columns
     Failure Indicators: Missing directories or .gitkeep files, tracker missing table structure
-    Evidence: .sisyphus/evidence/task-8-exec-plans-check.txt
+    Evidence: .omo/evidence/task-8-exec-plans-check.txt
   ```
 
   **Evidence to Capture:**
@@ -890,7 +890,7 @@ Max Concurrent: 8 (Wave 1)
       4. Run `uv run ruff check src/my_project/` — expected: no violations
     Expected Result: All imports work, all tools pass
     Failure Indicators: ImportError, mypy errors, ruff violations
-    Evidence: .sisyphus/evidence/task-9-package-check.txt
+    Evidence: .omo/evidence/task-9-package-check.txt
   ```
 
   **Evidence to Capture:**
@@ -958,7 +958,7 @@ Max Concurrent: 8 (Wave 1)
       3. Run `uv run ruff check tests/` — expected: no violations
     Expected Result: 2 tests pass, test code is clean
     Failure Indicators: Any test failure, ruff violations in test files
-    Evidence: .sisyphus/evidence/task-10-tests-check.txt
+    Evidence: .omo/evidence/task-10-tests-check.txt
 
   Scenario: Tests actually test the right thing
     Tool: Bash
@@ -969,7 +969,7 @@ Max Concurrent: 8 (Wave 1)
       3. Run `grep 'greet' tests/test_hello.py` — expected: greet function is called
     Expected Result: Tests contain proper assertions against the greet function
     Failure Indicators: No assert statements, greet not imported/called
-    Evidence: .sisyphus/evidence/task-10-test-content-check.txt
+    Evidence: .omo/evidence/task-10-test-content-check.txt
   ```
 
   **Evidence to Capture:**
@@ -1050,7 +1050,7 @@ Max Concurrent: 8 (Wave 1)
       7. Run `grep 'setup-uv\|astral-sh' .github/workflows/ci.yml` — expected: uv action used
     Expected Result: Valid YAML, all 4 tool steps present, proper triggers
     Failure Indicators: YAML parse error, missing tool steps, missing triggers
-    Evidence: .sisyphus/evidence/task-11-ci-check.txt
+    Evidence: .omo/evidence/task-11-ci-check.txt
   ```
 
   **Evidence to Capture:**
@@ -1150,7 +1150,7 @@ Max Concurrent: 8 (Wave 1)
       6. Run `grep -c '\- \[ \]' .github/pull_request_template.md` — expected: >= 8 (checkboxes)
     Expected Result: All sections present with enough checkboxes for thorough review
     Failure Indicators: Missing sections, too few checkboxes
-    Evidence: .sisyphus/evidence/task-12-pr-template-check.txt
+    Evidence: .omo/evidence/task-12-pr-template-check.txt
   ```
 
   **Evidence to Capture:**
@@ -1248,7 +1248,7 @@ Max Concurrent: 8 (Wave 1)
       5. Run `grep -l '.yml' .github/ISSUE_TEMPLATE/` — expected: no .md template files
     Expected Result: All 4 YAML files exist and parse, ai-task has dropdowns and required fields
     Failure Indicators: YAML parse errors, missing files, .md files instead of .yml
-    Evidence: .sisyphus/evidence/task-13-issue-templates-check.txt
+    Evidence: .omo/evidence/task-13-issue-templates-check.txt
 
   Scenario: ai-task template has all required fields
     Tool: Bash
@@ -1258,7 +1258,7 @@ Max Concurrent: 8 (Wave 1)
       2. Run `grep -c 'type:' .github/ISSUE_TEMPLATE/ai-task.yml` — expected: >= 4 (field type declarations)
     Expected Result: All essential fields present with proper types
     Failure Indicators: Missing fields, no type declarations
-    Evidence: .sisyphus/evidence/task-13-ai-task-fields-check.txt
+    Evidence: .omo/evidence/task-13-ai-task-fields-check.txt
   ```
 
   **Evidence to Capture:**
@@ -1326,7 +1326,7 @@ Max Concurrent: 8 (Wave 1)
     Tool: Bash
     Preconditions: All tasks 1-13 completed
     Steps:
-      1. Count all expected files: `find . -not -path './.git/*' -not -path './.venv/*' -not -path './.sisyphus/*' -not -path './node_modules/*' -not -name 'uv.lock' -type f | wc -l` — expected: ~28
+      1. Count all expected files: `find . -not -path './.git/*' -not -path './.venv/*' -not -path './.omo/*' -not -path './node_modules/*' -not -name 'uv.lock' -type f | wc -l` — expected: ~28
       2. Run `uv sync` — expected: exit 0
       3. Run `uv run ruff check src/ tests/` — expected: "All checks passed" or similar
       4. Run `uv run ruff format --check src/ tests/` — expected: "N files already formatted"
@@ -1337,7 +1337,7 @@ Max Concurrent: 8 (Wave 1)
       9. Run `ls CLAUDE.md 2>&1` — expected: "No such file"
     Expected Result: All 9 checks pass green
     Failure Indicators: Any non-zero exit code, any failing test, AGENTS.md over 150 lines
-    Evidence: .sisyphus/evidence/task-14-full-verification.txt
+    Evidence: .omo/evidence/task-14-full-verification.txt
 
   Scenario: Template is usable from scratch
     Tool: Bash
@@ -1348,7 +1348,7 @@ Max Concurrent: 8 (Wave 1)
       3. Verify AGENTS.md references `uv run` commands
     Expected Result: Template is functional and self-documenting
     Failure Indicators: Import failures, missing rename instructions
-    Evidence: .sisyphus/evidence/task-14-usability-check.txt
+    Evidence: .omo/evidence/task-14-usability-check.txt
   ```
 
   **Evidence to Capture:**
@@ -1367,7 +1367,7 @@ Max Concurrent: 8 (Wave 1)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Rejection → fix → re-run.
 
 - [ ] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, check content). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.sisyphus/evidence/`. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, check content). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in `.omo/evidence/`. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [ ] F2. **Code Quality Review** — `unspecified-high`
@@ -1375,7 +1375,7 @@ Max Concurrent: 8 (Wave 1)
   Output: `Ruff [PASS/FAIL] | Mypy [PASS/FAIL] | Pytest [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
 - [ ] F3. **Real Manual QA** — `unspecified-high`
-  Start from clean state (`rm -rf .venv uv.lock && uv sync`). Run EVERY verification command from Definition of Done. Test `uv run ruff check`, `uv run mypy`, `uv run pytest` from scratch. Verify all docs have content. Verify all GitHub YAML files are valid. Save to `.sisyphus/evidence/final-qa/`.
+  Start from clean state (`rm -rf .venv uv.lock && uv sync`). Run EVERY verification command from Definition of Done. Test `uv run ruff check`, `uv run mypy`, `uv run pytest` from scratch. Verify all docs have content. Verify all GitHub YAML files are valid. Save to `.omo/evidence/final-qa/`.
   Output: `DoD Items [N/N pass] | Docs [N/N populated] | YAML [N/N valid] | VERDICT`
 
 - [ ] F4. **Scope Fidelity Check** — `deep`

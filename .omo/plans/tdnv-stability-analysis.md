@@ -110,7 +110,7 @@ Extend the TDNV module to support multi-concept separability metrics and create 
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Library/Module**: Use Bash (uv run pytest) — Run tests, verify pass/fail
 - **CLI/Scripts**: Use Bash — Run scripts with test args, check output files exist
@@ -222,7 +222,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run mypy src/steering_geometry/types.py
     Expected Result: Success: no issues found in 1 source file
     Failure Indicators: error: Missing annotation, error: Incompatible types
-    Evidence: .sisyphus/evidence/task-01-mypy-pass.txt
+    Evidence: .omo/evidence/task-01-mypy-pass.txt
 
   Scenario: Import still works
     Tool: Bash
@@ -231,7 +231,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run python -c "from steering_geometry.types import MMLUQuestion; print('OK')"
     Expected Result: OK
     Failure Indicators: ImportError, AttributeError
-    Evidence: .sisyphus/evidence/task-01-import-ok.txt
+    Evidence: .omo/evidence/task-01-import-ok.txt
   ```
 
   **Commit**: YES
@@ -290,7 +290,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run pytest tests/unit/test_tdnv.py --collect-only
     Expected Result: Shows collected tests (may fail to run)
     Failure Indicators: No tests collected, syntax error
-    Evidence: .sisyphus/evidence/task-02-tests-exist.txt
+    Evidence: .omo/evidence/task-02-tests-exist.txt
 
   Scenario: Tests fail as expected (TDD RED)
     Tool: Bash
@@ -299,7 +299,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run pytest tests/unit/test_tdnv.py::test_compute_tdnv_multi_concept -v 2>&1 | head -20
     Expected Result: Contains "FAILED" or "ImportError" (expected in TDD RED)
     Failure Indicators: All tests pass (means function already exists)
-    Evidence: .sisyphus/evidence/task-02-tdd-red.txt
+    Evidence: .omo/evidence/task-02-tdd-red.txt
   ```
 
   **Commit**: NO (groups with Task 5)
@@ -353,7 +353,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run pytest tests/unit/test_tdnv.py --collect-only -q | grep -i mmlu
     Expected Result: Shows MMLU test functions
     Failure Indicators: No output, syntax error
-    Evidence: .sisyphus/evidence/task-03-mmlu-tests-exist.txt
+    Evidence: .omo/evidence/task-03-mmlu-tests-exist.txt
   ```
 
   **Commit**: NO (groups with Task 6)
@@ -405,7 +405,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run pytest tests/unit/test_tdnv.py --collect-only -q | grep -i token
     Expected Result: Shows token selection test functions
     Failure Indicators: No output
-    Evidence: .sisyphus/evidence/task-04-token-tests-exist.txt
+    Evidence: .omo/evidence/task-04-token-tests-exist.txt
   ```
 
   **Commit**: NO (groups with Task 7)
@@ -459,7 +459,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run pytest tests/unit/test_tdnv.py::test_compute_tdnv_multi_concept -v
     Expected Result: All tests PASS
     Failure Indicators: FAILED, AssertionError
-    Evidence: .sisyphus/evidence/task-05-multi-concept-pass.txt
+    Evidence: .omo/evidence/task-05-multi-concept-pass.txt
 
   Scenario: Type check passes
     Tool: Bash
@@ -468,7 +468,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run mypy src/steering_geometry/tdnv.py
     Expected Result: Success: no issues found
     Failure Indicators: error: Incompatible return type
-    Evidence: .sisyphus/evidence/task-05-mypy-pass.txt
+    Evidence: .omo/evidence/task-05-mypy-pass.txt
   ```
 
   **Commit**: YES
@@ -527,7 +527,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run pytest tests/unit/test_tdnv.py::test_compute_tdnv_mmlu -v
     Expected Result: All tests PASS
     Failure Indicators: FAILED
-    Evidence: .sisyphus/evidence/task-06-mmlu-pass.txt
+    Evidence: .omo/evidence/task-06-mmlu-pass.txt
 
   Scenario: Function handles missing category
     Tool: Bash
@@ -536,7 +536,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: uv run pytest tests/unit/test_tdnv.py::test_compute_tdnv_mmlu_missing_category -v
     Expected Result: Test PASS (graceful handling)
     Failure Indicators: FAILED with KeyError
-    Evidence: .sisyphus/evidence/task-06-missing-cat-pass.txt
+    Evidence: .omo/evidence/task-06-missing-cat-pass.txt
   ```
 
   **Commit**: YES
@@ -593,7 +593,7 @@ Max Concurrent: 8 (Waves 2 & 3)
     Steps:
       1. Run: uv run pytest tests/unit/test_tdnv.py::test_select_last_n -v
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-07-last-n-pass.txt
+    Evidence: .omo/evidence/task-07-last-n-pass.txt
 
   Scenario: Top-k discriminative works
     Tool: Bash
@@ -601,7 +601,7 @@ Max Concurrent: 8 (Waves 2 & 3)
     Steps:
       1. Run: uv run pytest tests/unit/test_tdnv.py::test_select_top_k -v
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-07-top-k-pass.txt
+    Evidence: .omo/evidence/task-07-top-k-pass.txt
   ```
 
   **Commit**: YES
@@ -656,7 +656,7 @@ Max Concurrent: 8 (Waves 2 & 3)
     Steps:
       1. Run: uv run python -c "from steering_geometry.tdnv import plot_stability_trend; print('OK')"
     Expected Result: OK
-    Evidence: .sisyphus/evidence/task-08-plot-import.txt
+    Evidence: .omo/evidence/task-08-plot-import.txt
 
   Scenario: Plot generated correctly
     Tool: Bash
@@ -666,7 +666,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       2. Run: uv run python test_plot.py
       3. Check: ls -la /tmp/test_plot.pdf
     Expected Result: File exists and has content > 0 bytes
-    Evidence: .sisyphus/evidence/task-08-plot-output.txt
+    Evidence: .omo/evidence/task-08-plot-output.txt
   ```
 
   **Commit**: YES
@@ -731,7 +731,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       3. Check: ls /tmp/tdnv_test/*.pdf | wc -l
     Expected Result: 2 JSON files, 1 PDF file
     Failure Indicators: No files, script errors
-    Evidence: .sisyphus/evidence/task-09-script-output.txt
+    Evidence: .omo/evidence/task-09-script-output.txt
 
   Scenario: JSON output valid
     Tool: Bash
@@ -739,7 +739,7 @@ Max Concurrent: 8 (Waves 2 & 3)
     Steps:
       1. Run: python3 -c "import json; json.load(open('/tmp/tdnv_test/polite_Qwen3-1.7B_100.json'))"
     Expected Result: No error (valid JSON)
-    Evidence: .sisyphus/evidence/task-09-json-valid.txt
+    Evidence: .omo/evidence/task-09-json-valid.txt
   ```
 
   **Commit**: YES
@@ -802,7 +802,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: ./scripts/tdnv/run_seed_stability.sh --concept polite --seeds "0,1,2" --output /tmp/tdnv_seed/
       2. Check: ls /tmp/tdnv_seed/*.json | wc -l
     Expected Result: 3 JSON files
-    Evidence: .sisyphus/evidence/task-10-seed-output.txt
+    Evidence: .omo/evidence/task-10-seed-output.txt
   ```
 
   **Commit**: YES
@@ -864,7 +864,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: ./scripts/tdnv/run_last_n_stability.sh --concept polite --n-values "1,5,10" --output /tmp/tdnv_last_n/
       2. Check: ls /tmp/tdnv_last_n/*.json | wc -l
     Expected Result: 3 JSON files
-    Evidence: .sisyphus/evidence/task-11-last-n-output.txt
+    Evidence: .omo/evidence/task-11-last-n-output.txt
   ```
 
   **Commit**: YES
@@ -927,7 +927,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: ./scripts/tdnv/run_top_k_stability.sh --concept polite --k-values "16,32,64" --output /tmp/tdnv_top_k/
       2. Check: ls /tmp/tdnv_top_k/*.json | wc -l
     Expected Result: 3 JSON files
-    Evidence: .sisyphus/evidence/task-12-top-k-output.txt
+    Evidence: .omo/evidence/task-12-top-k-output.txt
   ```
 
   **Commit**: YES
@@ -985,7 +985,7 @@ Max Concurrent: 8 (Waves 2 & 3)
       1. Run: ./scripts/tdnv/explain_top_k_tokens.sh --output /tmp/tdnv_explain/
       2. Check: cat /tmp/tdnv_explain/top_k_explanation.md | head -20
     Expected Result: Markdown content with formula
-    Evidence: .sisyphus/evidence/task-13-explain-output.txt
+    Evidence: .omo/evidence/task-13-explain-output.txt
 
   Scenario: Explanation is accurate
     Tool: Bash
@@ -993,7 +993,7 @@ Max Concurrent: 8 (Waves 2 & 3)
     Steps:
       1. Check: grep -c "||h_i" /tmp/tdnv_explain/top_k_explanation.md
     Expected Result: At least 1 (formula present)
-    Evidence: .sisyphus/evidence/task-13-explain-formula.txt
+    Evidence: .omo/evidence/task-13-explain-formula.txt
   ```
 
   **Commit**: YES

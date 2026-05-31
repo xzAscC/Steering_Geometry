@@ -108,7 +108,7 @@ Replace the refusal steering vector extraction with a dual-dataset approach supp
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Library/Module**: Use Bash (pytest) — run specific tests, assert pass/fail
 - **CLI**: Use Bash — run CLI commands, assert exit code + output content
@@ -252,7 +252,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       4. Expected output shape: (6, 8) — 2 samples × 3 real tokens each
     Expected Result: PASS, shape (6, 8)
     Failure Indicators: Shape mismatch, padding tokens included, test FAIL
-    Evidence: .sisyphus/evidence/task-1-select-all.txt
+    Evidence: .omo/evidence/task-1-select-all.txt
 
   Scenario: "last_n" mode returns last N real tokens per sample
     Tool: Bash (pytest)
@@ -263,7 +263,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Create (2, 5, 8) tensor, last_n=2 → expect (4, 8) shape
     Expected Result: PASS, shape (4, 8)
     Failure Indicators: Shape mismatch, padding tokens included
-    Evidence: .sisyphus/evidence/task-1-select-last-n.txt
+    Evidence: .omo/evidence/task-1-select-last-n.txt
 
   Scenario: "last_n" with last_n > seq_len — graceful degradation
     Tool: Bash (pytest)
@@ -274,7 +274,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Expected: returns (6, 8) — all 3 tokens per sample, no crash
     Expected Result: PASS, no exception, returns all available tokens
     Failure Indicators: IndexError, crash, test FAIL
-    Evidence: .sisyphus/evidence/task-1-select-overflow.txt
+    Evidence: .omo/evidence/task-1-select-overflow.txt
 
   Scenario: Existing int-index mode still works (backward compat)
     Tool: Bash (pytest)
@@ -285,7 +285,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Assert: returns (batch, hidden_dim) with last non-padding token per sample
     Expected Result: PASS, existing tests green
     Failure Indicators: Regression, shape change, test FAIL
-    Evidence: .sisyphus/evidence/task-1-select-backward.txt
+    Evidence: .omo/evidence/task-1-select-backward.txt
   ```
 
   **Evidence to Capture**:
@@ -358,7 +358,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       1. Run: uv run pytest tests/unit/test_extract.py -k "test_extraction_config_defaults" -v
       2. Assert: data_mode == "prompt_only", token_select == "all", last_n == 1, seed == 42
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-2-config-defaults.txt
+    Evidence: .omo/evidence/task-2-config-defaults.txt
 
   Scenario: ExtractionConfig accepts all valid combinations
     Tool: Bash (pytest)
@@ -367,7 +367,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. Test ExtractionConfig(data_mode="prompt_response", token_select="last_n", last_n=10, seed=123)
       3. Assert: all fields set correctly
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-2-config-values.txt
+    Evidence: .omo/evidence/task-2-config-values.txt
   ```
 
   **Evidence to Capture**:
@@ -462,7 +462,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. Mock benign-dataset with 3 rows, harmful-dataset with 3 rows
       3. Assert: 3 ContrastPairs returned, positive from benign, negative from harmful
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-3-dual-loader.txt
+    Evidence: .omo/evidence/task-3-dual-loader.txt
 
   Scenario: Prompt-only mode uses only prompt columns
     Tool: Bash (pytest)
@@ -472,7 +472,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Assert: positive == benign_prompt (no response appended)
       4. Assert: negative == harmful_prompt (no rejected appended)
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-3-prompt-only.txt
+    Evidence: .omo/evidence/task-3-prompt-only.txt
 
   Scenario: Prompt+Response mode concatenates correctly
     Tool: Bash (pytest)
@@ -482,7 +482,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Assert: positive == "benign_prompt\nbenign_response"
       4. Assert: negative == "harmful_prompt\nharmful_rejected"
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-3-prompt-response.txt
+    Evidence: .omo/evidence/task-3-prompt-response.txt
 
   Scenario: Filters benign rows with refusal-template responses
     Tool: Bash (pytest)
@@ -491,7 +491,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. Mock benign data where row[2].response == row[2].refusal
       3. Assert: filtered row is excluded, only genuine responses kept
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-3-filter.txt
+    Evidence: .omo/evidence/task-3-filter.txt
 
   Scenario: num_pairs caps at min dataset size
     Tool: Bash (pytest)
@@ -500,7 +500,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. Request num_pairs=10000 but mock only 5 harmful rows
       3. Assert: returns 5 pairs (capped at harmful dataset size)
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-3-cap.txt
+    Evidence: .omo/evidence/task-3-cap.txt
 
   Scenario: Deterministic with seed
     Tool: Bash (pytest)
@@ -509,7 +509,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. Call load_refusal_data twice with same seed
       3. Assert: identical pairs in same order
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-3-seed.txt
+    Evidence: .omo/evidence/task-3-seed.txt
   ```
 
   **Evidence to Capture**:
@@ -593,7 +593,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Assert: extract_steering_vector returns valid SteeringVector
       4. Assert: aggregator received 2D input (N, hidden_dim)
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-4-extract-all.txt
+    Evidence: .omo/evidence/task-4-extract-all.txt
 
   Scenario: "last_n" token selection in extraction pipeline
     Tool: Bash (pytest)
@@ -603,7 +603,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Assert: returns valid SteeringVector
       4. Assert: aggregator received 2D input
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-4-extract-last-n.txt
+    Evidence: .omo/evidence/task-4-extract-last-n.txt
 
   Scenario: Default backward compat — existing concepts unaffected
     Tool: Bash (pytest)
@@ -612,7 +612,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. These use default config (no token_select override)
       3. Assert: all still pass
     Expected Result: PASS — no regression
-    Evidence: .sisyphus/evidence/task-4-backward.txt
+    Evidence: .omo/evidence/task-4-backward.txt
 
   Scenario: Error on invalid token_select value
     Tool: Bash (pytest)
@@ -621,7 +621,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. Set config.token_select="invalid"
       3. Assert: raises ValueError
     Expected Result: PASS — proper error handling
-    Evidence: .sisyphus/evidence/task-4-invalid.txt
+    Evidence: .omo/evidence/task-4-invalid.txt
   ```
 
   **Evidence to Capture**:
@@ -687,7 +687,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       2. Assert: exit code 0
       3. Output should contain "Loaded N contrast pairs for refusal"
     Expected Result: Exit 0, contrast pairs loaded
-    Evidence: .sisyphus/evidence/task-5-cli-defaults.txt
+    Evidence: .omo/evidence/task-5-cli-defaults.txt
 
   Scenario: CLI accepts all 4 strategy combinations
     Tool: Bash
@@ -699,7 +699,7 @@ Max Concurrent: 2 (Waves 1 & 2)
          d. --data-mode prompt_response --token-select last_n --last-n 10
       2. Assert: all exit 0
     Expected Result: All 4 exit 0
-    Evidence: .sisyphus/evidence/task-5-cli-combos.txt
+    Evidence: .omo/evidence/task-5-cli-combos.txt
 
   Scenario: CLI --help shows new arguments
     Tool: Bash
@@ -707,7 +707,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       1. Run: uv run python -m steering_geometry.extract --help
       2. Assert: output contains "--data-mode", "--token-select", "--last-n", "--seed"
     Expected Result: Help text includes all new args
-    Evidence: .sisyphus/evidence/task-5-cli-help.txt
+    Evidence: .omo/evidence/task-5-cli-help.txt
 
   Scenario: Other concepts still work with default CLI
     Tool: Bash
@@ -715,7 +715,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       1. Run: uv run python -m steering_geometry.extract --concept sentiment --dry-run
       2. Assert: exit code 0, loads sentiment data
     Expected Result: Exit 0, no regression
-    Evidence: .sisyphus/evidence/task-5-cli-sentiment.txt
+    Evidence: .omo/evidence/task-5-cli-sentiment.txt
   ```
 
   **Evidence to Capture**:
@@ -789,7 +789,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       4. Assert: layer_activations dict has expected layer keys
       5. Assert: each layer tensor is 1D (hidden_dim,)
     Expected Result: PASS (4 tests, one per combination)
-    Evidence: .sisyphus/evidence/task-6-integration.txt
+    Evidence: .omo/evidence/task-6-integration.txt
 
   Scenario: Dead code removed — no references to deleted constants
     Tool: Bash
@@ -797,7 +797,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       1. Run: grep -r "_REFUSAL_PREFIX\|_COMPLIANCE_PREFIX" src/
       2. Assert: no matches (constants deleted)
     Expected Result: Empty grep output
-    Evidence: .sisyphus/evidence/task-6-dead-code.txt
+    Evidence: .omo/evidence/task-6-dead-code.txt
 
   Scenario: Full test suite passes
     Tool: Bash
@@ -805,7 +805,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       1. Run: uv run pytest -v
       2. Assert: 0 failures, 0 errors
     Expected Result: All tests pass
-    Evidence: .sisyphus/evidence/task-6-full-suite.txt
+    Evidence: .omo/evidence/task-6-full-suite.txt
 
   Scenario: Lint + type check clean
     Tool: Bash
@@ -815,7 +815,7 @@ Max Concurrent: 2 (Waves 1 & 2)
       3. Run: uv run mypy src/
       4. Assert: 0 violations, formatted, 0 errors
     Expected Result: All clean
-    Evidence: .sisyphus/evidence/task-6-lint.txt
+    Evidence: .omo/evidence/task-6-lint.txt
   ```
 
   **Evidence to Capture**:
@@ -836,7 +836,7 @@ Max Concurrent: 2 (Waves 1 & 2)
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
 - [x] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [x] F2. **Code Quality Review** — `unspecified-high`
@@ -844,7 +844,7 @@ Max Concurrent: 2 (Waves 1 & 2)
   Output: `Build [PASS/FAIL] | Lint [PASS/FAIL] | Tests [N pass/N fail] | Files [N clean/N issues] | VERDICT`
 
 - [x] F3. **Real Manual QA** — `unspecified-high`
-  Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (features working together, not isolation). Test edge cases: empty response, invalid arg combos, last_n > seq_len. Save to `.sisyphus/evidence/final-qa/`.
+  Start from clean state. Execute EVERY QA scenario from EVERY task — follow exact steps, capture evidence. Test cross-task integration (features working together, not isolation). Test edge cases: empty response, invalid arg combos, last_n > seq_len. Save to `.omo/evidence/final-qa/`.
   Output: `Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
 - [x] F4. **Scope Fidelity Check** — `deep`

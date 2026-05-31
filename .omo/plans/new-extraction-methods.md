@@ -95,7 +95,7 @@ Add two mathematically rigorous vector extraction methods to enable comparison e
 
 ### QA Policy
 Every task includes agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 ---
 
@@ -182,14 +182,14 @@ Max Concurrent: 2 (Wave 1 & 2)
     Steps:
       1. Run: uv run python -c "from steering_geometry.config import ExtractionConfig; c = ExtractionConfig(top_k=50); print(c.top_k)"
     Expected Result: Output contains "50"
-    Evidence: .sisyphus/evidence/task-1-config-topk.txt
+    Evidence: .omo/evidence/task-1-config-topk.txt
 
   Scenario: Config default top_k is None
     Tool: Bash (python -c)
     Steps:
       1. Run: uv run python -c "from steering_geometry.config import ExtractionConfig; c = ExtractionConfig(); print(c.top_k)"
     Expected Result: Output contains "None"
-    Evidence: .sisyphus/evidence/task-1-config-default.txt
+    Evidence: .omo/evidence/task-1-config-default.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -234,7 +234,7 @@ Max Concurrent: 2 (Wave 1 & 2)
     Steps:
       1. Run: uv run pytest tests/unit/test_aggregators.py --collect-only
     Expected Result: Output shows "test_weighted_mean_aggregator" and "test_discriminative_token_aggregator"
-    Evidence: .sisyphus/evidence/task-2-test-collect.txt
+    Evidence: .omo/evidence/task-2-test-collect.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -291,7 +291,7 @@ Max Concurrent: 2 (Wave 1 & 2)
     Steps:
       1. Run: uv run pytest tests/unit/test_aggregators.py::test_weighted_mean_aggregator -v
     Expected Result: Test passes, output shape is (hidden_dim,)
-    Evidence: .sisyphus/evidence/task-3-weighted-mean-shape.txt
+    Evidence: .omo/evidence/task-3-weighted-mean-shape.txt
 
   Scenario: Weighted mean handles single sample (edge case)
     Tool: Bash (pytest)
@@ -299,7 +299,7 @@ Max Concurrent: 2 (Wave 1 & 2)
       1. Create test with single sample tensors
       2. Run: uv run pytest tests/unit/test_aggregators.py::test_weighted_mean_single_sample -v
     Expected Result: Test passes, no division by zero
-    Evidence: .sisyphus/evidence/task-3-weighted-mean-edge.txt
+    Evidence: .omo/evidence/task-3-weighted-mean-edge.txt
 
   Scenario: Weighted mean gives higher weight to central tokens
     Tool: Bash (pytest)
@@ -308,7 +308,7 @@ Max Concurrent: 2 (Wave 1 & 2)
       2. Verify tokens closer to center have larger weights
       3. Run: uv run pytest tests/unit/test_aggregators.py::test_weighted_mean_weights -v
     Expected Result: Test passes, weight ordering correct
-    Evidence: .sisyphus/evidence/task-3-weighted-mean-weights.txt
+    Evidence: .omo/evidence/task-3-weighted-mean-weights.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -371,7 +371,7 @@ Max Concurrent: 2 (Wave 1 & 2)
     Steps:
       1. Run: uv run pytest tests/unit/test_aggregators.py::test_discriminative_token_aggregator -v
     Expected Result: Test passes, output shape is (hidden_dim,)
-    Evidence: .sisyphus/evidence/task-4-disc-shape.txt
+    Evidence: .omo/evidence/task-4-disc-shape.txt
 
   Scenario: Discriminative handles top_k > num_tokens
     Tool: Bash (pytest)
@@ -379,7 +379,7 @@ Max Concurrent: 2 (Wave 1 & 2)
       1. Create test with 10 tokens, request top_k=100
       2. Run: uv run pytest tests/unit/test_aggregators.py::test_discriminative_clamp_topk -v
     Expected Result: Test passes, uses all available tokens
-    Evidence: .sisyphus/evidence/task-4-disc-clamp.txt
+    Evidence: .omo/evidence/task-4-disc-clamp.txt
 
   Scenario: Discriminative selects tokens far from other class
     Tool: Bash (pytest)
@@ -388,7 +388,7 @@ Max Concurrent: 2 (Wave 1 & 2)
       2. Verify selected tokens have highest discriminative scores
       3. Run: uv run pytest tests/unit/test_aggregators.py::test_discriminative_selection -v
     Expected Result: Test passes, correct tokens selected
-    Evidence: .sisyphus/evidence/task-4-disc-selection.txt
+    Evidence: .omo/evidence/task-4-disc-selection.txt
   ```
 
   **Commit**: NO (groups with other tasks)
@@ -439,28 +439,28 @@ Max Concurrent: 2 (Wave 1 & 2)
     Steps:
       1. Run: uv run python -m steering_geometry.extract --concept honesty --method weighted_mean --dry-run
     Expected Result: No error, dry run completes
-    Evidence: .sisyphus/evidence/task-5-cli-weighted-mean.txt
+    Evidence: .omo/evidence/task-5-cli-weighted-mean.txt
 
   Scenario: CLI accepts discriminative method with default top_k
     Tool: Bash (python -m)
     Steps:
       1. Run: uv run python -m steering_geometry.extract --concept honesty --method discriminative --dry-run
     Expected Result: No error, dry run completes
-    Evidence: .sisyphus/evidence/task-5-cli-disc-default.txt
+    Evidence: .omo/evidence/task-5-cli-disc-default.txt
 
   Scenario: CLI accepts discriminative method with custom top_k
     Tool: Bash (python -m)
     Steps:
       1. Run: uv run python -m steering_geometry.extract --concept honesty --method discriminative --top-k 50 --dry-run
     Expected Result: No error, dry run completes
-    Evidence: .sisyphus/evidence/task-5-cli-disc-custom.txt
+    Evidence: .omo/evidence/task-5-cli-disc-custom.txt
 
   Scenario: CLI rejects invalid method
     Tool: Bash (python -m)
     Steps:
       1. Run: uv run python -m steering_geometry.extract --concept honesty --method invalid --dry-run
     Expected Result: Error message about invalid choice
-    Evidence: .sisyphus/evidence/task-5-cli-invalid.txt
+    Evidence: .omo/evidence/task-5-cli-invalid.txt
 
   Scenario: Help shows new options
     Tool: Bash (python -m)
@@ -468,7 +468,7 @@ Max Concurrent: 2 (Wave 1 & 2)
       1. Run: uv run python -m steering_geometry.extract --help
       2. Check output contains "weighted_mean", "discriminative", and "--top-k"
     Expected Result: All new options visible in help
-    Evidence: .sisyphus/evidence/task-5-cli-help.txt
+    Evidence: .omo/evidence/task-5-cli-help.txt
   ```
 
   **Commit**: YES
@@ -481,7 +481,7 @@ Max Concurrent: 2 (Wave 1 & 2)
 ## Final Verification Wave (MANDATORY — after ALL implementation tasks)
 
 - [ ] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search codebase for forbidden patterns. Check evidence files exist in .sisyphus/evidence/.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search codebase for forbidden patterns. Check evidence files exist in .omo/evidence/.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [ ] F2. **Code Quality Review** — `unspecified-high`

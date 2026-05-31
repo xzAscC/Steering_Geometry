@@ -208,7 +208,7 @@ Max Concurrent: 3 (Wave 1)
       2. 检查输出
     Expected Result: 输出 "All checks passed!" 或 "0 violations"
     Failure Indicators: 任何 isort 违规报告
-    Evidence: .sisyphus/evidence/task-1-isort-config.txt
+    Evidence: .omo/evidence/task-1-isort-config.txt
 
   Scenario: 完整 DoD 无回归
     Tool: Bash
@@ -217,7 +217,7 @@ Max Concurrent: 3 (Wave 1)
       1. 运行 `uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/ && uv run mypy src/ && uv run pytest`
     Expected Result: 所有检查通过，231 tests pass
     Failure Indicators: 任何 lint/type/test 错误
-    Evidence: .sisyphus/evidence/task-1-full-dod.txt
+    Evidence: .omo/evidence/task-1-full-dod.txt
 
   Scenario: known-first-party 被正确识别
     Tool: Bash
@@ -228,7 +228,7 @@ Max Concurrent: 3 (Wave 1)
       3. 验证方法: 运行 `grep -A2 '\[tool.ruff.lint.isort\]' pyproject.toml` 确认配置存在
     Expected Result: 配置段存在且包含 `known-first-party = ["steering_geometry"]`
     Failure Indicators: 配置段不存在或格式错误
-    Evidence: .sisyphus/evidence/task-1-config-verify.txt
+    Evidence: .omo/evidence/task-1-config-verify.txt
   ```
 
   **Commit**: YES
@@ -298,7 +298,7 @@ Max Concurrent: 3 (Wave 1)
       1. 运行 `uv run python -c "import yaml; yaml.safe_load(open('.pre-commit-config.yaml')); print('YAML valid')"`
     Expected Result: 输出 "YAML valid"
     Failure Indicators: Python 异常
-    Evidence: .sisyphus/evidence/task-2-yaml-valid.txt
+    Evidence: .omo/evidence/task-2-yaml-valid.txt
 
   Scenario: pre-commit hooks 通过现有代码
     Tool: Bash
@@ -308,7 +308,7 @@ Max Concurrent: 3 (Wave 1)
       2. 运行 `uv run pre-commit run --all-files`
     Expected Result: 所有 hooks 显示 "Passed"
     Failure Indicators: 任何 hook 显示 "Failed"
-    Evidence: .sisyphus/evidence/task-2-precommit-run.txt
+    Evidence: .omo/evidence/task-2-precommit-run.txt
 
   Scenario: hook 顺序正确（ruff-check 在 ruff-format 之前）
     Tool: Bash
@@ -324,7 +324,7 @@ Max Concurrent: 3 (Wave 1)
       "`
     Expected Result: 输出 "Hook order correct: ['ruff-check', 'ruff-format']"
     Failure Indicators: AssertionError 或顺序错误
-    Evidence: .sisyphus/evidence/task-2-hook-order.txt
+    Evidence: .omo/evidence/task-2-hook-order.txt
   ```
 
   **Commit**: YES
@@ -385,7 +385,7 @@ Max Concurrent: 3 (Wave 1)
       2. 验证计数 >= 2
     Expected Result: grep 返回计数 >= 2
     Failure Indicators: 计数为 0 或 1（说明内容不充分）
-    Evidence: .sisyphus/evidence/task-3-agents-update.txt
+    Evidence: .omo/evidence/task-3-agents-update.txt
 
   Scenario: 文档引用准确
     Tool: Bash
@@ -395,7 +395,7 @@ Max Concurrent: 3 (Wave 1)
       2. 验证 section 4 包含 import 排序相关指引
     Expected Result: 两个 section 都包含相关内容
     Failure Indicators: 任一 section 缺失内容
-    Evidence: .sisyphus/evidence/task-3-docs-verify.txt
+    Evidence: .omo/evidence/task-3-docs-verify.txt
   ```
 
   **Commit**: YES
@@ -466,7 +466,7 @@ Max Concurrent: 3 (Wave 1)
       1. 运行 `uv run python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml')); print('CI YAML valid')"`
     Expected Result: 输出 "CI YAML valid"
     Failure Indicators: Python 异常
-    Evidence: .sisyphus/evidence/task-4-ci-yaml.txt
+    Evidence: .omo/evidence/task-4-ci-yaml.txt
 
   Scenario: CI 包含 pre-commit job
     Tool: Bash
@@ -481,7 +481,7 @@ Max Concurrent: 3 (Wave 1)
       "`
     Expected Result: 输出包含 "pre-commit" 的 jobs 列表
     Failure Indicators: AssertionError
-    Evidence: .sisyphus/evidence/task-4-precommit-job.txt
+    Evidence: .omo/evidence/task-4-precommit-job.txt
 
   Scenario: 原有 check job 未被修改
     Tool: Bash
@@ -496,7 +496,7 @@ Max Concurrent: 3 (Wave 1)
       "`
     Expected Result: check job 仍有 6 个步骤
     Failure Indicators: 步骤数不匹配
-    Evidence: .sisyphus/evidence/task-4-check-unchanged.txt
+    Evidence: .omo/evidence/task-4-check-unchanged.txt
   ```
 
   **Commit**: YES
@@ -586,7 +586,7 @@ Max Concurrent: 3 (Wave 1)
       3. 检查生成的文件是否存在
     Expected Result: 无错误，生成目录包含 .pre-commit-config.yaml, pyproject.toml.snippet 等
     Failure Indicators: cookiecutter 报错或文件缺失
-    Evidence: .sisyphus/evidence/task-5-cookiecutter-generate.txt
+    Evidence: .omo/evidence/task-5-cookiecutter-generate.txt
 
   Scenario: 生成的 .pre-commit-config.yaml 包含正确的变量替换
     Tool: Bash
@@ -597,7 +597,7 @@ Max Concurrent: 3 (Wave 1)
       3. 验证不包含 Jinja2 模板语法（`{{` / `}}`）
     Expected Result: rev 值为实际版本号（如 "v0.8.0"），无模板残留
     Failure Indicators: 文件中包含 `{{cookiecutter.xxx}}`
-    Evidence: .sisyphus/evidence/task-5-template-output.txt
+    Evidence: .omo/evidence/task-5-template-output.txt
 
   Scenario: cookiecutter.json 是有效 JSON
     Tool: Bash
@@ -606,7 +606,7 @@ Max Concurrent: 3 (Wave 1)
       1. 运行 `python -c "import json; json.load(open('templates/cookiecutter-ruff-imports/cookiecutter.json')); print('JSON valid')"`
     Expected Result: 输出 "JSON valid"
     Failure Indicators: JSON 解析错误
-    Evidence: .sisyphus/evidence/task-5-json-valid.txt
+    Evidence: .omo/evidence/task-5-json-valid.txt
 
   Scenario: 自定义变量生成正确输出
     Tool: Bash
@@ -616,7 +616,7 @@ Max Concurrent: 3 (Wave 1)
       2. 检查生成的文件中 line-length 值
     Expected Result: 生成的配置中 line-length 为 "120"，package_name 相关处为 "my_lib"
     Failure Indicators: 值未替换或仍为默认值
-    Evidence: .sisyphus/evidence/task-5-custom-vars.txt
+    Evidence: .omo/evidence/task-5-custom-vars.txt
   ```
 
   **Commit**: YES
@@ -625,7 +625,7 @@ Max Concurrent: 3 (Wave 1)
   - Pre-commit: cookiecutter smoke test
 
 - [ ] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [ ] F2. **Code Quality Review** — `unspecified-high`

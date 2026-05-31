@@ -113,7 +113,7 @@ Implement a steering evaluation system that measures:
 
 ### QA Policy
 Every task MUST include agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Unit Tests**: Use pytest with `MagicMock` for API calls
 - **Integration**: Mock `HookedModel` and judge API, verify JSON output
@@ -213,7 +213,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run python -c "from steering_geometry.config import JudgeConfig, MMLUConfig, EvaluationConfig; print('OK')"
     Expected Result: Prints "OK"
-    Evidence: .sisyphus/evidence/task-01-config-import.txt
+    Evidence: .omo/evidence/task-01-config-import.txt
   ```
 
   **Commit**: NO (groups with Wave 1)
@@ -257,7 +257,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run python -c "from steering_geometry.types import JudgeScore, MMLUResult, EvaluationResult; print('OK')"
     Expected Result: Prints "OK"
-    Evidence: .sisyphus/evidence/task-02-types-import.txt
+    Evidence: .omo/evidence/task-02-types-import.txt
   ```
 
   **Commit**: NO (groups with Wave 1)
@@ -299,7 +299,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. test -f .env.example && grep -q "OPENROUTER_API_KEY" .env.example
     Expected Result: Exit code 0
-    Evidence: .sisyphus/evidence/task-03-env-example.txt
+    Evidence: .omo/evidence/task-03-env-example.txt
   ```
 
   **Commit**: NO (groups with Wave 1)
@@ -343,7 +343,7 @@ Max Concurrent: 5 (Wave 1)
       1. uv sync
       2. uv run python -c "import openai; import jinja2; print('OK')"
     Expected Result: Prints "OK"
-    Evidence: .sisyphus/evidence/task-04-deps.txt
+    Evidence: .omo/evidence/task-04-deps.txt
   ```
 
   **Commit**: NO (groups with Wave 1)
@@ -391,7 +391,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run python -c "from steering_geometry.evaluation import JudgeEvaluator, MMLUEvaluator, generate_html_report; print('OK')"
     Expected Result: Prints "OK"
-    Evidence: .sisyphus/evidence/task-05-skeleton.txt
+    Evidence: .omo/evidence/task-05-skeleton.txt
   ```
 
   **Commit**: NO (groups with Wave 1)
@@ -465,14 +465,14 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run pytest tests/unit/test_evaluation.py::test_extract_score -v
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-06-score-extract.txt
+    Evidence: .omo/evidence/task-06-score-extract.txt
 
   Scenario: Mocked API call returns correct score
     Tool: Bash
     Steps:
       1. uv run pytest tests/unit/test_evaluation.py::test_judge_evaluator_mock -v
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-06-mock-eval.txt
+    Evidence: .omo/evidence/task-06-mock-eval.txt
   ```
 
   **Commit**: NO (groups with Wave 2)
@@ -538,14 +538,14 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run pytest tests/unit/test_evaluation.py::test_mmlu_answer_extraction -v
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-07-answer-extract.txt
+    Evidence: .omo/evidence/task-07-answer-extract.txt
 
   Scenario: Mocked MMLU evaluation returns valid result
     Tool: Bash
     Steps:
       1. uv run pytest tests/unit/test_evaluation.py::test_mmlu_evaluator_mock -v
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-07-mock-mmlu.txt
+    Evidence: .omo/evidence/task-07-mock-mmlu.txt
   ```
 
   **Commit**: NO (groups with Wave 2)
@@ -616,7 +616,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run pytest tests/unit/test_evaluation.py::test_html_report -v
     Expected Result: PASS
-    Evidence: .sisyphus/evidence/task-08-html.txt
+    Evidence: .omo/evidence/task-08-html.txt
   ```
 
   **Commit**: NO (groups with Wave 2)
@@ -686,7 +686,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run python -m steering_geometry.apply_steering --help | grep -q "evaluate"
     Expected Result: Exit code 0
-    Evidence: .sisyphus/evidence/task-09-flag.txt
+    Evidence: .omo/evidence/task-09-flag.txt
   ```
 
   **Commit**: NO (groups with Wave 3)
@@ -745,7 +745,7 @@ Max Concurrent: 5 (Wave 1)
       1. test -x scripts/run_evaluation.sh
       2. ./scripts/run_evaluation.sh -h
     Expected Result: Exit code 0, help message displayed
-    Evidence: .sisyphus/evidence/task-10-script.txt
+    Evidence: .omo/evidence/task-10-script.txt
   ```
 
   **Commit**: NO (groups with Wave 3)
@@ -812,7 +812,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run pytest tests/unit/test_evaluation.py -v
     Expected Result: All PASS
-    Evidence: .sisyphus/evidence/task-11-tests.txt
+    Evidence: .omo/evidence/task-11-tests.txt
   ```
 
   **Commit**: NO (groups with Wave 4)
@@ -878,7 +878,7 @@ Max Concurrent: 5 (Wave 1)
     Steps:
       1. uv run pytest tests/unit/test_evaluation.py -v --tb=short
     Expected Result: All PASS, 0 failures
-    Evidence: .sisyphus/evidence/task-12-all-tests.txt
+    Evidence: .omo/evidence/task-12-all-tests.txt
   ```
 
   **Commit**: YES

@@ -96,7 +96,7 @@ Implement a stability sweep experiment that runs 5 independent DiM extractions a
 
 ### QA Policy
 Every task includes agent-executed QA scenarios.
-Evidence saved to `.sisyphus/evidence/task-{N}-{scenario-slug}.{ext}`.
+Evidence saved to `.omo/evidence/task-{N}-{scenario-slug}.{ext}`.
 
 - **Python logic**: Use Bash (`uv run pytest`)
 - **Plotting output**: Use Bash (file existence + size check)
@@ -213,7 +213,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert exit code 0
     Expected Result: Both model IDs present in SUPPORTED_MODELS
     Failure Indicators: AssertionError or ImportError
-    Evidence: .sisyphus/evidence/task-1-models-registered.txt
+    Evidence: .omo/evidence/task-1-models-registered.txt
 
   Scenario: trust_remote_code auto-detection for allenai models
     Tool: Bash
@@ -223,7 +223,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert output is "True"
     Expected Result: trust_remote_code is True for allenai models
     Failure Indicators: AttributeError or output is "False"
-    Evidence: .sisyphus/evidence/task-1-trust-remote-code.txt
+    Evidence: .omo/evidence/task-1-trust-remote-code.txt
   ```
 
   **Commit**: YES
@@ -291,7 +291,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert output contains "5" and "[100, 500, 1000, 5000, 10000]"
     Expected Result: Config created with correct defaults
     Failure Indicators: ImportError, AttributeError, or wrong values
-    Evidence: .sisyphus/evidence/task-2-config-creation.txt
+    Evidence: .omo/evidence/task-2-config-creation.txt
 
   Scenario: Invalid concept raises ValueError
     Tool: Bash
@@ -301,7 +301,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert output contains "ValueError"
     Expected Result: ValueError raised for unsupported concept
     Failure Indicators: No error raised, or wrong error type
-    Evidence: .sisyphus/evidence/task-2-config-validation.txt
+    Evidence: .omo/evidence/task-2-config-validation.txt
 
   Scenario: Concept name mapping works
     Tool: Bash
@@ -311,7 +311,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert output is "Safety"
     Expected Result: "refusal" maps to "Safety" for figure titles
     Failure Indicators: Output is "refusal" or AttributeError
-    Evidence: .sisyphus/evidence/task-2-concept-mapping.txt
+    Evidence: .omo/evidence/task-2-concept-mapping.txt
   ```
 
   **Commit**: YES
@@ -408,7 +408,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert output contains "config: StabilitySweepConfig"
     Expected Result: Function exists with correct signature
     Failure Indicators: ImportError or wrong signature
-    Evidence: .sisyphus/evidence/task-3-signature.txt
+    Evidence: .omo/evidence/task-3-signature.txt
 
   Scenario: Dry-run with mock model produces correct result structure
     Tool: Bash (uv run pytest)
@@ -418,7 +418,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert all tests pass
     Expected Result: Test passes, result has selected_layer, per_n_data, all_layers_data
     Failure Indicators: Test failure, missing fields
-    Evidence: .sisyphus/evidence/task-3-dry-run.txt
+    Evidence: .omo/evidence/task-3-dry-run.txt
 
   Scenario: Type check passes
     Tool: Bash
@@ -428,7 +428,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert exit code 0
     Expected Result: No type errors
     Failure Indicators: Non-zero exit code
-    Evidence: .sisyphus/evidence/task-3-mypy.txt
+    Evidence: .omo/evidence/task-3-mypy.txt
   ```
 
   **Commit**: YES
@@ -505,7 +505,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert test passes (save → load → compare selected_layer and per_n_data)
     Expected Result: Loaded data matches saved data exactly
     Failure Indicators: Test failure, float precision issues
-    Evidence: .sisyphus/evidence/task-4-json-roundtrip.txt
+    Evidence: .omo/evidence/task-4-json-roundtrip.txt
 
   Scenario: Load multiple results for plotting
     Tool: Bash (uv run pytest)
@@ -515,7 +515,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert test passes with correct {concept: {model: {n: (mean, std)}}} structure
     Expected Result: Plotting-ready data structure
     Failure Indicators: Wrong nesting or missing keys
-    Evidence: .sisyphus/evidence/task-4-plotting-data.txt
+    Evidence: .omo/evidence/task-4-plotting-data.txt
   ```
 
   **Commit**: YES
@@ -600,7 +600,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       4. Asserts 3 PDF files exist and are non-empty
     Expected Result: 3 PDFs created, each > 0 bytes
     Failure Indicators: Missing files, 0-byte files, or test failure
-    Evidence: .sisyphus/evidence/task-5-plot-output.txt
+    Evidence: .omo/evidence/task-5-plot-output.txt
 
   Scenario: PDF files have correct naming convention
     Tool: Bash
@@ -615,7 +615,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert output contains "safety_stability_sweep.pdf", "politeness_stability_sweep.pdf", "sentiment_stability_sweep.pdf"
     Expected Result: Correct filenames with concept display names
     Failure Indicators: Wrong filenames or paths
-    Evidence: .sisyphus/evidence/task-5-naming.txt
+    Evidence: .omo/evidence/task-5-naming.txt
 
   Scenario: Figure has 4 model lines per concept
     Tool: Bash (uv run pytest)
@@ -625,7 +625,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Test uses matplotlib to read back the figure and count Line2D objects
     Expected Result: Each figure has exactly 4 Line2D objects (one per model)
     Failure Indicators: Wrong number of lines
-    Evidence: .sisyphus/evidence/task-5-line-count.txt
+    Evidence: .omo/evidence/task-5-line-count.txt
   ```
 
   **Commit**: YES
@@ -733,7 +733,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert exit code 0 (syntax check passes)
     Expected Result: No syntax errors
     Failure Indicators: Non-zero exit code with parse error
-    Evidence: .sisyphus/evidence/task-6-syntax-check.txt
+    Evidence: .omo/evidence/task-6-syntax-check.txt
 
   Scenario: Script has correct shebang and set options
     Tool: Bash
@@ -744,7 +744,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       3. Assert second line contains "set -euo pipefail"
     Expected Result: Proper shell script header
     Failure Indicators: Missing shebang or set options
-    Evidence: .sisyphus/evidence/task-6-header.txt
+    Evidence: .omo/evidence/task-6-header.txt
   ```
 
   **Commit**: YES
@@ -815,7 +815,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert all tests pass (10 tests, 0 failures)
     Expected Result: All 10 tests pass
     Failure Indicators: Any test failure
-    Evidence: .sisyphus/evidence/task-7-tests-pass.txt
+    Evidence: .omo/evidence/task-7-tests-pass.txt
 
   Scenario: Full test suite still passes
     Tool: Bash
@@ -825,7 +825,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert all tests pass (231 + 10 new = 241+)
     Expected Result: No regressions in existing tests
     Failure Indicators: Any test failure count increase
-    Evidence: .sisyphus/evidence/task-7-full-suite.txt
+    Evidence: .omo/evidence/task-7-full-suite.txt
 
   Scenario: Lint and type check
     Tool: Bash
@@ -835,7 +835,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
       2. Assert all pass
     Expected Result: 0 violations, 0 errors
     Failure Indicators: Any violations or errors
-    Evidence: .sisyphus/evidence/task-7-lint-type.txt
+    Evidence: .omo/evidence/task-7-lint-type.txt
   ```
 
   **Commit**: YES
@@ -850,7 +850,7 @@ Critical Path: T1/T2 → T3 → T4 → T5 → T6 → T7 → F1-F4
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 
 - [x] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .sisyphus/evidence/. Compare deliverables against plan.
+  Read the plan end-to-end. For each "Must Have": verify implementation exists (read file, run command). For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found. Check evidence files exist in .omo/evidence/. Compare deliverables against plan.
   Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
 
 - [x] F2. **Code Quality Review** — `unspecified-high`
