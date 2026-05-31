@@ -12,6 +12,7 @@ from steering_geometry.prefix_analysis import (
     _compute_attn_cosine_distance,
     _extract_attention_links,
     _extract_prefix_attention,
+    _make_steering_hook,
     generate_analysis_report,
     per_token_kl_divergence,
     plot_attention_analysis,
@@ -842,3 +843,121 @@ class TestPlotAttentionLinkHeatmap:
         )
 
         assert result.exists()
+
+
+# ===========================================================================
+# 11. _make_steering_hook
+# ===========================================================================
+
+
+class TestMakeSteeringHook:
+    """Tests for _make_steering_hook and off-by-one fix."""
+
+    def test_applies_steering_for_exactly_steer_tokens_calls(self) -> None:
+        """Hook should apply steering for exactly steer_tokens forward passes."""
+        sv = torch.ones(1, 4)
+        scale = 2.0
+        steer_tokens = 3
+        step_counter = [0]
+        hook = _make_steering_hook(sv, scale, steer_tokens, step_counter)
+
+        base_output = torch.zeros(1, 4)
+        for i in range(5):
+            result = hook(object(), object(), base_output.clone())
+            if i < steer_tokens:
+                assert torch.allclose(result, base_output + sv * scale), (
+                    f"Step {i + 1}: expected steering applied"
+                )
+            else:
+                assert torch.allclose(result, base_output), f"Step {i + 1}: expected no steering"
+
+    def test_none_steer_tokens_applies_forever(self) -> None:
+        """steer_tokens=None should apply steering to all calls."""
+        sv = torch.ones(1, 4)
+        scale = 1.0
+        step_counter = [0]
+        hook = _make_steering_hook(sv, scale, None, step_counter)
+
+        base_output = torch.zeros(1, 4)
+        for _ in range(10):
+            result = hook(object(), object(), base_output.clone())
+            assert torch.allclose(result, base_output + sv * scale)
+
+    def test_zero_steer_tokens_applies_no_steering(self) -> None:
+        """steer_tokens=0 should never apply steering."""
+        sv = torch.ones(1, 4)
+        step_counter = [0]
+        hook = _make_steering_hook(sv, 1.0, 0, step_counter)
+
+        base_output = torch.zeros(1, 4)
+        result = hook(object(), object(), base_output.clone())
+        assert torch.allclose(result, base_output)
+
+    def test_counter_increments_on_each_call(self) -> None:
+        """step_counter should increment by 1 on each hook invocation."""
+        sv = torch.ones(1, 4)
+        step_counter = [0]
+        hook = _make_steering_hook(sv, 1.0, None, step_counter)
+
+        for expected in range(1, 6):
+            hook(object(), object(), torch.zeros(1, 4))
+            assert step_counter[0] == expected
+
+    def test_tuple_output_with_steering(self) -> None:
+        """Hook should handle tuple output, adding steering to first element."""
+        sv = torch.ones(1, 4)
+        scale = 1.5
+        step_counter = [0]
+        hook = _make_steering_hook(sv, scale, None, step_counter)
+
+        base_tensor = torch.zeros(1, 4)
+        extra = torch.zeros(1, 4)
+        result = hook(object(), object(), (base_tensor, extra))
+
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert torch.allclose(result[0], base_tensor + sv * scale)
+        assert result[1] is extra
+
+    def test_tuple_output_passthrough_when_expired(self) -> None:
+        """Expired hook should return tuple output unchanged."""
+        sv = torch.ones(1, 4)
+        step_counter = [0]
+        hook = _make_steering_hook(sv, 1.0, 1, step_counter)
+
+        base_tensor = torch.zeros(1, 4)
+        extra = torch.zeros(1, 4)
+        hook(object(), object(), base_tensor.clone())
+        result = hook(object(), object(), (base_tensor, extra))
+        assert isinstance(result, tuple)
+        assert result[0] is base_tensor
+        assert result[1] is extra
+
+    def test_prefill_counter_reset_semantic(self) -> None:
+        """After prefill increments counter to 1, resetting to 0 ensures N generation
+        steps are steered when steer_tokens=N (the off-by-one fix)."""
+        sv = torch.ones(1, 4)
+        scale = 1.0
+        steer_tokens = 3
+        step_counter = [0]
+        hook = _make_steering_hook(sv, scale, steer_tokens, step_counter)
+
+        base_output = torch.zeros(1, 4)
+
+        # Simulate prefill: one forward pass
+        hook(object(), object(), base_output.clone())
+        assert step_counter[0] == 1
+
+        # Reset counter (this is what the off-by-one fix does after prefill)
+        step_counter[0] = 0
+
+        # Now 3 generation steps should all get steering
+        for gen_step in range(3):
+            result = hook(object(), object(), base_output.clone())
+            assert torch.allclose(result, base_output + sv * scale), (
+                f"Gen step {gen_step + 1}: expected steering"
+            )
+
+        # 4th generation step should NOT get steering
+        result = hook(object(), object(), base_output.clone())
+        assert torch.allclose(result, base_output), "Gen step 4: expected no steering"
