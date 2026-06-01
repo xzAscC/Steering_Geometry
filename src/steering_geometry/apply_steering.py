@@ -900,8 +900,25 @@ class MMLUProEvaluator:
 
         return accuracy, per_category, cat_total, refused, extract_failed
 
-    def evaluate(self, steering_vector: Tensor, layer_idx: int, scale: float) -> MMLUProResult:
-        """Run full MMLU-Pro evaluation with steering."""
+    def evaluate(
+        self,
+        steering_vector: Tensor,
+        layer_idx: int,
+        scale: float,
+        steer_tokens: int | None = None,
+    ) -> MMLUProResult:
+        """Run full MMLU-Pro evaluation with steering.
+
+        Args:
+            steering_vector: The steering vector to apply.
+            layer_idx: Layer index to apply steering at.
+            scale: Scale factor for steering strength.
+            steer_tokens: Number of generation steps to apply steering.
+                None applies steering to all steps (default).
+
+        Returns:
+            MMLUProResult with accuracy and predictions.
+        """
         test_data, val_data = self.load_dataset()
         predictions: list[MMLUProPrediction] = []
 
@@ -917,6 +934,7 @@ class MMLUProEvaluator:
                 scale=scale,
                 max_new_tokens=self.config.max_new_tokens,
                 temperature=0.0,
+                steer_tokens=steer_tokens,
             )
 
             predicted = self.extract_answer(response)
