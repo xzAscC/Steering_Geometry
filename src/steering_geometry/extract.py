@@ -730,13 +730,8 @@ def main() -> None:
     logger.info("Saved steering vector to %s", output_file)
 
 
-def _run_cli() -> None:
-    """Run CLI when invoked as entry point."""
-    main()
-
-
 if __name__ == "__main__":
-    _run_cli()
+    main()
 
 
 __all__ = [

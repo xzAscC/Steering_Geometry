@@ -251,7 +251,6 @@ class JudgeEvaluator:
             config: Configuration for the judge model.
         """
         self.config = config
-        # Detect localhost and use dummy API key
         if "localhost" in config.api_base or "127.0.0.1" in config.api_base:
             api_key = "local-vllm"
         else:
@@ -367,7 +366,6 @@ class JudgeEvaluator:
         concept_score = self.evaluate_concept(concept, text)
         fluency_score = self.evaluate_fluency(text)
 
-        # Compute harmonic mean
         if concept_score.concept_score <= 0 or fluency_score <= 0:
             final_score = 0.0
         else:
@@ -974,7 +972,6 @@ def generate_html_report(result: EvaluationResult, output_path: Path) -> None:
     mmlu_result = result.mmlu_result
     metadata = result.metadata
 
-    # Compute averages
     if judge_scores:
         avg_concept = sum(s.concept_score for s in judge_scores) / len(judge_scores)
         avg_fluency = sum(s.fluency_score for s in judge_scores) / len(judge_scores)
@@ -1035,8 +1032,6 @@ def _compute_avg_activation(
     activations = model.get_activations(texts, layers)
     avg_per_layer = {}
     for layer_idx, act in activations.items():
-        # act shape: (batch_size, seq_len, hidden_dim)
-        # Compute mean norm across all tokens and samples
         avg_per_layer[layer_idx] = float(act.norm(dim=-1).mean().item())
     return avg_per_layer
 
@@ -1093,7 +1088,6 @@ def apply_steering(
     if not config.multipliers:
         raise ValueError("multipliers cannot be empty")
 
-    # Load steering vector
     data = torch.load(vector_path, map_location="cpu", weights_only=False)
     vector: SteeringVector = data["vector"]
     concept = vector.concept
@@ -1101,30 +1095,24 @@ def apply_steering(
     logger.info("Loaded steering vector for concept: %s", concept)
     logger.info("Vector has %d layers", len(vector.layer_activations))
 
-    # Load model
     logger.info("Loading model: %s", model_name)
     model = HookedModel(ModelConfig(model_name=model_name))
 
-    # Load contrast pairs and get negative samples
     logger.info("Loading %d negative samples (seed=%d)...", config.num_samples, config.seed)
     pairs = load_contrast_pairs(concept, config.num_samples)
     random.seed(config.seed)
     selected_pairs = random.sample(pairs, min(config.num_samples, len(pairs)))
     neg_samples = [pair.negative for pair in selected_pairs]
 
-    # Normalize vectors
     normalized_vectors = _normalize_vectors(vector)
     layers = sorted(normalized_vectors.keys())
 
-    # Compute avg activation per layer
     logger.info("Computing average activations...")
     avg_activations = _compute_avg_activation(model, neg_samples, layers)
 
-    # Create output directory
     safe_model = safe_model_name(model_name)
     concept_dir = ensure_dir(output_dir / concept / safe_model)
 
-    # Process each layer
     for layer_idx in layers:
         logger.info("Processing layer %d...", layer_idx)
         normalized_v = normalized_vectors[layer_idx]
@@ -1154,7 +1142,6 @@ def apply_steering(
                 preview = generated[:50] + "..." if len(generated) > 50 else generated
                 logger.debug("Sample %d, mult %s: %s", sample_idx, multiplier, preview)
 
-        # Write JSONL
         output_file = concept_dir / f"layer{layer_idx}.jsonl"
         with output_file.open("w") as f:
             for result in results:
@@ -1419,7 +1406,6 @@ def main() -> None:
 
     configure_logging(level=args.log_level)
 
-    # Parse multipliers
     multipliers = [float(m.strip()) for m in args.multipliers.split(",")]
 
     config = SteeringConfig(

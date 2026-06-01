@@ -921,7 +921,6 @@ def run_attention_analysis(
     all_links: list[AttentionLinkInstance] = []
 
     for t in range(min_len):
-        # Attention to prefix positions at the steering layer
         if layer_idx in attn_no_steer[t]:
             attn_to_prefix_no.append(
                 _extract_prefix_attention(attn_no_steer[t][layer_idx], prefix_len)
@@ -941,7 +940,6 @@ def run_attention_analysis(
         else:
             attn_to_prefix_all.append(0.0)
 
-        # Cosine distance between prefix and no-steer attention at steering layer
         if layer_idx in attn_prefix[t] and layer_idx in attn_no_steer[t]:
             attn_cosine_shift.append(
                 _compute_attn_cosine_distance(
@@ -951,7 +949,6 @@ def run_attention_analysis(
         else:
             attn_cosine_shift.append(0.0)
 
-        # Mean absolute attention difference at steering layer
         if layer_idx in attn_prefix[t] and layer_idx in attn_no_steer[t]:
             diff = float(
                 (attn_prefix[t][layer_idx].float() - attn_no_steer[t][layer_idx].float())
@@ -1966,7 +1963,6 @@ def run_prefix_analysis(
         msg = f"Unexpected vector format in {vector_path}: {type(data)}"
         raise ValueError(msg)
 
-    # Normalize
     norm = steering_vector.norm()
     if norm > 0:
         steering_vector = steering_vector / norm
