@@ -1,23 +1,25 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-03-19
-**Commit:** e36bd3f
-**Branch:** refactor/architecture
+**Updated:** 2026-05-31
+**Commit:** 3be3c56
+**Branch:** experiment/pipeline
 
 AI agents working in this repository MUST follow these rules.
 
 ## 1) Repository Snapshot
 
 - Package manager: `uv`
-- Python: 3.12+ (see `.python-version`)
+- Python: 3.12 (see `.python-version`)
 - Build: `hatchling`
 - Lint/Format: `ruff` (line-length 100, double quotes)
 - Type check: `mypy --strict`
 - Test: `pytest`
+- CI: `.github/workflows/ci.yml` — runs lint → format check → mypy → pytest on push/PR to `main`
 - Scope: NeurIPS 2026 paper experiments for Robust DiM and Prefix Steering
 - Paper models: `allenai/Olmo-3-1025-7B`, `allenai/Olmo-3-1125-32B`, `Qwen/Qwen3-1.7B`, `Qwen/Qwen3-14B`
 - Paper concepts: safety/refusal, sentiment, politeness
 - Evaluations: HarmBench, LLM-as-judge, MMLU-Pro
+- **Env vars**: `OPENROUTER_API_KEY` required for LLM-as-judge evaluation (see `.env.example`)
 
 ## 2) Build & Verify Commands
 
@@ -41,11 +43,17 @@ uv run mypy src/
 uv run pytest
 
 # Run single test file
-uv run pytest tests/test_hello.py
+uv run pytest tests/unit/test_extract.py
 
 # Run test by name
 uv run pytest -k "test_name"
+
+# Exclude slow or GPU tests
+uv run pytest -m "not slow"
+uv run pytest -m "not gpu"
 ```
+
+**Required order:** lint → format check → type check → test. CI enforces this exact sequence.
 
 ## 3) Definition of Done
 
@@ -59,10 +67,10 @@ Before opening a PR, ALL of these must pass:
 
 ## 4) When Writing Code
 
-- Use ESM-style imports (from x import y)
+- Use ESM-style imports (`from x import y`)
 - Group imports: stdlib → third-party → local
 - Use type hints on ALL function parameters and returns
-- Never use `Any` — use `unknown` patterns or proper types
+- Never use `Any` — use proper types or `unknown` patterns
 - Fail fast on invalid input
 - Throw typed/domain-specific errors
 - Preserve original error as `cause` when wrapping
@@ -73,6 +81,7 @@ Before opening a PR, ALL of these must pass:
 - Cover: happy path, edge cases, failure paths
 - Keep tests deterministic and isolated
 - Mock external boundaries (network, file I/O)
+- Custom markers available: `@pytest.mark.slow`, `@pytest.mark.gpu`
 
 ## 6) When Opening a PR
 
@@ -121,16 +130,19 @@ Enforced by ruff (see pyproject.toml):
 | Load model with hooks | `src/steering_geometry/models.py` | `HookedModel` class |
 | Extract Robust DiM directions | `src/steering_geometry/extract.py` | Steering vector extraction and contrast pair loading |
 | Apply Prefix Steering | `src/steering_geometry/apply_steering.py` | Steering application plus HarmBench, LLM-as-judge, and MMLU-Pro evaluation |
+| Prefix analysis | `src/steering_geometry/prefix_analysis.py` | KL divergence and attention pattern analysis for Prefix Steering |
 | Vector stability experiments | `src/steering_geometry/stability_comparison.py` | Robust DiM stability sweeps and vector comparison helpers |
 | Construction diagnosis experiments | `src/steering_geometry/token_selection_experiments.py` | Token position, prompt vs response, example count, and steering scope experiments |
 | Shared utilities | `src/steering_geometry/utils.py` | `ensure_dir()`, `safe_model_name()`, `sample_with_seed()`, `configure_logging()` |
-| Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs` |
+| Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs`, `FakeTokenizer`, `FakeCausalLM` |
 | Extraction scripts | `scripts/extract/` | Paper extraction entry points |
 | Prefix Steering scripts | `scripts/apply_steering/` | Steering and evaluation entry points |
+| Prefix analysis scripts | `scripts/prefix_analysis/` | `run_analysis.sh`, `run_all_concepts.sh` |
 | Pipeline scripts | `scripts/pipeline/` | Paper pipeline orchestration |
 | Construction diagnosis scripts | `scripts/token_experiments/` | Token count, token position, prompt vs response, and steering scope runs |
 | Vector analysis scripts | `scripts/vector_analysis/` | Stability sweeps and heatmap generation |
 | Stability comparison scripts | `scripts/stability_comparison/` | Quick vector stability runs |
+| Experiment scripts | `scripts/experiments/` | Contains a Python sweep script (exception to shell-only rule) |
 
 ## 10) Anti-Patterns
 
@@ -149,11 +161,12 @@ Enforced by ruff (see pyproject.toml):
 | `stability_comparison.py` | Experiment result dictionaries can drift as metrics change | Use TypedDict schemas for persisted results |
 | `token_selection_experiments.py` | Construction diagnosis outputs cover multiple experiment shapes | Keep result schemas explicit and test serialization |
 | `__main__.py` | `print()` used for shell eval output | Intentional, shell capture output, not logging |
+| `scripts/experiments/prefix_vs_full_strength_sweep.py` | Python file in `scripts/` (violates shell-only convention) | Consider moving logic to `src/` and making script a thin wrapper |
 
 ### Known Violations (from audit)
 - Keep `typing.Any` out of new code unless a third-party boundary has no typed alternative.
 - `print()` is allowed only in `src/steering_geometry/__main__.py` for shell eval output.
-- `scripts/` must contain shell entry points only. Put Python code in `src/steering_geometry/`.
+- `scripts/` must contain shell entry points only. Put Python code in `src/steering_geometry/`. (Exception: `scripts/experiments/` contains a `.py` experiment script.)
 
 ## 11) Pipeline Workflow
 
@@ -163,21 +176,9 @@ Enforced by ruff (see pyproject.toml):
 1. READ PLAN    → Read PLAN.md, parse tasks, understand requirements
 2. CODE         → Implement following conventions in this file
 3. VERIFY       → Run: ruff check, ruff format, mypy, pytest (ALL must pass)
-4. MOVE PLAN    → ./scripts/complete_plan.sh <plan_name>
+4. MOVE PLAN    → ./scripts/complete_plan.sh <plan_name> (if script exists)
 5. UPDATE DOCS  → PLANS.md, QUALITY_SCORE.md, ARCHITECTURE.md as needed
 6. COMMIT/PR    → When logical unit complete + all checks pass
-```
-
-### Plan Completion
-
-When a plan from `.omo/plans/` is complete:
-
-```bash
-# Move plan to docs/exec-plans/completed/
-./scripts/complete_plan.sh <plan_name>
-
-# Example:
-./scripts/complete_plan.sh steering-concepts-pipeline
 ```
 
 ### Extraction Scripts
@@ -197,6 +198,10 @@ uv run python -m steering_geometry.extract --concept politeness --model "allenai
 
 # Apply Prefix Steering with a saved vector
 ./scripts/apply_steering/run_steering.sh
+
+# Prefix analysis (KL divergence + attention patterns)
+./scripts/prefix_analysis/run_analysis.sh
+./scripts/prefix_analysis/run_all_concepts.sh
 ```
 
 ### Experiments
@@ -255,15 +260,9 @@ outputs/
     └── heatmaps/
 ```
 
-**Expected Paper Outputs:**
-- Robust DiM steering vectors for the configured paper model, concept, and layer combinations
-- Prefix Steering evaluation JSON for HarmBench, LLM-as-judge, and MMLU-Pro runs
-- Construction diagnosis outputs for token count, token position, prompt vs response, and example count sweeps
-- Stability plots and heatmaps for Robust DiM direction comparisons
-
 ### Directory Rules
 
-- **scripts/** → Shell scripts (`.sh`) ONLY. No Python files.
+- **scripts/** → Shell scripts (`.sh`) ONLY. No Python files. (Exception: `scripts/experiments/`.)
 - **src/steering_geometry/** → All Python modules (`.py`).
 
 ### Commit Criteria
@@ -285,10 +284,17 @@ Open PR when feature complete:
 - Verification output included
 - Risks documented
 
-## 12) Architecture Cross-References
+## 12) Environment Setup
+
+- Copy `.env.example` to `.env` and set `OPENROUTER_API_KEY` for LLM-as-judge evaluation
+- LLM-as-judge uses OpenRouter API by default (`https://openrouter.ai/api/v1`)
+- GPU required for extraction and steering experiments; tests mock model loading
+
+## 13) Architecture Cross-References
 
 - System design: `ARCHITECTURE.md`
 - Design docs: `docs/design-docs/`
 - Exec plans: `docs/exec-plans/` (active/ for in-progress, completed/ for done)
 - Quality tracking: `docs/QUALITY_SCORE.md`
 - Roadmap: `docs/PLANS.md`
+- Test conventions: `tests/AGENTS.md`
