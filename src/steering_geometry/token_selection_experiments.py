@@ -10,9 +10,11 @@ selection strategies affect steering vector quality and stability:
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import torch
+from numpy import ndarray
 from torch import Tensor
 
 from steering_geometry.config import ExtractionConfig, ModelConfig
@@ -27,6 +29,43 @@ from steering_geometry.stability_comparison import (
 from steering_geometry.utils import sample_with_seed
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_layer_statistics(
+    vectors: list[Tensor],
+) -> tuple[ndarray, dict[str, float]]:
+    """Compute cosine similarity matrix and off-diagonal statistics."""
+    similarity_matrix = compute_cosine_similarity_matrix(vectors)
+    off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
+    off_diagonal_values = similarity_matrix[off_diagonal_mask]
+
+    if len(off_diagonal_values) > 0:
+        stats: dict[str, float] = {
+            "mean_similarity": float(off_diagonal_values.mean()),
+            "min_similarity": float(off_diagonal_values.min()),
+            "max_similarity": float(off_diagonal_values.max()),
+        }
+    else:
+        stats = {
+            "mean_similarity": 1.0,
+            "min_similarity": 1.0,
+            "max_similarity": 1.0,
+        }
+    return similarity_matrix, stats
+
+
+def _build_result_dict[K](
+    vector_paths: dict[K, Path],
+    heatmap_paths: dict[float, Path],
+    statistics: dict[float, dict[str, float]],
+    vector_key_formatter: Callable[[K], str],
+) -> dict[str, dict[str, str] | dict[str, dict[str, float]]]:
+    """Build the standardized result dict from experiment outputs."""
+    return {
+        "vector_paths": {vector_key_formatter(k): str(v) for k, v in vector_paths.items()},
+        "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
+        "statistics": {f"layer{k}": v for k, v in statistics.items()},
+    }
 
 
 def run_token_count_experiment(
@@ -129,31 +168,14 @@ def run_token_count_experiment(
         vectors = [layer_vectors[layer_frac][n] for n in n_examples_list]
 
         first = vectors[0]
-        all_identical = all(torch.equal(v, first) for v in vectors)
-        if all_identical:
+        if all(torch.equal(v, first) for v in vectors):
             logger.warning(
                 "All vectors identical at layer %.2f for concept '%s'",
                 layer_frac,
                 concept,
             )
 
-        similarity_matrix = compute_cosine_similarity_matrix(vectors)
-
-        off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
-        off_diagonal_values = similarity_matrix[off_diagonal_mask]
-
-        if len(off_diagonal_values) > 0:
-            statistics[layer_frac] = {
-                "mean_similarity": float(off_diagonal_values.mean()),
-                "min_similarity": float(off_diagonal_values.min()),
-                "max_similarity": float(off_diagonal_values.max()),
-            }
-        else:
-            statistics[layer_frac] = {
-                "mean_similarity": 1.0,
-                "min_similarity": 1.0,
-                "max_similarity": 1.0,
-            }
+        similarity_matrix, statistics[layer_frac] = _compute_layer_statistics(vectors)
 
         heatmap_path = output_dir / "heatmaps" / "token_count" / f"{concept}_layer{layer_frac}.pdf"
         title = f"Token Count Similarity: {concept} (layer {layer_frac})"
@@ -162,11 +184,12 @@ def run_token_count_experiment(
 
     logger.info("Completed token_count experiment for concept '%s'", concept)
 
-    return {
-        "vector_paths": {f"n{k[0]}_layer{k[1]}": str(v) for k, v in vector_paths.items()},
-        "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
-        "statistics": {f"layer{k}": v for k, v in statistics.items()},
-    }
+    return _build_result_dict(
+        vector_paths,
+        heatmap_paths,
+        statistics,
+        lambda k: f"n{k[0]}_layer{k[1]}",
+    )
 
 
 def run_token_position_experiment(
@@ -305,31 +328,14 @@ def run_token_position_experiment(
         vectors = [layer_vectors[layer_frac][label] for label in config_labels]
 
         first = vectors[0]
-        all_identical = all(torch.equal(v, first) for v in vectors)
-        if all_identical:
+        if all(torch.equal(v, first) for v in vectors):
             logger.warning(
                 "All vectors identical at layer %.2f for concept '%s'",
                 layer_frac,
                 concept,
             )
 
-        similarity_matrix = compute_cosine_similarity_matrix(vectors)
-
-        off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
-        off_diagonal_values = similarity_matrix[off_diagonal_mask]
-
-        if len(off_diagonal_values) > 0:
-            statistics[layer_frac] = {
-                "mean_similarity": float(off_diagonal_values.mean()),
-                "min_similarity": float(off_diagonal_values.min()),
-                "max_similarity": float(off_diagonal_values.max()),
-            }
-        else:
-            statistics[layer_frac] = {
-                "mean_similarity": 1.0,
-                "min_similarity": 1.0,
-                "max_similarity": 1.0,
-            }
+        similarity_matrix, statistics[layer_frac] = _compute_layer_statistics(vectors)
 
         heatmap_path = (
             output_dir / "heatmaps" / "token_position" / f"{concept}_layer{layer_frac}.pdf"
@@ -340,19 +346,12 @@ def run_token_position_experiment(
 
     logger.info("Completed token_position experiment for concept '%s'", concept)
 
-    path_keys: dict[tuple[str, int | None, float], str] = {}
-    for key in vector_paths:
-        mode, n_val, layer = key
-        if mode == "all":
-            path_keys[key] = f"{mode}_layer{layer}"
-        else:
-            path_keys[key] = f"{mode}_n{n_val}_layer{layer}"
-
-    return {
-        "vector_paths": {path_keys[k]: str(v) for k, v in vector_paths.items()},
-        "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
-        "statistics": {f"layer{k}": v for k, v in statistics.items()},
-    }
+    return _build_result_dict(
+        vector_paths,
+        heatmap_paths,
+        statistics,
+        lambda k: f"{k[0]}_layer{k[2]}" if k[0] == "all" else f"{k[0]}_n{k[1]}_layer{k[2]}",
+    )
 
 
 def run_prompt_response_experiment(
@@ -454,31 +453,14 @@ def run_prompt_response_experiment(
         vectors = [layer_vectors[layer_frac][mode] for mode in data_modes]
 
         first = vectors[0]
-        all_identical = all(torch.equal(v, first) for v in vectors)
-        if all_identical:
+        if all(torch.equal(v, first) for v in vectors):
             logger.warning(
                 "All vectors identical at layer %.2f for concept '%s'",
                 layer_frac,
                 concept,
             )
 
-        similarity_matrix = compute_cosine_similarity_matrix(vectors)
-
-        off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
-        off_diagonal_values = similarity_matrix[off_diagonal_mask]
-
-        if len(off_diagonal_values) > 0:
-            statistics[layer_frac] = {
-                "mean_similarity": float(off_diagonal_values.mean()),
-                "min_similarity": float(off_diagonal_values.min()),
-                "max_similarity": float(off_diagonal_values.max()),
-            }
-        else:
-            statistics[layer_frac] = {
-                "mean_similarity": 1.0,
-                "min_similarity": 1.0,
-                "max_similarity": 1.0,
-            }
+        similarity_matrix, statistics[layer_frac] = _compute_layer_statistics(vectors)
 
         heatmap_path = (
             output_dir / "heatmaps" / "prompt_response" / f"{concept}_layer{layer_frac}.pdf"
@@ -489,11 +471,12 @@ def run_prompt_response_experiment(
 
     logger.info("Completed prompt_response experiment for concept '%s'", concept)
 
-    return {
-        "vector_paths": {f"{k[0]}_layer{k[1]}": str(v) for k, v in vector_paths.items()},
-        "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
-        "statistics": {f"layer{k}": v for k, v in statistics.items()},
-    }
+    return _build_result_dict(
+        vector_paths,
+        heatmap_paths,
+        statistics,
+        lambda k: f"{k[0]}_layer{k[1]}",
+    )
 
 
 def run_steering_scope_experiment(
@@ -553,7 +536,6 @@ def run_steering_scope_experiment(
     model = HookedModel(ModelConfig(model_name=model_name))
     logger.info("Loaded model '%s'", model_name)
 
-    # Load contrast pairs
     logger.info("Loading contrast pairs for concept '%s'", concept)
     if concept == "refusal":
         all_pairs = load_contrast_pairs(concept, n_examples, data_mode="prompt_only")
@@ -561,7 +543,6 @@ def run_steering_scope_experiment(
         all_pairs = load_contrast_pairs(concept, n_examples)
     logger.info("Loaded %d contrast pairs for concept '%s'", len(all_pairs), concept)
 
-    # Extract baseline steering vector
     config = ExtractionConfig(
         layers=layers,
         method=method,
@@ -575,7 +556,6 @@ def run_steering_scope_experiment(
     abs_layer_indices = model.resolve_layers(layers)
     layer_map = dict(zip(layers, abs_layer_indices, strict=True))
 
-    # Select negative samples as prompts
     neg_samples = [pair.negative for pair in all_pairs[:num_samples]]
     actual_samples = min(num_samples, len(neg_samples))
     neg_samples = neg_samples[:actual_samples]

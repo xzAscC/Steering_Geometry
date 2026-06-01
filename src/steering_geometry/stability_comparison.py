@@ -14,7 +14,7 @@ import logging
 import random
 from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -33,9 +33,6 @@ from steering_geometry.extract import extract_steering_vector, extract_vector, l
 from steering_geometry.models import HookedModel
 from steering_geometry.types import ContrastPair, StabilitySweepResult
 from steering_geometry.utils import ensure_dir, safe_model_name
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -284,22 +281,12 @@ def run_diff_means_experiment(
 
         similarity_matrix = compute_cosine_similarity_matrix(vectors)
 
-        off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
-        off_diagonal_values = similarity_matrix[off_diagonal_mask]
-
-        # Handle edge case of single vector (no off-diagonal elements)
-        if len(off_diagonal_values) > 0:
-            statistics[layer_frac] = {
-                "mean_similarity": float(off_diagonal_values.mean()),
-                "min_similarity": float(off_diagonal_values.min()),
-                "max_similarity": float(off_diagonal_values.max()),
-            }
-        else:
-            statistics[layer_frac] = {
-                "mean_similarity": 1.0,
-                "min_similarity": 1.0,
-                "max_similarity": 1.0,
-            }
+        off_diag_stats = _compute_off_diagonal_stats(similarity_matrix, len(vectors))
+        statistics[layer_frac] = {
+            "mean_similarity": off_diag_stats["mean"],
+            "min_similarity": off_diag_stats["min"],
+            "max_similarity": off_diag_stats["max"],
+        }
 
         heatmap_path = output_dir / "heatmaps" / "diff_means" / f"{concept}_layer{layer_frac}.pdf"
         title = f"Cosine Similarity: {concept} (layer {layer_frac})"
@@ -426,22 +413,12 @@ def run_discriminative_experiment(
 
         similarity_matrix = compute_cosine_similarity_matrix(vectors)
 
-        off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
-        off_diagonal_values = similarity_matrix[off_diagonal_mask]
-
-        # Handle edge case of single vector (no off-diagonal elements)
-        if len(off_diagonal_values) > 0:
-            statistics[layer_frac] = {
-                "mean_similarity": float(off_diagonal_values.mean()),
-                "min_similarity": float(off_diagonal_values.min()),
-                "max_similarity": float(off_diagonal_values.max()),
-            }
-        else:
-            statistics[layer_frac] = {
-                "mean_similarity": 1.0,
-                "min_similarity": 1.0,
-                "max_similarity": 1.0,
-            }
+        off_diag_stats = _compute_off_diagonal_stats(similarity_matrix, len(vectors))
+        statistics[layer_frac] = {
+            "mean_similarity": off_diag_stats["mean"],
+            "min_similarity": off_diag_stats["min"],
+            "max_similarity": off_diag_stats["max"],
+        }
 
         heatmap_path = (
             output_dir / "heatmaps" / "discriminative" / f"{concept}_layer{layer_frac}.pdf"
@@ -521,6 +498,29 @@ def run_single_extraction(
     return steering_vector.layer_activations[layer_idx]
 
 
+def _compute_off_diagonal_stats(similarity_matrix: ndarray, n_vectors: int) -> dict[str, float]:
+    """Compute mean, min, max, std of off-diagonal elements in a similarity matrix.
+
+    Args:
+        similarity_matrix: Pairwise cosine similarity matrix (n x n).
+        n_vectors: Number of vectors (matrix dimension).
+
+    Returns:
+        Dict with mean, min, max, std of off-diagonal similarities.
+        Returns defaults (mean=1, std=0) when n_vectors <= 1.
+    """
+    if n_vectors <= 1:
+        return {"mean": 1.0, "min": 1.0, "max": 1.0, "std": 0.0}
+    off_diag_mask = ~np.eye(n_vectors, dtype=bool)
+    off_diag_values = similarity_matrix[off_diag_mask]
+    return {
+        "mean": float(off_diag_values.mean()),
+        "min": float(off_diag_values.min()),
+        "max": float(off_diag_values.max()),
+        "std": float(off_diag_values.std()),
+    }
+
+
 def compute_stability_statistics(vectors: list[Tensor]) -> dict[str, float]:
     """Compute stability statistics from pairwise cosine similarities.
 
@@ -534,17 +534,7 @@ def compute_stability_statistics(vectors: list[Tensor]) -> dict[str, float]:
         return {"mean": 1.0, "min": 1.0, "max": 1.0, "std": 0.0}
 
     sim_matrix = compute_cosine_similarity_matrix(vectors)
-
-    n = len(vectors)
-    off_diag_mask = ~np.eye(n, dtype=bool)
-    off_diag_values = sim_matrix[off_diag_mask]
-
-    return {
-        "mean": float(off_diag_values.mean()),
-        "min": float(off_diag_values.min()),
-        "max": float(off_diag_values.max()),
-        "std": float(off_diag_values.std()),
-    }
+    return _compute_off_diagonal_stats(sim_matrix, len(vectors))
 
 
 def compute_reference_statistics(
@@ -676,24 +666,7 @@ def run_stability_comparison_experiment(
             similarity_matrices[layer] = sim_matrix.tolist()
 
             # Compute off-diagonal statistics
-            n = len(vectors)
-            if n > 1:
-                off_diag_mask = ~np.eye(n, dtype=bool)
-                off_diag_values = sim_matrix[off_diag_mask]
-                statistics[layer] = {
-                    "mean": float(off_diag_values.mean()),
-                    "min": float(off_diag_values.min()),
-                    "max": float(off_diag_values.max()),
-                    "std": float(off_diag_values.std()),
-                }
-            else:
-                # Single run - no comparison possible
-                statistics[layer] = {
-                    "mean": 1.0,
-                    "min": 1.0,
-                    "max": 1.0,
-                    "std": 0.0,
-                }
+            statistics[layer] = _compute_off_diagonal_stats(sim_matrix, len(vectors))
 
         results[method_name] = {
             "similarity_matrices": similarity_matrices,
