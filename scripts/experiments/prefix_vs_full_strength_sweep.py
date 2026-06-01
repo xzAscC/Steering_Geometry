@@ -82,8 +82,8 @@ def run_prefix_vs_full_strength_sweep(
     pairs = load_contrast_pairs(concept, num_pairs=max(500, num_samples))
     import random
 
-    random.seed(42)
-    selected = random.sample(pairs, min(num_samples, len(pairs)))
+    rng = random.Random(42)
+    selected = rng.sample(pairs, min(num_samples, len(pairs)))
     prompts = [pair.negative for pair in selected]
 
     logger.info("Loaded %d prompts for concept '%s'", len(prompts), concept)
