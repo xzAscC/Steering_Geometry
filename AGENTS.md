@@ -130,6 +130,7 @@ Enforced by ruff (see pyproject.toml):
 | Load model with hooks | `src/steering_geometry/models.py` | `HookedModel` class |
 | Extract Robust DiM directions | `src/steering_geometry/extract.py` | Steering vector extraction and contrast pair loading |
 | Apply Prefix Steering | `src/steering_geometry/apply_steering.py` | Steering application plus HarmBench, LLM-as-judge, and MMLU-Pro evaluation |
+| Sweep evaluation | `src/steering_geometry/sweep_evaluation.py` | Strength × steer_tokens grid evaluation with HarmBench/LLM-as-judge and MMLU-Pro |
 | Prefix analysis | `src/steering_geometry/prefix_analysis.py` | KL divergence and attention pattern analysis for Prefix Steering |
 | Vector stability experiments | `src/steering_geometry/stability_comparison.py` | Robust DiM stability sweeps and vector comparison helpers |
 | Construction diagnosis experiments | `src/steering_geometry/token_selection_experiments.py` | Token position, prompt vs response, example count, and steering scope experiments |
@@ -142,7 +143,7 @@ Enforced by ruff (see pyproject.toml):
 | Construction diagnosis scripts | `scripts/token_experiments/` | Token count, token position, prompt vs response, and steering scope runs |
 | Vector analysis scripts | `scripts/vector_analysis/` | Stability sweeps and heatmap generation |
 | Stability comparison scripts | `scripts/stability_comparison/` | Quick vector stability runs |
-| Experiment scripts | `scripts/experiments/` | Contains a Python sweep script (exception to shell-only rule) |
+| Experiment scripts | `scripts/experiments/` | Steering strength × prefix sweep shell entry point |
 
 ## 10) Anti-Patterns
 
@@ -161,12 +162,11 @@ Enforced by ruff (see pyproject.toml):
 | `stability_comparison.py` | Experiment result dictionaries can drift as metrics change | Use TypedDict schemas for persisted results |
 | `token_selection_experiments.py` | Construction diagnosis outputs cover multiple experiment shapes | Keep result schemas explicit and test serialization |
 | `__main__.py` | `print()` used for shell eval output | Intentional, shell capture output, not logging |
-| `scripts/experiments/prefix_vs_full_strength_sweep.py` | Python file in `scripts/` (violates shell-only convention) | Consider moving logic to `src/` and making script a thin wrapper |
 
 ### Known Violations (from audit)
 - Keep `typing.Any` out of new code unless a third-party boundary has no typed alternative.
 - `print()` is allowed only in `src/steering_geometry/__main__.py` for shell eval output.
-- `scripts/` must contain shell entry points only. Put Python code in `src/steering_geometry/`. (Exception: `scripts/experiments/` contains a `.py` experiment script.)
+- `scripts/` must contain shell entry points only. Put Python code in `src/steering_geometry/`.
 
 ## 11) Pipeline Workflow
 
@@ -262,7 +262,7 @@ outputs/
 
 ### Directory Rules
 
-- **scripts/** → Shell scripts (`.sh`) ONLY. No Python files. (Exception: `scripts/experiments/`.)
+- **scripts/** → Shell scripts (`.sh`) ONLY. No Python files.
 - **src/steering_geometry/** → All Python modules (`.py`).
 
 ### Commit Criteria
