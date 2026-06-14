@@ -1,0 +1,32 @@
+# Direct runtime dependencies for the Steering Geometry experiments.
+#
+# Pins are frozen to the exact versions that produced the current paper
+# results (matching the resolved uv.lock / installed environment). This
+# keeps `uv pip compile` reproducible instead of drifting to newer PyPI
+# releases.
+#
+# Compile a fully-pinned lockfile with:
+#   uv pip compile requirements.in -o requirements.txt --python-version 3.12
+#
+# Dev tooling (ruff, mypy, pytest, pyyaml) lives in pyproject.toml under
+# [dependency-groups] dev and is intentionally excluded from the runtime
+# lockfile.
+
+# --- Core numerics / models ---
+torch==2.10.0
+transformers==5.3.0
+accelerate==1.13.0          # required for device_map="auto" in models.py / prefix_analysis.py
+flash-linear-attention==0.4.2
+
+# --- Data ---
+datasets==2.21.0
+numpy==2.4.3
+scikit-learn==1.8.0         # PCA + cosine_similarity in extract/stability_comparison
+
+# --- Evaluation ---
+openai==1.109.1             # AsyncOpenAI client for LLM-as-judge
+jinja2==3.1.6               # prompt templates in apply_steering.py
+
+# --- Plotting / notebooks ---
+matplotlib==3.10.8          # heatmaps in stability/sweep/prefix_analysis
+jupyter==1.1.1
