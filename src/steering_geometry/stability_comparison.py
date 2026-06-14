@@ -28,6 +28,7 @@ from steering_geometry.config import (
     StabilityComparisonConfig,
     StabilitySweepBatchConfig,
     StabilitySweepConfig,
+    canonical_concept,
 )
 from steering_geometry.extract import extract_steering_vector, extract_vector, load_contrast_pairs
 from steering_geometry.models import HookedModel
@@ -331,6 +332,8 @@ def run_discriminative_experiment(
         ValueError: If k_values is empty, contains non-positive values,
             or all vectors contain NaN.
     """
+    concept = canonical_concept(concept)
+
     if not k_values:
         msg = "k_values cannot be empty"
         raise ValueError(msg)
@@ -439,11 +442,11 @@ def run_discriminative_experiment(
 def run_candidate_pool_ablation(
     concept: str,
     pool_sizes: list[int],
+    model_name: str,
     top_k: int = 50,
     layers: list[float] | None = None,
-    model_name: str = "allenai/Olmo-3-1025-7B",
     output_dir: Path | str = "outputs",
-    num_trials: int = 3,
+    num_trials: int = 1,
     method: str = "discriminative",
     token_select: str = "last_5",
 ) -> dict[str, dict[str, str] | dict[str, dict[str, float]]]:
@@ -465,7 +468,7 @@ def run_candidate_pool_ablation(
             Defaults to [0.4, 0.5, 0.6, 0.7, 0.8].
         model_name: HuggingFace model name.
         output_dir: Base output directory for vectors and heatmaps.
-        num_trials: Number of independent extractions per pool size.
+        num_trials: Number of independent extractions per pool size (default: 1).
         method: Extraction method (should be "discriminative").
         token_select: Token selection strategy for extraction.
 
@@ -479,6 +482,8 @@ def run_candidate_pool_ablation(
         ValueError: If pool_sizes is empty, contains non-positive values,
             or all vectors contain NaN.
     """
+    concept = canonical_concept(concept)
+
     if not pool_sizes:
         msg = "pool_sizes cannot be empty"
         raise ValueError(msg)

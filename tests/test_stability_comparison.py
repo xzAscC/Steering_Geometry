@@ -89,6 +89,7 @@ def test_candidate_pool_ablation_result_structure(tmp_path: Path) -> None:
         result = run_candidate_pool_ablation(
             concept="test",
             pool_sizes=[10, 20],
+            model_name="test",
             output_dir=tmp_path,
             num_trials=1,
         )
@@ -111,7 +112,7 @@ def test_candidate_pool_ablation_empty_pool_sizes_raises() -> None:
     from steering_geometry.stability_comparison import run_candidate_pool_ablation
 
     with pytest.raises(ValueError, match="pool_sizes cannot be empty"):
-        run_candidate_pool_ablation(concept="test", pool_sizes=[])
+        run_candidate_pool_ablation(concept="test", pool_sizes=[], model_name="test")
 
 
 def test_candidate_pool_ablation_negative_pool_size_raises() -> None:
@@ -119,7 +120,7 @@ def test_candidate_pool_ablation_negative_pool_size_raises() -> None:
     from steering_geometry.stability_comparison import run_candidate_pool_ablation
 
     with pytest.raises(ValueError, match="All pool_sizes must be positive"):
-        run_candidate_pool_ablation(concept="test", pool_sizes=[-1])
+        run_candidate_pool_ablation(concept="test", pool_sizes=[-1], model_name="test")
 
 
 def test_candidate_pool_ablation_heatmap_dimensions(tmp_path: Path) -> None:
@@ -144,6 +145,7 @@ def test_candidate_pool_ablation_heatmap_dimensions(tmp_path: Path) -> None:
         run_candidate_pool_ablation(
             concept="test",
             pool_sizes=[10, 20, 30],
+            model_name="test",
             output_dir=tmp_path,
             num_trials=1,
         )
@@ -176,6 +178,7 @@ def test_candidate_pool_ablation_statistics_keys(tmp_path: Path) -> None:
         result = run_candidate_pool_ablation(
             concept="test",
             pool_sizes=[10, 20],
+            model_name="test",
             output_dir=tmp_path,
             num_trials=1,
         )
@@ -191,3 +194,33 @@ def test_candidate_pool_ablation_statistics_keys(tmp_path: Path) -> None:
         assert -1.0 <= layer_stats["mean_similarity"] <= 1.0 + 1e-6
         assert -1.0 <= layer_stats["min_similarity"] <= 1.0 + 1e-6
         assert -1.0 <= layer_stats["max_similarity"] <= 1.0 + 1e-6
+
+
+def test_candidate_pool_ablation_canonicalizes_concept(tmp_path: Path) -> None:
+    """Paper concept name 'safety' is canonicalized to 'refusal' before loading pairs."""
+    from steering_geometry.stability_comparison import run_candidate_pool_ablation
+
+    fake_pairs = _make_fake_pairs(50)
+    fake_vector = _make_fake_steering_vector()
+    mock_load = MagicMock(return_value=fake_pairs)
+
+    with (
+        patch("steering_geometry.stability_comparison.load_contrast_pairs", mock_load),
+        patch("steering_geometry.stability_comparison.HookedModel", return_value=MagicMock()),
+        patch(
+            "steering_geometry.stability_comparison.extract_steering_vector",
+            return_value=fake_vector,
+        ),
+        patch("steering_geometry.stability_comparison.plot_heatmap"),
+    ):
+        run_candidate_pool_ablation(
+            concept="safety",
+            pool_sizes=[10, 20],
+            model_name="test",
+            output_dir=tmp_path,
+            num_trials=1,
+        )
+
+    mock_load.assert_called_once()
+    first_arg = mock_load.call_args[0][0]
+    assert first_arg == "refusal", f"Expected canonical concept 'refusal', got {first_arg!r}"
