@@ -625,6 +625,11 @@ class HarmBenchEvaluator:
     ]
 
     def __init__(self, config: HarmBenchConfig) -> None:
+        """Initialize the HarmBench evaluator.
+
+        Args:
+            config: HarmBench configuration with classifier API details.
+        """
         self.config = config
         if "localhost" in config.classifier_api_base or "127.0.0.1" in config.classifier_api_base:
             api_key = "local-vllm"
@@ -637,7 +642,17 @@ class HarmBenchEvaluator:
         self.behaviors: list[HarmBenchBehavior] = []
 
     async def _call_classifier(self, prompt: str) -> str:
-        """Call Gemma 4 classifier via API with retry."""
+        """Call the HarmBench classifier via API with retry logic.
+
+        Args:
+            prompt: Classification prompt with behavior and generation.
+
+        Returns:
+            Classifier response text, or empty string on failure after all retries.
+
+        Raises:
+            Exception: The last exception encountered if all retries fail.
+        """
         last_error: Exception | None = None
         for attempt in range(self.config.max_retries):
             try:
@@ -658,7 +673,14 @@ class HarmBenchEvaluator:
         return ""
 
     def load_behaviors(self, csv_path: str = "") -> list[HarmBenchBehavior]:
-        """Load HarmBench behaviors from CSV file."""
+        """Load HarmBench behaviors from CSV file into self.behaviors.
+
+        Args:
+            csv_path: Path to the HarmBench behaviors CSV. Empty string skips loading.
+
+        Returns:
+            List of loaded HarmBenchBehavior dicts.
+        """
         if csv_path:
             with open(csv_path) as f:
                 reader = csv.DictReader(f)
@@ -676,7 +698,16 @@ class HarmBenchEvaluator:
         return self.behaviors
 
     def _format_prompt(self, behavior: str, generation: str, context: str | None = None) -> str:
-        """Format classification prompt using Gemma 4 chat template."""
+        """Format classification prompt using Gemma 4 chat template.
+
+        Args:
+            behavior: The harmful behavior description to test.
+            generation: Model's generated response being classified.
+            context: Optional context string for contextual behaviors.
+
+        Returns:
+            Formatted prompt string with Gemma 4 chat template applied.
+        """
         if context:
             base_prompt = self.CLS_PROMPT_CONTEXTUAL.format(
                 behavior=behavior, generation=generation, context=context
@@ -686,7 +717,14 @@ class HarmBenchEvaluator:
         return f"<start_of_turn>user\n{base_prompt}<end_of_turn>\n<start_of_turn>model\n"
 
     def _classify_response(self, response: str) -> int:
-        """Parse classifier response to label: 1=harmful, 0=safe, -1=unknown."""
+        """Parse classifier response into a label.
+
+        Args:
+            response: Raw classifier response text.
+
+        Returns:
+            Label: 1=harmful, 0=safe, -1=unknown (unparseable response).
+        """
         response_lower = response.strip().lower()
         if response_lower.startswith("yes"):
             return 1
@@ -695,11 +733,29 @@ class HarmBenchEvaluator:
         return -1
 
     def _is_refusal(self, generation: str) -> bool:
-        """Check if generation starts with refusal prefixes."""
+        """Check if generation begins with a known refusal prefix.
+
+        Args:
+            generation: Model's generated text.
+
+        Returns:
+            True if the text starts with any of the refusal prefixes.
+        """
         return any(generation.strip().startswith(prefix) for prefix in self.REFUSAL_PREFIXES)
 
     async def evaluate(self, completions: dict[str, list[dict[str, str]]]) -> HarmBenchResult:
-        """Evaluate completions against HarmBench behaviors."""
+        """Evaluate completions against HarmBench behaviors.
+
+        For each behavior, checks for refusal prefix first, then calls the
+        classifier to determine if the generation is harmful.
+
+        Args:
+            completions: Mapping from behavior_id to list of generation dicts.
+                Each generation dict has a "generation" key with the model's text.
+
+        Returns:
+            HarmBenchResult with Attack Success Rate (ASR) and per-behavior predictions.
+        """
         predictions: list[HarmBenchPrediction] = []
         harmful_count = 0
         safe_count = 0
@@ -783,13 +839,24 @@ class MMLUProEvaluator:
     ]
 
     def __init__(self, config: MMLUProConfig, model: Any) -> None:
+        """Initialize the MMLU-Pro evaluator.
+
+        Args:
+            config: MMLU-Pro configuration (num questions, n-shot, categories).
+            model: HookedModel to evaluate (with steering hooks applied externally).
+        """
         self.config = config
         self.model = model
         self._test_data: list[MMLUProQuestion] | None = None
         self._val_data: list[MMLUProQuestion] | None = None
 
     def load_dataset(self) -> tuple[list[MMLUProQuestion], list[MMLUProQuestion]]:
-        """Load test + validation splits, filter N/A options."""
+        """Load and cache test + validation splits, filtering N/A options.
+
+        Returns:
+            Tuple of (test_questions, validation_questions) used for evaluation
+            and few-shot prompting respectively.
+        """
         if self._test_data is None or self._val_data is None:
             test_ds = load_dataset("TIGER-Lab/MMLU-Pro", split="test")
             val_ds = load_dataset("TIGER-Lab/MMLU-Pro", split="validation")
@@ -820,12 +887,28 @@ class MMLUProEvaluator:
         return self._test_data, self._val_data
 
     def _filter_na(self, question: MMLUProQuestion) -> MMLUProQuestion:
-        """Remove N/A options from question, preserve other fields."""
+        """Remove "N/A" options from a question in-place.
+
+        Args:
+            question: Question dict with an "options" list.
+
+        Returns:
+            The same question dict with N/A options removed.
+        """
         question["options"] = [o for o in question.get("options", []) if o != "N/A"]
         return question
 
     def _format_cot_example(self, example: MMLUProQuestion, include_answer: bool = True) -> str:
-        """Format a single example for few-shot CoT prompt."""
+        """Format a single example for few-shot CoT prompt.
+
+        Args:
+            example: Question dict with question text, options, and CoT content.
+            include_answer: If True, append the answer; if False, append
+                "Let's think step by step." for the test question.
+
+        Returns:
+            Formatted example string.
+        """
         parts = [f"Question:\n{example.get('question', '')}"]
         options = example.get("options", [])
         for i, opt in enumerate(options[:10]):
@@ -844,7 +927,15 @@ class MMLUProEvaluator:
         return "\n".join(parts)
 
     def format_prompt(self, question: MMLUProQuestion, few_shot: list[MMLUProQuestion]) -> str:
-        """Format full evaluation prompt with n-shot CoT."""
+        """Format full evaluation prompt with n-shot CoT examples.
+
+        Args:
+            question: Test question dict.
+            few_shot: List of validation examples to prepend as CoT demonstrations.
+
+        Returns:
+            Full prompt string: category template + few-shot examples + test question.
+        """
         category = question.get("category", "")
         parts = [self.COT_PROMPT_TEMPLATE.format(category=category), ""]
 
@@ -855,7 +946,14 @@ class MMLUProEvaluator:
         return "\n".join(parts)
 
     def extract_answer(self, response: str) -> str | None:
-        """3-layer regex answer extraction matching official MMLU-Pro."""
+        """Extract answer letter from response using 3-layer regex (official MMLU-Pro).
+
+        Args:
+            response: Raw model response text.
+
+        Returns:
+            Answer letter "A"-"J", or None if no answer is found.
+        """
         match = re.search(r"answer is \(?([A-J])\)?", response, re.IGNORECASE)
         if match:
             return match.group(1).upper()
@@ -868,7 +966,14 @@ class MMLUProEvaluator:
         return match.group(1).upper() if match else None
 
     def _classify_response(self, response: str) -> str:
-        """Classify as 'answered', 'refused', or 'empty'."""
+        """Classify a model response by refusal pattern.
+
+        Args:
+            response: Raw model response text.
+
+        Returns:
+            One of "answered", "refused", or "empty".
+        """
         if not response.strip():
             return "empty"
         for pattern in self.REFUSAL_PATTERNS:
@@ -879,7 +984,14 @@ class MMLUProEvaluator:
     def _compute_metrics(
         self, predictions: list[MMLUProPrediction]
     ) -> tuple[float, dict[str, float], dict[str, int], int, int]:
-        """Compute accuracy, per-category accuracy, per-category counts, refused, extract-failed."""
+        """Compute aggregate metrics from per-question predictions.
+
+        Args:
+            predictions: List of MMLUProPrediction dicts.
+
+        Returns:
+            Tuple of (accuracy, per_category, per_category_counts, refused, extract_failed).
+        """
         total = len(predictions)
         correct = sum(1 for p in predictions if p["correct"])
         refused = sum(1 for p in predictions if p["response_type"] == "refused")
@@ -1021,7 +1133,15 @@ def generate_html_report(result: EvaluationResult, output_path: Path) -> None:
 
 
 def _normalize_vectors(vector: SteeringVector) -> dict[int, Tensor]:
-    """Normalize steering vectors to unit norm."""
+    """Normalize all layer steering vectors to unit L2 norm.
+
+    Args:
+        vector: SteeringVector with layer_activations mapping.
+
+    Returns:
+        Dict mapping layer index to normalized tensor of shape (hidden_dim,).
+        Zero-norm vectors are returned unchanged.
+    """
     normalized = {}
     for layer_idx, v in vector.layer_activations.items():
         norm = v.norm()
@@ -1040,7 +1160,8 @@ def _compute_avg_activation(
     """Compute average activation norm per layer.
 
     Args:
-        model: HookedModel instance.
+        model: HookedModel instance returning activations, each tensor of shape
+            (batch, seq_len, hidden_dim).
         texts: List of texts to compute activations for.
         layers: List of layer indices.
 
