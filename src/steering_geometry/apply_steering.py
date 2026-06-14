@@ -1269,6 +1269,7 @@ def apply_steering(
                     scale=scale,
                     max_new_tokens=config.max_new_tokens,
                     temperature=config.temperature,
+                    steer_tokens=config.steer_tokens,
                 )
                 results.append(
                     {
