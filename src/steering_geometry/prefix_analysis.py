@@ -240,6 +240,7 @@ def _make_steering_hook(
     """
 
     def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
+        """Forward hook body: add scaled steering vector until step_counter exceeds steer_tokens."""
         step_counter[0] += 1
         if steer_tokens is not None and step_counter[0] > steer_tokens:
             return output
@@ -588,6 +589,12 @@ def _load_eager_model(model_name: str) -> HookedModel:
 
     Flash/SDPA backends return ``None`` for attention weights.
     Must use ``attn_implementation="eager"`` to get actual weights.
+
+    Args:
+        model_name: HuggingFace model identifier.
+
+    Returns:
+        HookedModel instance with eager attention enabled.
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -1109,6 +1116,7 @@ def plot_prefix_length_kl_sweep(
     def _avg_over_steps(
         data: dict[int, list[list[float]]],
     ) -> tuple[list[float], list[float]]:
+        """Compute per-N mean and std of step-averaged KL values across prompts."""
         means: list[float] = []
         stds: list[float] = []
         for n in n_values:
