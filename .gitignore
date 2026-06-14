@@ -48,3 +48,5 @@ logs/
 plot/
 outputs/
 
+# agent files
+.omo/
