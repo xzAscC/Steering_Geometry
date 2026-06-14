@@ -2,7 +2,8 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import torch
@@ -143,6 +144,9 @@ def test_plot_sweep_heatmaps_correct_dimensions(tmp_path: Path) -> None:
 
 def test_plot_sweep_heatmaps_none_label(tmp_path: Path) -> None:
     """steer_tokens=None produces 'all' label in X-axis of heatmaps."""
+    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
+
     from steering_geometry.sweep_evaluation import plot_sweep_heatmaps
 
     result_data = _make_sweep_result_data(
@@ -151,14 +155,17 @@ def test_plot_sweep_heatmaps_none_label(tmp_path: Path) -> None:
     )
     result_data["output_dir"] = str(tmp_path)
 
-    plot_sweep_heatmaps(result_data, output_dir=tmp_path, formats=["png"])
+    captured_figs: list[Figure] = []
 
-    import matplotlib.pyplot as plt
+    def _capture_close(fig: object) -> None:
+        captured_figs.append(cast(Figure, fig))
 
-    steer_tokens_values: list[int | None] = [5, None]
-    x_labels = ["all" if st is None else str(st) for st in steer_tokens_values]
-    assert x_labels == ["5", "all"]
+    with patch("matplotlib.pyplot.close", side_effect=_capture_close):
+        plot_sweep_heatmaps(result_data, output_dir=tmp_path, formats=["png"])
 
+    ax1 = captured_figs[0].axes[0]
+    xtick_labels = [tl.get_text() for tl in ax1.get_xticklabels()]
+    assert xtick_labels == ["5", "all"]
     plt.close("all")
 
 
@@ -416,3 +423,86 @@ def test_sweep_evaluation_refusal_prefix_matching(
     assert len(result["cells"]) == 1
     # All generations start with refusal prefix → ASR should be 0%
     assert result["cells"][0]["concept_score"] == 0.0
+
+
+def test_run_sweep_evaluation_harmbench_aligned_behavior_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HarmBench branch uses behavior texts as prompts and keys completions by real behavior_ids.
+
+    Guards the original bug where generations came from contrast-pair prompts but were
+    keyed to behavior_ids by index, breaking the generation/behavior mapping and yielding
+    a silent ASR=0.
+    """
+    from steering_geometry.sweep_evaluation import run_sweep_evaluation
+
+    fake_pairs = [MagicMock(positive=f"pos {i}", negative=f"neg {i}") for i in range(2)]
+    monkeypatch.setattr(
+        "steering_geometry.sweep_evaluation.load_contrast_pairs",
+        lambda concept, num_pairs=100: fake_pairs,
+    )
+
+    mock_model = MagicMock()
+    mock_model.resolve_layers.return_value = [0]
+    mock_model.generate_with_steering.return_value = "Sure, here is how to do it."
+    monkeypatch.setattr(
+        "steering_geometry.sweep_evaluation.HookedModel",
+        MagicMock(return_value=mock_model),
+    )
+
+    fake_vector = torch.ones(8)
+    monkeypatch.setattr(
+        "steering_geometry.sweep_evaluation.torch.load",
+        lambda *args, **kwargs: fake_vector,
+    )
+
+    behavior_ids = ["b1", "b2"]
+    behavior_texts = ["do bad thing 1", "do bad thing 2"]
+    behaviors = [
+        {
+            "behavior_id": bid,
+            "behavior": text,
+            "functional_category": "",
+            "semantic_category": "",
+            "tags": "",
+            "context_string": "",
+        }
+        for bid, text in zip(behavior_ids, behavior_texts, strict=True)
+    ]
+    mock_evaluator = MagicMock()
+    mock_evaluator.behaviors = behaviors
+    mock_evaluator.load_behaviors = MagicMock(return_value=behaviors)
+    mock_result = MagicMock()
+    mock_result.asr = 50.0
+    mock_evaluator.evaluate = AsyncMock(return_value=mock_result)
+    monkeypatch.setattr(
+        "steering_geometry.sweep_evaluation.HarmBenchEvaluator",
+        MagicMock(return_value=mock_evaluator),
+    )
+
+    output_dir = tmp_path / "sweep_hb"
+    result = run_sweep_evaluation(
+        concept="refusal",
+        model_name="fake/model",
+        vector_path="fake.pt",
+        layer_frac=0.7,
+        multipliers=[1.0],
+        steer_tokens_values=[None],
+        num_samples=2,
+        evaluate_concept=True,
+        evaluate_mmlu=False,
+        harmbench_behaviors_file="fake.csv",
+        output_dir=str(output_dir),
+    )
+
+    gen_calls = mock_model.generate_with_steering.call_args_list
+    prompts_used = [call.kwargs["prompt"] for call in gen_calls]
+    assert prompts_used == behavior_texts
+
+    assert mock_evaluator.evaluate.await_args is not None
+    completions = mock_evaluator.evaluate.await_args.args[0]
+    assert set(completions.keys()) == set(behavior_ids)
+    assert list(completions.keys()) == behavior_ids
+    assert len(result["cells"]) == 1
+    assert result["cells"][0]["concept_score"] == 50.0
