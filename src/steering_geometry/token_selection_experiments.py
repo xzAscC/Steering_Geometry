@@ -34,7 +34,15 @@ logger = logging.getLogger(__name__)
 def _compute_layer_statistics(
     vectors: list[Tensor],
 ) -> tuple[ndarray, dict[str, float]]:
-    """Compute cosine similarity matrix and off-diagonal statistics."""
+    """Compute cosine similarity matrix and off-diagonal statistics.
+
+    Args:
+        vectors: List of 1D tensors of shape (hidden_dim,) to compare.
+
+    Returns:
+        Tuple of (similarity_matrix, stats_dict) where similarity_matrix is
+        shape (n_vectors, n_vectors) and stats_dict has mean/min/max_similarity.
+    """
     similarity_matrix = compute_cosine_similarity_matrix(vectors)
     off_diagonal_mask = ~torch.eye(len(vectors), dtype=torch.bool).numpy()
     off_diagonal_values = similarity_matrix[off_diagonal_mask]
@@ -60,7 +68,18 @@ def _build_result_dict[K](
     statistics: dict[float, dict[str, float]],
     vector_key_formatter: Callable[[K], str],
 ) -> dict[str, dict[str, str] | dict[str, dict[str, float]]]:
-    """Build the standardized result dict from experiment outputs."""
+    """Build the standardized result dict from experiment outputs.
+
+    Args:
+        vector_paths: Mapping from parameter key K to vector file path.
+        heatmap_paths: Mapping from layer fraction to heatmap file path.
+        statistics: Mapping from layer fraction to stats dict.
+        vector_key_formatter: Callable converting K to a string key for JSON.
+
+    Returns:
+        Dict with "vector_paths", "heatmap_paths", and "statistics" keys,
+        all keyed by string representations for JSON serialization.
+    """
     return {
         "vector_paths": {vector_key_formatter(k): str(v) for k, v in vector_paths.items()},
         "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},

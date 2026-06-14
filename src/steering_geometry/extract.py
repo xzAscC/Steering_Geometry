@@ -75,12 +75,28 @@ Aggregator = Callable[[Tensor, Tensor], Tensor]
 
 
 def mean_aggregator(pos: Tensor, neg: Tensor) -> Tensor:
-    """Mean difference aggregator."""
+    """Mean difference aggregator.
+
+    Args:
+        pos: Positive class activations, Tensor of shape (N_pos, hidden_dim).
+        neg: Negative class activations, Tensor of shape (N_neg, hidden_dim).
+
+    Returns:
+        Steering direction, Tensor of shape (hidden_dim,).
+    """
     return (pos - neg).mean(dim=0)
 
 
 def pca_aggregator(pos: Tensor, neg: Tensor) -> Tensor:
-    """PCA-based aggregator - first principal component of differences."""
+    """PCA-based aggregator returning the first principal component of differences.
+
+    Args:
+        pos: Positive class activations, Tensor of shape (N_pos, hidden_dim).
+        neg: Negative class activations, Tensor of shape (N_neg, hidden_dim).
+
+    Returns:
+        First principal component of (pos - neg), Tensor of shape (hidden_dim,).
+    """
     deltas = pos - neg
     pca = PCA(n_components=1)
     pca.fit(deltas.detach().cpu().numpy())
@@ -99,9 +115,17 @@ def weighted_mean_aggregator(pos: Tensor, neg: Tensor) -> Tensor:
         3. w_i^(c) = exp(-||h_i^(c) - h̄_c||² / τ_c²)  (weights)
         4. μ_c^w = Σ w_i^(c) h_i^(c) / Σ w_i^(c)  (weighted mean)
     Steering direction: v = μ_+^w - μ_-^w
+
+    Args:
+        pos: Positive class activations, Tensor of shape (N_pos, hidden_dim).
+        neg: Negative class activations, Tensor of shape (N_neg, hidden_dim).
+
+    Returns:
+        Weighted steering direction, Tensor of shape (hidden_dim,).
     """
 
     def _weighted_mean(class_activations: Tensor) -> Tensor:
+        """Compute weighted class center for a single class tensor."""
         n = class_activations.shape[0]
         if n == 0:
             msg = "Cannot compute weighted mean of empty tensor"
@@ -142,6 +166,17 @@ def discriminative_token_aggregator(pos: Tensor, neg: Tensor, top_k: int = 100) 
         3. Select top-k tokens with highest scores
         4. μ_c^disc = mean of selected tokens
     Steering direction: v = μ_+^disc - μ_-^disc
+
+    Args:
+        pos: Positive class activations, Tensor of shape (N_pos, hidden_dim).
+        neg: Negative class activations, Tensor of shape (N_neg, hidden_dim).
+        top_k: Number of highest-scoring tokens to keep per class.
+
+    Returns:
+        Discriminative steering direction, Tensor of shape (hidden_dim,).
+
+    Raises:
+        ValueError: If either input tensor is empty.
     """
     if pos.shape[0] == 0 or neg.shape[0] == 0:
         msg = "Cannot compute discriminative aggregator with empty tensors"
@@ -181,7 +216,18 @@ def discriminative_token_aggregator(pos: Tensor, neg: Tensor, top_k: int = 100) 
 
 
 def _resolve_aggregator(method: str, config: ExtractionConfig | None = None) -> Aggregator:
-    """Resolve aggregator by method name."""
+    """Resolve aggregator by method name.
+
+    Args:
+        method: One of "mean", "pca", "weighted_mean", "discriminative".
+        config: Extraction config (used for top_k when method="discriminative").
+
+    Returns:
+        Callable aggregator taking (pos, neg) tensors and returning a direction.
+
+    Raises:
+        ValueError: If method is not one of the supported aggregators.
+    """
     aggregators: dict[str, Aggregator] = {
         "mean": mean_aggregator,
         "pca": pca_aggregator,
@@ -205,7 +251,17 @@ def _resolve_aggregator(method: str, config: ExtractionConfig | None = None) -> 
 
 
 def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
-    """Load sentiment contrast pairs from SST-2."""
+    """Load sentiment contrast pairs from SST-2.
+
+    Args:
+        config: Concept config with num_pairs and dataset_name.
+
+    Returns:
+        List of ContrastPair objects (positive=positive sentiment, negative=negative).
+
+    Raises:
+        ValueError: If num_pairs is not positive, or if SST-2 lacks either class.
+    """
     validate_positive_int(config.num_pairs, "num_pairs")
 
     dataset = load_dataset("glue", "sst2")
@@ -257,7 +313,17 @@ def load_sentiment_data(config: ConceptConfig) -> list[ContrastPair]:
 
 
 def load_polite_data(config: ConceptConfig) -> list[ContrastPair]:
-    """Load politeness contrast pairs from Intel/polite-guard."""
+    """Load politeness contrast pairs from Intel/polite-guard.
+
+    Args:
+        config: Concept config with num_pairs and dataset_name.
+
+    Returns:
+        List of ContrastPair objects (positive=polite, negative=impolite).
+
+    Raises:
+        ValueError: If num_pairs is not positive, or if dataset lacks either class.
+    """
     validate_positive_int(config.num_pairs, "num_pairs")
 
     dataset = load_dataset("Intel/polite-guard", split="train")

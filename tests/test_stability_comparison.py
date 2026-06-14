@@ -1,7 +1,12 @@
 """Tests for stability comparison experiment."""
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 import torch
+
+from steering_geometry.types import ContrastPair, SteeringVector
 
 
 def test_select_token_subsets_returns_different_subsets():
@@ -39,3 +44,183 @@ def test_compute_stability_statistics():
     assert "max" in stats
     assert "std" in stats
     assert -1 <= stats["mean"] <= 1, "Cosine similarity mean should be in [-1, 1]"
+
+
+def _make_fake_pairs(n: int) -> list[ContrastPair]:
+    """Create n fake contrast pairs for testing."""
+    return [
+        ContrastPair(
+            positive=f"Positive example {i}",
+            negative=f"Negative example {i}",
+            metadata={"concept": "test", "id": i},
+        )
+        for i in range(n)
+    ]
+
+
+def _make_fake_steering_vector(num_layers: int = 5, dim: int = 8) -> SteeringVector:
+    """Create a fake SteeringVector with random activations for each layer."""
+    return SteeringVector(
+        layer_activations={i: torch.randn(dim) for i in range(num_layers)},
+        model_name="test",
+        concept="test",
+        method="discriminative",
+    )
+
+
+def test_candidate_pool_ablation_result_structure(tmp_path: Path) -> None:
+    """Verify returned dict has vector_paths, heatmap_paths, statistics with correct types."""
+    from steering_geometry.stability_comparison import run_candidate_pool_ablation
+
+    fake_pairs = _make_fake_pairs(50)
+    fake_vector = _make_fake_steering_vector()
+
+    with (
+        patch(
+            "steering_geometry.stability_comparison.load_contrast_pairs", return_value=fake_pairs
+        ),
+        patch("steering_geometry.stability_comparison.HookedModel", return_value=MagicMock()),
+        patch(
+            "steering_geometry.stability_comparison.extract_steering_vector",
+            return_value=fake_vector,
+        ),
+        patch("steering_geometry.stability_comparison.plot_heatmap"),
+    ):
+        result = run_candidate_pool_ablation(
+            concept="test",
+            pool_sizes=[10, 20],
+            model_name="test",
+            output_dir=tmp_path,
+            num_trials=1,
+        )
+
+    assert "vector_paths" in result
+    assert "heatmap_paths" in result
+    assert "statistics" in result
+    assert isinstance(result["vector_paths"], dict)
+    assert isinstance(result["heatmap_paths"], dict)
+    assert isinstance(result["statistics"], dict)
+    assert all(isinstance(v, str) for v in result["vector_paths"].values())
+    assert all(isinstance(v, str) for v in result["heatmap_paths"].values())
+    for layer_stats in result["statistics"].values():
+        assert isinstance(layer_stats, dict)
+        assert all(isinstance(v, float) for v in layer_stats.values())
+
+
+def test_candidate_pool_ablation_empty_pool_sizes_raises() -> None:
+    """Empty pool_sizes list raises ValueError."""
+    from steering_geometry.stability_comparison import run_candidate_pool_ablation
+
+    with pytest.raises(ValueError, match="pool_sizes cannot be empty"):
+        run_candidate_pool_ablation(concept="test", pool_sizes=[], model_name="test")
+
+
+def test_candidate_pool_ablation_negative_pool_size_raises() -> None:
+    """Negative pool_size raises ValueError."""
+    from steering_geometry.stability_comparison import run_candidate_pool_ablation
+
+    with pytest.raises(ValueError, match="All pool_sizes must be positive"):
+        run_candidate_pool_ablation(concept="test", pool_sizes=[-1], model_name="test")
+
+
+def test_candidate_pool_ablation_heatmap_dimensions(tmp_path: Path) -> None:
+    """Heatmap matrix rows and cols match the number of pool_sizes."""
+    from steering_geometry.stability_comparison import run_candidate_pool_ablation
+
+    fake_pairs = _make_fake_pairs(50)
+    fake_vector = _make_fake_steering_vector()
+    mock_plot = MagicMock()
+
+    with (
+        patch(
+            "steering_geometry.stability_comparison.load_contrast_pairs", return_value=fake_pairs
+        ),
+        patch("steering_geometry.stability_comparison.HookedModel", return_value=MagicMock()),
+        patch(
+            "steering_geometry.stability_comparison.extract_steering_vector",
+            return_value=fake_vector,
+        ),
+        patch("steering_geometry.stability_comparison.plot_heatmap", mock_plot),
+    ):
+        run_candidate_pool_ablation(
+            concept="test",
+            pool_sizes=[10, 20, 30],
+            model_name="test",
+            output_dir=tmp_path,
+            num_trials=1,
+        )
+
+    # plot_heatmap is called once per default layer (5 layers)
+    assert mock_plot.call_count == 5
+    # First positional arg of first call is the similarity matrix — should be (3, 3)
+    first_matrix = mock_plot.call_args_list[0][0][0]
+    assert first_matrix.shape == (3, 3)
+
+
+def test_candidate_pool_ablation_statistics_keys(tmp_path: Path) -> None:
+    """Statistics contain mean_similarity, min_similarity, max_similarity per layer."""
+    from steering_geometry.stability_comparison import run_candidate_pool_ablation
+
+    fake_pairs = _make_fake_pairs(50)
+    fake_vector = _make_fake_steering_vector()
+
+    with (
+        patch(
+            "steering_geometry.stability_comparison.load_contrast_pairs", return_value=fake_pairs
+        ),
+        patch("steering_geometry.stability_comparison.HookedModel", return_value=MagicMock()),
+        patch(
+            "steering_geometry.stability_comparison.extract_steering_vector",
+            return_value=fake_vector,
+        ),
+        patch("steering_geometry.stability_comparison.plot_heatmap"),
+    ):
+        result = run_candidate_pool_ablation(
+            concept="test",
+            pool_sizes=[10, 20],
+            model_name="test",
+            output_dir=tmp_path,
+            num_trials=1,
+        )
+
+    statistics = result["statistics"]
+    assert len(statistics) == 5  # 5 default layers
+
+    for layer_key, layer_stats in statistics.items():
+        assert layer_key.startswith("layer"), f"Expected key to start with 'layer', got {layer_key}"
+        assert "mean_similarity" in layer_stats
+        assert "min_similarity" in layer_stats
+        assert "max_similarity" in layer_stats
+        assert -1.0 <= layer_stats["mean_similarity"] <= 1.0 + 1e-6
+        assert -1.0 <= layer_stats["min_similarity"] <= 1.0 + 1e-6
+        assert -1.0 <= layer_stats["max_similarity"] <= 1.0 + 1e-6
+
+
+def test_candidate_pool_ablation_canonicalizes_concept(tmp_path: Path) -> None:
+    """Paper concept name 'safety' is canonicalized to 'refusal' before loading pairs."""
+    from steering_geometry.stability_comparison import run_candidate_pool_ablation
+
+    fake_pairs = _make_fake_pairs(50)
+    fake_vector = _make_fake_steering_vector()
+    mock_load = MagicMock(return_value=fake_pairs)
+
+    with (
+        patch("steering_geometry.stability_comparison.load_contrast_pairs", mock_load),
+        patch("steering_geometry.stability_comparison.HookedModel", return_value=MagicMock()),
+        patch(
+            "steering_geometry.stability_comparison.extract_steering_vector",
+            return_value=fake_vector,
+        ),
+        patch("steering_geometry.stability_comparison.plot_heatmap"),
+    ):
+        run_candidate_pool_ablation(
+            concept="safety",
+            pool_sizes=[10, 20],
+            model_name="test",
+            output_dir=tmp_path,
+            num_trials=1,
+        )
+
+    mock_load.assert_called_once()
+    first_arg = mock_load.call_args[0][0]
+    assert first_arg == "refusal", f"Expected canonical concept 'refusal', got {first_arg!r}"

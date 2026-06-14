@@ -88,7 +88,14 @@ class HookedModel:
         ]
 
     def _get_layers_module(self) -> Any:
-        """Get the layers module from the model architecture."""
+        """Get the layers module from the model architecture.
+
+        Returns:
+            The nn.ModuleList-like object containing transformer layers.
+
+        Raises:
+            ValueError: If the model architecture is not recognized.
+        """
         if hasattr(self.model, "model") and hasattr(self.model.model, "layers"):
             return self.model.model.layers
         if hasattr(self.model, "layers"):
@@ -145,7 +152,10 @@ class HookedModel:
         model_layers = self._get_layers_module()
 
         def make_hook(layer_idx: int) -> Callable[[Any, Any, Tensor], None]:
+            """Create a forward hook that captures layer output into the activations dict."""
+
             def hook_fn(module: Any, input: Any, output: Tensor) -> None:
+                """Forward hook body: store detached layer output under layer_idx."""
                 tensor_output = output[0] if isinstance(output, tuple) else output
                 activations[layer_idx] = tensor_output.detach().clone()
 
@@ -179,7 +189,7 @@ class HookedModel:
         Args:
             prompt: Input text prompt.
             layer_idx: Absolute layer index to apply steering.
-            steering_vector: Normalized steering vector (norm=1).
+            steering_vector: Normalized steering vector (norm=1) of shape (hidden_dim,).
             scale: Scaling factor for the steering vector.
             max_new_tokens: Maximum tokens to generate.
             temperature: Sampling temperature (0.0 for greedy).
@@ -207,6 +217,10 @@ class HookedModel:
         step_counter = [0]
 
         def steering_hook(module: Any, input: Any, output: Tensor) -> Tensor:
+            """Forward hook body: add scaled steering vector to layer output.
+
+            Applies only for the first steer_tokens steps.
+            """
             step_counter[0] += 1
             if steer_tokens is not None and step_counter[0] > steer_tokens:
                 if isinstance(output, tuple):

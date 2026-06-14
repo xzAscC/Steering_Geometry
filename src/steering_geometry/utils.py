@@ -86,7 +86,14 @@ def clamp_score(score: int, min_val: int = 0, max_val: int = 10) -> int:
 
 
 def _non_padding_mask(activations: Tensor) -> Tensor:
-    """Return 2D boolean mask of non-padding positions from a 3D activation tensor."""
+    """Return 2D boolean mask of non-padding positions from a 3D activation tensor.
+
+    Args:
+        activations: Tensor of shape (batch, seq_len, hidden_dim).
+
+    Returns:
+        Boolean mask of shape (batch, seq_len) where True marks non-padding positions.
+    """
     return activations.abs().sum(dim=-1) > 0
 
 

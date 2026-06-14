@@ -78,6 +78,8 @@ src/steering_geometry/
 ├── models.py
 ├── extract.py                         # Steering vector extraction
 ├── apply_steering.py                  # Apply steering + evaluation
+├── sweep_evaluation.py                # Strength × steer_tokens sweep evaluation
+├── prefix_analysis.py                 # KL divergence and attention pattern analysis
 ├── stability_comparison.py            # Vector stability experiments
 ├── token_selection_experiments.py     # Construction diagnosis experiments
 ├── utils.py
@@ -86,6 +88,7 @@ src/steering_geometry/
 scripts/
 ├── extract/
 ├── apply_steering/
+├── experiments/
 ├── pipeline/
 ├── token_experiments/
 ├── vector_analysis/
@@ -151,8 +154,13 @@ scripts/vector_analysis/
 ├── plot_stability_sweep.sh
 ├── quick_diff_means_heatmaps.sh
 ├── quick_discriminative_heatmaps.sh
+├── run_candidate_pool_ablation.sh
+├── run_k_ablation.sh
 ├── run_stability_comparison.sh
 └── run_stability_sweep.sh
+
+scripts/experiments/
+└── steering_strength_prefix_sweep.sh
 
 scripts/stability_comparison/
 └── quick_vector_stability.sh

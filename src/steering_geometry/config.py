@@ -203,6 +203,23 @@ _PAPER_TO_CANONICAL: dict[str, str] = {
 }
 
 
+def canonical_concept(concept: str) -> str:
+    """Map a paper concept name to its canonical internal name.
+
+    Accepts both paper terminology (``safety``, ``politeness``) and canonical
+    names (``refusal``, ``polite``, ``sentiment``). Unknown names are returned
+    unchanged so downstream validation raises a clear error.
+
+    Args:
+        concept: Concept name in paper or canonical form.
+
+    Returns:
+        Canonical concept name (one of ``refusal``, ``polite``, ``sentiment``),
+        or the input unchanged if no mapping exists.
+    """
+    return _PAPER_TO_CANONICAL.get(concept, concept)
+
+
 @dataclass
 class StabilitySweepConfig:
     """Configuration for stability sweep experiments.
@@ -385,6 +402,7 @@ __all__ = [
     "SUPPORTED_MODELS",
     "SUPPORTED_CONCEPTS",
     "DEFAULT_MODEL",
+    "canonical_concept",
     "ModelConfig",
     "ExtractionConfig",
     "ConceptConfig",

@@ -28,6 +28,7 @@ from steering_geometry.config import (
     StabilityComparisonConfig,
     StabilitySweepBatchConfig,
     StabilitySweepConfig,
+    canonical_concept,
 )
 from steering_geometry.extract import extract_steering_vector, extract_vector, load_contrast_pairs
 from steering_geometry.models import HookedModel
@@ -331,6 +332,8 @@ def run_discriminative_experiment(
         ValueError: If k_values is empty, contains non-positive values,
             or all vectors contain NaN.
     """
+    concept = canonical_concept(concept)
+
     if not k_values:
         msg = "k_values cannot be empty"
         raise ValueError(msg)
@@ -434,6 +437,180 @@ def run_discriminative_experiment(
         "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
         "statistics": {f"layer{k}": v for k, v in statistics.items()},
     }
+
+
+def run_candidate_pool_ablation(
+    concept: str,
+    pool_sizes: list[int],
+    model_name: str,
+    top_k: int = 50,
+    layers: list[float] | None = None,
+    output_dir: Path | str = "outputs",
+    num_trials: int = 1,
+    method: str = "discriminative",
+    token_select: str = "last_5",
+) -> dict[str, dict[str, str] | dict[str, dict[str, float]]]:
+    """Run candidate pool size ablation with fixed top_k.
+
+    For each pool size, loads that many contrast pairs and runs multiple
+    independent extractions using discriminative token selection with a fixed
+    top_k.  Computes pairwise cosine similarities across pool sizes at each
+    layer to measure how candidate pool size affects vector quality.
+
+    This is the mirror of run_discriminative_experiment, which varies K with a
+    fixed pool size, while this function varies pool size with a fixed K.
+
+    Args:
+        concept: Concept to extract (e.g., "sentiment", "refusal").
+        pool_sizes: List of candidate pool sizes to test (e.g., [50, 100, 200, 500]).
+        top_k: Fixed top_k for discriminative token selection.
+        layers: Relative layer positions (0.0-1.0) to analyze.
+            Defaults to [0.4, 0.5, 0.6, 0.7, 0.8].
+        model_name: HuggingFace model name.
+        output_dir: Base output directory for vectors and heatmaps.
+        num_trials: Number of independent extractions per pool size (default: 1).
+        method: Extraction method (should be "discriminative").
+        token_select: Token selection strategy for extraction.
+
+    Returns:
+        Dict with:
+            - "vector_paths": Dict mapping (pool_size, trial, layer) to vector file paths
+            - "heatmap_paths": Dict mapping layer to heatmap file paths
+            - "statistics": Dict with mean/min/max similarities per layer
+
+    Raises:
+        ValueError: If pool_sizes is empty, contains non-positive values,
+            or all vectors contain NaN.
+    """
+    concept = canonical_concept(concept)
+
+    if not pool_sizes:
+        msg = "pool_sizes cannot be empty"
+        raise ValueError(msg)
+
+    for ps in pool_sizes:
+        if ps <= 0:
+            msg = f"All pool_sizes must be positive integers, got {ps}"
+            raise ValueError(msg)
+
+    if layers is None:
+        layers = [0.4, 0.5, 0.6, 0.7, 0.8]
+
+    output_dir = Path(output_dir)
+
+    max_pool = max(pool_sizes)
+    logger.info("Loading contrast pairs for concept '%s'", concept)
+    all_pairs = load_contrast_pairs(concept, num_pairs=max_pool)
+    logger.info("Loaded %d contrast pairs for concept '%s'", len(all_pairs), concept)
+
+    logger.info("Loading model '%s'", model_name)
+    model = HookedModel(ModelConfig(model_name=model_name))
+
+    vector_paths: dict[tuple[int, int, float], Path] = {}
+    # Store trial-0 vectors for the cross-pool-size comparison
+    layer_vectors: dict[float, dict[int, Tensor]] = {layer_frac: {} for layer_frac in layers}
+
+    for pool_size in pool_sizes:
+        capped = cap_examples(pool_size, len(all_pairs), concept)
+
+        for trial_idx in range(num_trials):
+            logger.info(
+                "Extracting vector for concept='%s', pool_size=%d, trial=%d/%d",
+                concept,
+                pool_size,
+                trial_idx + 1,
+                num_trials,
+            )
+
+            rng = random.Random(trial_idx)
+            subset = rng.sample(all_pairs, k=capped)
+
+            extraction_config = ExtractionConfig(
+                layers=layers,
+                method=method,
+                top_k=top_k,
+                token_select=token_select,
+            )
+
+            steering_vector = extract_steering_vector(
+                model=model,
+                pairs=subset,
+                config=extraction_config,
+            )
+
+            for layer_frac, abs_idx in zip(
+                layers, steering_vector.layer_activations.keys(), strict=True
+            ):
+                vector = steering_vector.layer_activations[abs_idx]
+
+                if torch.isnan(vector).any():
+                    msg = (
+                        f"Vector for concept='{concept}', pool_size={pool_size}, "
+                        f"trial={trial_idx}, layer={layer_frac} contains NaN"
+                    )
+                    raise ValueError(msg)
+
+                vector_path = (
+                    output_dir
+                    / "vectors"
+                    / concept
+                    / "candidate_pool"
+                    / f"pool{pool_size}_trial{trial_idx}_layer{layer_frac}.pt"
+                )
+                save_vector(vector, vector_path)
+                vector_paths[(pool_size, trial_idx, layer_frac)] = vector_path
+
+                # Store trial-0 for cross-pool comparison
+                if trial_idx == 0:
+                    layer_vectors[layer_frac][pool_size] = vector
+
+    heatmap_paths: dict[float, Path] = {}
+    statistics: dict[float, dict[str, float]] = {}
+
+    labels = [str(ps) for ps in pool_sizes]
+
+    for layer_frac in layers:
+        vectors = [layer_vectors[layer_frac][ps] for ps in pool_sizes]
+
+        first = vectors[0]
+        all_identical = all(torch.equal(v, first) for v in vectors)
+        if all_identical:
+            logger.warning(
+                "All vectors identical at layer %.2f for concept '%s'",
+                layer_frac,
+                concept,
+            )
+
+        similarity_matrix = compute_cosine_similarity_matrix(vectors)
+
+        off_diag_stats = _compute_off_diagonal_stats(similarity_matrix, len(vectors))
+        statistics[layer_frac] = {
+            "mean_similarity": off_diag_stats["mean"],
+            "min_similarity": off_diag_stats["min"],
+            "max_similarity": off_diag_stats["max"],
+        }
+
+        heatmap_path = (
+            output_dir / "heatmaps" / "candidate_pool" / f"{concept}_layer{layer_frac}.pdf"
+        )
+        title = f"Candidate Pool Ablation: {concept} (layer {layer_frac})"
+        plot_heatmap(similarity_matrix, labels, title, heatmap_path)
+        heatmap_paths[layer_frac] = heatmap_path
+
+    results: dict[str, dict[str, str] | dict[str, dict[str, float]]] = {
+        "vector_paths": {
+            f"pool{k[0]}_trial{k[1]}_layer{k[2]}": str(v) for k, v in vector_paths.items()
+        },
+        "heatmap_paths": {f"layer{k}": str(v) for k, v in heatmap_paths.items()},
+        "statistics": {f"layer{k}": v for k, v in statistics.items()},
+    }
+
+    results_path = output_dir / "results" / "candidate_pool" / f"{concept}_results.json"
+    save_results_json(results, results_path)
+
+    logger.info("Completed candidate pool ablation for concept '%s'", concept)
+
+    return results
 
 
 # =============================================================================
@@ -1241,6 +1418,7 @@ __all__ = [
     "cap_examples",
     "run_diff_means_experiment",
     "run_discriminative_experiment",
+    "run_candidate_pool_ablation",
     # Stability comparison
     "select_token_subsets",
     "run_single_extraction",
