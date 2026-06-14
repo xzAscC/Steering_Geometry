@@ -9,7 +9,7 @@
 #   ./scripts/vector_analysis/run_k_ablation.sh [OPTIONS]
 #
 # Options:
-#   -c, --concept        Concept (default: safety)
+#   -c, --concept        Concept (default: refusal)
 #   -m, --model          Model name (default: allenai/Olmo-3-1025-7B)
 #   -k, --k-values       Comma-separated K values (default: "10,20,30,50,100,128,200")
 #   -l, --layers         Comma-separated layer fractions (default: "0.4,0.5,0.6,0.7,0.8")
@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Default configuration
-CONCEPT="safety"
+CONCEPT="refusal"
 MODEL="allenai/Olmo-3-1025-7B"
 K_VALUES="10,20,30,50,100,128,200"
 LAYERS="0.4,0.5,0.6,0.7,0.8"
@@ -67,7 +67,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  -c, --concept        Concept (default: safety)"
+            echo "  -c, --concept        Concept (default: refusal)"
             echo "  -m, --model          Model name (default: allenai/Olmo-3-1025-7B)"
             echo "  -k, --k-values       Comma-separated K values (default: 10,20,30,50,100,128,200)"
             echo "  -l, --layers         Comma-separated layer fractions (default: 0.4,0.5,0.6,0.7,0.8)"

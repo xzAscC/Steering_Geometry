@@ -9,12 +9,12 @@
 #   ./scripts/vector_analysis/run_candidate_pool_ablation.sh [OPTIONS]
 #
 # Options:
-#   -c, --concept        Concept (default: safety)
+#   -c, --concept        Concept (default: refusal)
 #   -m, --model          Model name (default: allenai/Olmo-3-1025-7B)
 #   -p, --pool-sizes     Comma-separated pool sizes (default: "50,100,200,500,1000")
 #   -k, --top-k          Fixed top_k value (default: 50)
 #   -l, --layers         Comma-separated layer fractions (default: "0.4,0.5,0.6,0.7,0.8")
-#   -n, --num-trials     Number of trials per pool size (default: 3)
+#   -n, --num-trials     Number of trials per pool size (default: 1)
 #   -o, --output         Output directory (default: outputs/ablation/candidate_pool)
 #   -h, --help           Show this help message
 #
@@ -28,12 +28,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Default configuration
-CONCEPT="safety"
+CONCEPT="refusal"
 MODEL="allenai/Olmo-3-1025-7B"
 POOL_SIZES="50,100,200,500,1000"
 TOP_K=50
 LAYERS="0.4,0.5,0.6,0.7,0.8"
-NUM_TRIALS=3
+NUM_TRIALS=1
 OUTPUT_DIR="$PROJECT_ROOT/outputs/ablation/candidate_pool"
 LOG_LEVEL="INFO"
 
@@ -79,12 +79,12 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  -c, --concept        Concept (default: safety)"
+            echo "  -c, --concept        Concept (default: refusal)"
             echo "  -m, --model          Model name (default: allenai/Olmo-3-1025-7B)"
             echo "  -p, --pool-sizes     Comma-separated pool sizes (default: 50,100,200,500,1000)"
             echo "  -k, --top-k          Fixed top_k value (default: 50)"
             echo "  -l, --layers         Comma-separated layer fractions (default: 0.4,0.5,0.6,0.7,0.8)"
-            echo "  -n, --num-trials     Number of trials per pool size (default: 3)"
+            echo "  -n, --num-trials     Number of trials per pool size (default: 1)"
             echo "  -o, --output         Output directory (default: outputs/ablation/candidate_pool)"
             echo "  -h, --help           Show this help message"
             echo ""
@@ -139,7 +139,7 @@ result = run_candidate_pool_ablation(
     num_trials=${NUM_TRIALS},
 )
 print('Candidate pool ablation complete.')
-print(f'Results: {len(result[\"statistics\"])} pool size configurations')
+print(f'Results: {len(result[\"statistics\"])} layer configurations')
 "
 
 # Print completion message
