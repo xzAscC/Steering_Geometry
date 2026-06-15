@@ -16,7 +16,6 @@
 torch==2.10.0
 transformers==5.3.0
 accelerate==1.13.0          # required for device_map="auto" in models.py / prefix_analysis.py
-flash-linear-attention==0.4.2
 
 # --- Data ---
 datasets==2.21.0
@@ -27,6 +26,5 @@ scikit-learn==1.8.0         # PCA + cosine_similarity in extract/stability_compa
 openai==1.109.1             # AsyncOpenAI client for LLM-as-judge
 jinja2==3.1.6               # prompt templates in apply_steering.py
 
-# --- Plotting / notebooks ---
+# --- Plotting ---
 matplotlib==3.10.8          # heatmaps in stability/sweep/prefix_analysis
-jupyter==1.1.1
