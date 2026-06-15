@@ -1,8 +1,6 @@
 # RobustDiM-PrefixSteering
 
-<!-- TODO: replace arXiv ID XXXX.XXXXX and BibTeX below once posted to arXiv -->
 [![Paper](https://img.shields.io/badge/paper-PDF-red)](docs/paper.pdf)
-[![arXiv](https://img.shields.io/badge/arXiv-XXXX.XXXXX-b31b1b)](https://arxiv.org/abs/XXXX.XXXXX) 
 [![Project Page](https://img.shields.io/badge/🌐-Project_Page-3273dc)](https://xzasccc.github.io/robust-dim-prefix-steering/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -78,6 +76,7 @@ scripts/
 ├── pipeline/
 │   └── quick_pipeline.sh             # End-to-end: extract → steer → evaluate
 ├── prefix_analysis/
+│   ├── run_kl_divergence.sh           # KL-only analysis (fast, no eager-attention reload)
 │   ├── run_analysis.sh               # KL divergence + attention-pattern analysis for one concept
 │   └── run_all_concepts.sh           # Loop run_analysis.sh over safety/sentiment/politeness
 ├── token_experiments/
@@ -130,13 +129,16 @@ uv run pytest                          # tests
 If you use this code in your research, please cite our paper:
 
 ```bibtex
+@inproceedings{zhu2026steering,
+  title     = {Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering},
+  author    = {Zhu, Xudong and Zhu, Zhihui},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2026}
+}
 ```
 
 ## License
 
-MIT License. See `LICENSE` for details.
-
-## TODO
-
-- [ ] update arxiv link and citation
-- [ ] update READ structure
+MIT License. See `LICENSE` for details. The project page under `docs/` is
+adapted from [Nerfies](https://nerfies.github.io) and licensed separately under
+CC BY-SA 4.0; see `docs/LICENSE`.
