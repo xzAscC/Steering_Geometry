@@ -1,197 +1,144 @@
-# Steering Geometry
+# RobustDiM-PrefixSteering
 
-Research code for the NeurIPS 2026 paper, "Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering for Activation Steering".
+[![Paper](https://img.shields.io/badge/paper-PDF-red)](docs/paper.pdf)
+[![Project Page](https://img.shields.io/badge/🌐-Project_Page-3273dc)](https://xzasccc.github.io/robust-dim-prefix-steering/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-This repository studies which token positions produce stable activation steering directions, and how early-token interventions can steer model behavior while preserving general capability. The codebase focuses only on the paper experiments: Robust DiM direction construction, Prefix Steering intervention, safety refusal, sentiment, politeness, HarmBench, 3-label LLM-as-judge evaluation, and MMLU-Pro.
+Code accompanying the arXiv preprint *"Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering"*.
+
+🌐 **Project page**: <https://xzasccc.github.io/robust-dim-prefix-steering/> (source in [`docs/`](docs/index.html))
+
+This repository implements the paper's two activation-steering methods — **Robust DiM** for token-selective steering-direction construction and **Prefix Steering** for early-token intervention — together with experiments on safety/refusal, sentiment, and politeness across four models, evaluated with steering performance and general ability.
 
 ## Paper Scope
 
-### Models
-
-The experiments use four Hugging Face causal language models:
-
-- **OLMo3-7B**: `allenai/Olmo-3-1025-7B`
-- **OLMo3-32B**: `allenai/Olmo-3-1125-32B`
-- **Qwen3-1.7B**: `Qwen/Qwen3-1.7B`
-- **Qwen3-14B**: `Qwen/Qwen3-14B`
-
-### Concepts
-
-The paper evaluates three steering concepts:
-
-- **Safety/refusal**: increase safe refusal behavior on harmful requests
-- **Sentiment**: steer generated text toward positive or negative sentiment
-- **Politeness**: steer generated text toward polite or impolite style
-
-### Datasets
-
-- **Safety/refusal**: `LLM-LAT/benign-dataset` and `LLM-LAT/harmful-dataset`
-- **Sentiment**: SST-2
-- **Politeness**: PoliteGuard
-
-### Evaluations
-
-- **HarmBench** for safety behavior
-- **3-label LLM-as-judge** for sentiment and politeness
-- **MMLU-Pro** for general capability retention
+- **Models**: OLMo3-7B (`allenai/Olmo-3-1025-7B`), OLMo3-32B (`allenai/Olmo-3-1125-32B`), Qwen3-1.7B (`Qwen/Qwen3-1.7B`), Qwen3-14B (`Qwen/Qwen3-14B`)
+- **Concepts**: safety/refusal, sentiment, politeness
+- **Datasets**: `LLM-LAT/benign-dataset` + `LLM-LAT/harmful-dataset` (safety), SST-2 (sentiment), PoliteGuard (politeness)
+- **Evaluations**: HarmBench (safety), 3-label LLM-as-judge (sentiment/politeness), MMLU-Pro (capability retention)
 
 ## Methods
 
-### Robust DiM
-
-Robust DiM builds steering directions from token subsets rather than treating every token as equally useful. The extraction pipeline compares activations from contrast pairs, selects stable and informative token positions, and constructs a direction that is less sensitive to noisy or weak tokens.
-
-### Prefix Steering
-
-Prefix Steering applies the steering direction to early tokens during generation. This tests whether short, prefix-local interventions can guide behavior while reducing disruption to later-token computation and preserving MMLU-Pro performance.
+- **Robust DiM** — token-selective steering-direction construction: score each candidate activation by its relative margin between class means, keep the top-K per class, and average. Filters out non-target-dominated activations before mean estimation.
+- **Prefix Steering** — apply the steering update only to an initial prefix of generated tokens. Most steering effect emerges early, so restricting intervention there retains control while reducing the distributional shift that degrades general capability.
 
 ## Quick Start
 
-Install dependencies:
-
 ```bash
-uv sync
+uv sync                                                                    # install dependencies
+uv run python -m steering_geometry.extract \
+    --concept sentiment --model "Qwen/Qwen3-1.7B"                          # extract a steering vector
+uv run python -m steering_geometry.apply_steering \
+    --vector outputs/vectors/sentiment/layer0.7.pt                         # apply a saved vector + evaluate
+uv run python -m steering_geometry --shell                                 # print package metadata / shell config
 ```
 
-Extract a sentiment steering vector with one paper model:
-
-```bash
-uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3-1.7B"
-```
-
-Apply a saved vector and run the configured evaluation path:
-
-```bash
-uv run python -m steering_geometry.apply_steering --vector outputs/vectors/sentiment/layer0.7.pt
-```
-
-Run construction diagnosis and stability experiments through the experiment scripts listed below. The `token_selection_experiments` and `stability_comparison` modules provide experiment functions used by those scripts.
+The experiment modules are driven by the shell scripts in `scripts/` (see [Project Structure](#project-structure)) rather than standalone CLIs.
 
 ## Project Structure
 
-```text
-src/steering_geometry/
-├── __init__.py
-├── __main__.py
-├── types.py
-├── config.py
-├── models.py
-├── extract.py                         # Steering vector extraction
-├── apply_steering.py                  # Apply steering + evaluation
-├── sweep_evaluation.py                # Strength × steer_tokens sweep evaluation
-├── prefix_analysis.py                 # KL divergence and attention pattern analysis
-├── stability_comparison.py            # Vector stability experiments
-├── token_selection_experiments.py     # Construction diagnosis experiments
-├── utils.py
-├── py.typed
+The tree below reflects the actual contents of the repository. Every tracked file and folder is annotated; runtime/cache artifacts (`__pycache__/`, `.mypy_cache/`, `.pytest_cache/`, `.ruff_cache/`, `.venv/`, `.git/`) are omitted for brevity.
 
+```text
+# ─── Root configuration & docs ──────────────────────────────────────────────
+pyproject.toml              # Hatchling build config, ruff (E/F/I/UP/B/SIM/N, line 100), mypy --strict, pytest
+uv.lock                     # Locked dependency set for reproducible `uv sync` installs
+requirements.in             # High-level pip requirements (source of requirements.txt)
+requirements.txt            # Generated pip requirements (compatibility / non-uv environments)
+.python-version             # Pins Python 3.12 for uv / pyenv
+.env.example                # Template env file (OPENROUTER_API_KEY for LLM-as-judge)
+.gitignore                  # Ignores outputs/, logs/, .venv/, caches, .env, etc.
+.ignore                     # Extra ignore rules for ripgrep / fuzzy finders
+LICENSE                     # MIT license text
+README.md                   # This file
+AGENTS.md                   # Rules every AI agent working in this repo must follow
+ARCHITECTURE.md             # System-level design and module relationships
+SPEC.md                     # Project specification / scope description
+src/steering_geometry/
+├── __init__.py                       # Public package interface; re-exports key symbols
+├── __main__.py                       # `python -m steering_geometry` entry; `--shell` prints shell config (print() allowed here)
+├── types.py                          # Paper domain objects (dataclasses) and result TypedDicts
+├── config.py                         # Four paper models, three concepts, extraction & evaluation configs
+├── models.py                         # `HookedModel`: loads a HF causal LM with forward hooks on residual layers
+├── extract.py                        # Robust DiM extraction: contrast-pair loading, margin scoring, top-K averaging
+├── apply_steering.py                 # Prefix Steering application + HarmBench / LLM-as-judge / MMLU-Pro evaluation
+├── sweep_evaluation.py               # Strength × steer_tokens grid sweep with HarmBench/LLM-as-judge and MMLU-Pro
+├── prefix_analysis.py                # KL divergence and attention-pattern analysis for Prefix Steering diagnostics
+├── stability_comparison.py           # Robust DiM stability sweeps and vector comparison helpers
+├── token_selection_experiments.py    # Construction diagnosis: token position, prompt vs response, example count, scope
+├── utils.py                          # Shared helpers: ensure_dir(), safe_model_name(), sample_with_seed(), configure_logging()
+└── py.typed                          # PEP 561 marker declaring this package is typed
 scripts/
 ├── extract/
+│   └── quick_discriminative.sh       # Quick Robust DiM extraction run across a concept/model
 ├── apply_steering/
-├── experiments/
+│   └── run_steering.sh               # Apply a saved vector and run the evaluation path
 ├── pipeline/
+│   └── quick_pipeline.sh             # End-to-end: extract → steer → evaluate
+├── prefix_analysis/
+│   ├── run_kl_divergence.sh           # KL-only analysis (fast, no eager-attention reload)
+│   ├── run_analysis.sh               # KL divergence + attention-pattern analysis for one concept
+│   └── run_all_concepts.sh           # Loop run_analysis.sh over safety/sentiment/politeness
 ├── token_experiments/
+│   ├── 1_token_count.sh              # Construction diagnosis: number of selected tokens
+│   ├── 2_token_position.sh           # Construction diagnosis: token position effect
+│   ├── 3_prompt_vs_response.sh       # Construction diagnosis: prompt vs response tokens
+│   └── 4_steering_scope.sh           # Prefix Steering: steering scope × prefix length
 ├── vector_analysis/
-├── stability_comparison/
-
-tests/
-├── conftest.py
-├── test_apply_steering.py
-├── test_experiments.py
-├── test_stability_comparison.py
-├── test_stability_sweep.py
-├── test_token_selection_experiments.py
-├── unit/
-│   ├── test_aggregators.py
-│   ├── test_config_main.py
-│   ├── test_evaluation.py
-│   ├── test_extract.py
-│   ├── test_logging.py
-│   └── test_utils.py
+│   ├── run_stability_sweep.sh        # Generate stability-sweep raw data
+│   ├── plot_stability_sweep.sh       # Plot stability-sweep figures
+│   ├── run_stability_comparison.sh   # Compare vector stability across construction methods
+│   ├── run_k_ablation.sh             # Ablation over the top-K margin parameter
+│   ├── run_candidate_pool_ablation.sh# Ablation over the candidate activation pool
+│   ├── quick_discriminative_heatmaps.sh  # Generate Robust DiM margin heatmaps
+│   └── quick_diff_means_heatmaps.sh  # Generate diff-of-means comparison heatmaps
+├── experiments/
+│   └── steering_strength_prefix_sweep.sh  # Full steering-strength × prefix-length sweep
+└── stability_comparison/
+    └── quick_vector_stability.sh     # Quick Robust DiM vector stability run
+assets/                               # Static binary assets (figures/screenshots); currently empty (.gitkeep)
+data/
+├── vectors/                          # Pre-saved steering vectors
+└── steered/                          # Example steered-generation outputs
+outputs/                              # Run outputs (git-ignored in practice; see .gitignore)
+├── vectors/                          # Extracted steering vectors per concept/model
+├── steering/                         # Steering-run JSON results (prefix_steering_*.json)
+├── stability/                        # Vector-stability experiment results
+├── stability_sweep/                  # Stability-sweep raw data
+├── heatmaps/                         # Generated margin / diff-of-means heatmaps
+├── prefix_analysis/                  # KL divergence and attention-analysis outputs
+├── prefix_vs_full/                   # Prefix vs. full-steering comparison (sentiment/politeness)
+├── prefix_vs_full_refusal/           # Prefix vs. full-steering comparison (refusal)
+└── posters/                          # Generated poster / summary artifacts
+logs/                                 # Timestamped run logs (steering_YYYYMMDD_HHMMSS.log); runtime artifacts
 ```
 
-## Entry Points
+## Checks
 
-Use module entry points for extraction and steering:
+This is a research codebase for a paper — contributions aren't expected. If you want to verify your environment reproduces the checked-in state, run the same checks CI uses:
 
 ```bash
-# Extract Robust DiM steering vectors
-uv run python -m steering_geometry.extract --concept sentiment --model "Qwen/Qwen3-1.7B"
-
-# Apply Prefix Steering with a saved vector
-uv run python -m steering_geometry.apply_steering --vector outputs/vectors/sentiment/layer0.7.pt
+uv run ruff check src/ tests/          # lint
+uv run ruff format --check src/ tests/ # format check
+uv run mypy src/                       # type check (strict)
+uv run pytest                          # tests
 ```
 
-Package metadata and shell configuration values are available through the package CLI:
+## Citation
 
-```bash
-uv run python -m steering_geometry --shell
-```
+If you use this code in your research, please cite our paper:
 
-The experiment modules are imported by the shell scripts in `scripts/` rather than exposed as standalone module CLIs.
-
-## Paper Experiment Scripts
-
-The `scripts/` tree contains shell entry points for the paper experiments:
-
-```text
-scripts/extract/
-└── quick_discriminative.sh
-
-scripts/apply_steering/
-└── run_steering.sh
-
-scripts/pipeline/
-└── quick_pipeline.sh
-
-scripts/token_experiments/
-├── 1_token_count.sh
-├── 2_token_position.sh
-├── 3_prompt_vs_response.sh
-└── 4_steering_scope.sh
-
-scripts/vector_analysis/
-├── plot_stability_sweep.sh
-├── quick_diff_means_heatmaps.sh
-├── quick_discriminative_heatmaps.sh
-├── run_candidate_pool_ablation.sh
-├── run_k_ablation.sh
-├── run_stability_comparison.sh
-└── run_stability_sweep.sh
-
-scripts/experiments/
-└── steering_strength_prefix_sweep.sh
-
-scripts/stability_comparison/
-└── quick_vector_stability.sh
-```
-
-Use these scripts for full experiment runs, token selection diagnostics, vector stability comparisons, heatmap generation, and Prefix Steering sweeps.
-
-## Development
-
-Run the standard checks before submitting changes:
-
-```bash
-# Lint
-uv run ruff check src/ tests/
-
-# Format check
-uv run ruff format --check src/ tests/
-
-# Type check
-uv run mypy src/
-
-# Tests
-uv run pytest
-```
-
-To format code locally:
-
-```bash
-uv run ruff format src/ tests/
+```bibtex
+@inproceedings{zhu2026steering,
+  title     = {Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering},
+  author    = {Zhu, Xudong and Zhu, Zhihui},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2026}
+}
 ```
 
 ## License
 
-MIT License. See `LICENSE` for details.
+MIT License. See `LICENSE` for details. The project page under `docs/` is
+adapted from [Nerfies](https://nerfies.github.io) and licensed separately under
+CC BY-SA 4.0; see `docs/LICENSE`.

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering</title>
+  <meta name="description" content="NeurIPS 2026 project page for Robust DiM and Prefix Steering, showing how token-selective activation construction and early-token intervention improve language model steering.">
+
+  <meta property="og:title" content="Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering">
+  <meta property="og:description" content="Robust Directions and Prefix Steering for activation steering in language models.">
+  <meta property="og:image" content="static/images/teaser.png">
+  <meta property="og:url" content="https://username.github.io/repo/">
+  <meta property="og:type" content="website">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Not All Tokens Are Equally Useful for Steering">
+  <meta name="twitter:description" content="NeurIPS 2026 project page for Robust DiM and Prefix Steering.">
+  <meta name="twitter:image" content="static/images/teaser.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@700;900&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css"
+        integrity="sha384-HmYpsz2Aa9Gh3JlkCoh8kUJ2mUKJKTnkyC2Lzt8aLzpPOpnDe8KpFE2xNiBpMDou" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1.9.4/css/academicons.min.css"
+        integrity="sha384-cxs0Bj979VdNByRZzAJ2KJWG8vH/kG7fwWZAIZW3Tmsw0rAuP/pu3I3LitFWEs18" crossorigin="anonymous">
+  <link rel="stylesheet" href="static/css/style.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <nav class="navbar is-white publication-navbar" role="navigation" aria-label="main navigation">
+    <div class="container">
+      <div class="navbar-brand">
+        <a class="navbar-item publication-brand" href="#top" aria-label="Steering Geometry home">
+          <span class="brand-mark" aria-hidden="true">SG</span>
+          <span>Steering Geometry</span>
+        </a>
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="publicationNavbar">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </a>
+      </div>
+
+      <div id="publicationNavbar" class="navbar-menu">
+        <div class="navbar-end">
+          <a class="navbar-item" href="#abstract">Abstract</a>
+          <a class="navbar-item" href="#method">Method</a>
+          <a class="navbar-item" href="#results">Results</a>
+          <a class="navbar-item" href="https://github.com/xzAscC/robust-dim-prefix-steering" target="_blank" rel="noopener">Code</a>
+          <a class="navbar-item" href="#BibTeX">Citation</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main id="top">
+    <section class="hero publication-hero">
+      <div class="hero-body">
+        <div class="container has-text-centered">
+          <p class="publication-venue tag is-link is-light is-medium">NeurIPS 2026</p>
+          <h1 class="title publication-title">
+            Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering
+          </h1>
+
+          <div class="publication-authors" aria-label="Authors">
+            <span class="author-block">Xudong Zhu<sup>1</sup></span>
+            <span class="author-block">Zhihui Zhu<sup>1</sup></span>
+          </div>
+          <p class="publication-affiliation"><sup>1</sup>The Ohio State University</p>
+
+          <div class="publication-links buttons is-centered">
+            <a class="button is-dark is-rounded" href="paper.pdf" target="_blank" rel="noopener">
+              <span class="icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></span>
+              <span>Paper</span>
+            </a>
+            <a class="button is-link is-rounded is-static" title="Coming soon" aria-disabled="true">
+              <span class="icon"><i class="ai ai-arxiv" aria-hidden="true"></i></span>
+              <span>arXiv</span>
+            </a>
+            <a class="button is-dark is-rounded" href="https://github.com/xzAscC/robust-dim-prefix-steering" target="_blank" rel="noopener">
+              <span class="icon"><i class="fab fa-github" aria-hidden="true"></i></span>
+              <span>Code</span>
+            </a>
+            <a class="button is-primary is-rounded is-static" title="Coming soon" aria-disabled="true">
+              <span class="icon"><i class="fas fa-database" aria-hidden="true"></i></span>
+              <span>Models</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hero teaser-hero" aria-labelledby="teaser-heading">
+      <div class="hero-body">
+        <div class="container has-text-centered">
+          <h2 id="teaser-heading" class="is-sr-only">Paper teaser</h2>
+          <figure class="publication-figure teaser-figure">
+            <img class="teaser-image" src="static/images/teaser.png" alt="Two-panel overview of Robust DiM direction construction and Prefix Steering intervention placement.">
+            <figcaption class="figure-caption">
+              Overview of our two contributions: (Left) Robust DiM constructs steering directions from token-selective activations that are both representative and discriminative. (Right) Prefix Steering applies intervention only to early generated tokens, preserving general capability.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="abstract" class="section abstract-section">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-centered">Abstract</h2>
+        <div class="content publication-copy">
+          <p>
+            Activation steering controls language model behavior by modifying hidden-state activations along interpretable concept directions, often constructed using Difference-in-Means (DiM) over contrastive examples. However, recent work has observed that DiM steering can degrade general capabilities. In this work, we revisit activation steering from two complementary perspectives: steering-direction construction and intervention-time token selection. First, we show that DiM should not be viewed purely as a variance-reduction problem achieved by averaging more activations. Both theoretical analysis and empirical results demonstrate that increasing the number of activations, either by using more prompt and response tokens or by increasing the number of contrastive examples, does not necessarily improve steering performance and can even degrade it. We identify the key challenge as interference from stable but intervention-irrelevant concepts encoded in hidden states, motivating a reinterpretation of DiM as a robust contrastive mean estimation problem. Based on this perspective, we propose Robust DiM, which estimates contrastive directions using activations that are both representative of their own class and discriminative from the opposite class. Across three target concepts and four models, Robust DiM improves target-concept steering by up to 8% while improving general-capability preservation by up to 5% over standard DiM. Second, we revisit the common practice of applying steering interventions at every generation step. We show that most steering effects emerge within the first few generated tokens, while later interventions primarily accumulate distributional shift and degrade general capability. Motivated by this observation, we propose prefix steering, which applies steering updates only to an initial generation prefix. Prefix steering recovers most of the target-control effect of full-generation intervention while substantially reducing interference with general capabilities. Together, our results suggest that effective activation steering depends critically on selecting both intervention-relevant construction activations and intervention-relevant generation positions, rather than uniformly averaging or steering across all tokens.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="method" class="section method-section">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-centered">Method</h2>
+
+        <article class="method-block">
+          <h3 class="title is-4">Robust DiM — Token-Selective Direction Construction</h3>
+          <div class="content publication-copy">
+            <p>
+              Standard DiM averages activations over all tokens and examples, treating every activation as equally useful. We show this is suboptimal: interference from stable but intervention-irrelevant concepts degrades the direction. Robust DiM scores each activation by its relative margin between class means, selects the top-K most representative-and-discriminative activations per class, and constructs the direction from this refined subset.
+            </p>
+          </div>
+          <figure class="publication-figure method-figure">
+            <img src="static/images/tdnv_dim.svg" alt="Conceptual illustration of Robust DiM selecting representative and discriminative activations.">
+            <figcaption class="figure-caption">
+              Robust DiM selects activations (filled markers) that are representative of their own class (close to class center) and discriminative from the opposite class (far from the opposite center).
+            </figcaption>
+          </figure>
+        </article>
+
+        <article class="method-block prefix-card">
+          <h3 class="title is-4">Prefix Steering — Intervention Only Where Needed</h3>
+          <div class="content publication-copy">
+            <p>
+              We observe that most steering effects emerge within the first few generated tokens. Later interventions primarily accumulate distributional shift and degrade general capability. Prefix Steering applies the steering update only to the first N generated tokens, recovering most of the target-control effect while substantially reducing interference.
+            </p>
+            <ul class="finding-list">
+              <li>Most steering effect emerges in first ~5 generated tokens</li>
+              <li>Later-token intervention primarily adds distributional shift</li>
+              <li>Prefix Steering recovers target control while preserving MMLU-Pro</li>
+            </ul>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="results" class="section results-section">
+      <div class="container">
+        <h2 class="title is-3 has-text-centered">Results</h2>
+        <div class="notification is-info is-light headline-callout">
+          <strong>Headline Numbers.</strong> Robust DiM: +8% target steering, +5% capability preservation. Prefix Steering: up to +6% MMLU-Pro. Evaluated on 3 concepts × 4 models (Olmo-3-7B/32B, Qwen3-1.7B/14B).
+        </div>
+
+        <div class="columns is-multiline result-grid">
+          <div class="column is-half">
+            <figure class="publication-figure result-card">
+              <img src="static/images/token_selective_construction.png" alt="Robust DiM target steering and capability preservation results across concepts.">
+              <figcaption class="figure-caption">
+                Robust DiM improves target-concept steering while preserving general capability across safety, sentiment, and politeness.
+              </figcaption>
+            </figure>
+          </div>
+          <div class="column is-half">
+            <figure class="publication-figure result-card">
+              <img src="static/images/token_selective_construction_safety.png" alt="Safety concept Robust DiM token-selective construction result.">
+              <figcaption class="figure-caption">
+                Safety: token-selective construction improves refusal steering without sacrificing general capability.
+              </figcaption>
+            </figure>
+          </div>
+          <div class="column is-half">
+            <figure class="publication-figure result-card">
+              <img src="static/images/sentiment_tdnv_vs_acc_LLM.png" alt="Sentiment target steering versus accuracy tradeoff on large language models.">
+              <figcaption class="figure-caption">Sentiment: target steering vs accuracy tradeoff.</figcaption>
+            </figure>
+          </div>
+          <div class="column is-half">
+            <figure class="publication-figure result-card">
+              <img src="static/images/politeness_tdnv_vs_acc_LLM.png" alt="Politeness target steering versus accuracy tradeoff on large language models.">
+              <figcaption class="figure-caption">Politeness: target steering vs accuracy tradeoff.</figcaption>
+            </figure>
+          </div>
+          <div class="column is-half">
+            <figure class="publication-figure result-card">
+              <img src="static/images/kl_and_tradeoff_early_token.png" alt="Prefix Steering KL divergence and capability tradeoff by intervention length.">
+              <figcaption class="figure-caption">
+                Prefix Steering: KL divergence and capability tradeoff as a function of intervention length. Most benefit is captured by the first few tokens.
+              </figcaption>
+            </figure>
+          </div>
+          <div class="column is-half">
+            <figure class="publication-figure result-card">
+              <img src="static/images/early_token_intervention.png" alt="Early-token intervention result showing target control and MMLU-Pro preservation.">
+              <figcaption class="figure-caption">
+                Early-token intervention recovers most of the target-control effect of full-generation steering while preserving MMLU-Pro.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="supplementary-results" aria-labelledby="supplementary-heading">
+          <h3 id="supplementary-heading" class="title is-4 has-text-centered">Additional Robust DiM Diagnostics</h3>
+          <div class="columns is-multiline result-grid compact-grid">
+            <div class="column is-half">
+              <figure class="publication-figure result-card">
+                <img src="static/images/token_selective_construction_sentiment.png" alt="Sentiment token-selective construction result.">
+                <figcaption class="figure-caption">Sentiment concept diagnostics for token-selective direction construction.</figcaption>
+              </figure>
+            </div>
+            <div class="column is-half">
+              <figure class="publication-figure result-card">
+                <img src="static/images/token_selective_construction_polite.png" alt="Politeness token-selective construction result.">
+                <figcaption class="figure-caption">Politeness concept diagnostics for token-selective direction construction.</figcaption>
+              </figure>
+            </div>
+            <div class="column is-half">
+              <figure class="publication-figure result-card">
+                <img src="static/images/safety_tdnv_vs_acc_SLM.png" alt="Safety TDNV versus accuracy tradeoff on small language models.">
+                <figcaption class="figure-caption">Safety: TDNV vs accuracy tradeoff on smaller models.</figcaption>
+              </figure>
+            </div>
+            <div class="column is-half">
+              <figure class="publication-figure result-card">
+                <img src="static/images/safety_tdnv_vs_acc_LLM.png" alt="Safety TDNV versus accuracy tradeoff on large language models.">
+                <figcaption class="figure-caption">Safety: TDNV vs accuracy tradeoff on larger models.</figcaption>
+              </figure>
+            </div>
+            <div class="column is-half">
+              <figure class="publication-figure result-card">
+                <img src="static/images/sentiment_tdnv_vs_acc_SLM.png" alt="Sentiment TDNV versus accuracy tradeoff on small language models.">
+                <figcaption class="figure-caption">Sentiment: TDNV vs accuracy tradeoff on smaller models.</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="BibTeX" class="section citation-section">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-centered">Citation</h2>
+        <p class="has-text-centered citation-intro">If you find our work useful, please cite:</p>
+        <div class="bibtex-wrapper">
+          <button id="copy-bibtex" class="button is-small is-light copy-bibtex" type="button" aria-label="Copy BibTeX citation">
+            <span class="icon"><i class="fas fa-copy" aria-hidden="true"></i></span>
+            <span class="copy-label">Copy</span>
+          </button>
+          <pre><code id="bibtex-code">@inproceedings{zhu2026steering,
+  title     = {Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering},
+  author    = {Zhu, Xudong and Zhu, Zhihui},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2026}
+}</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer publication-footer">
+    <div class="content has-text-centered">
+      <p>© 2026 Xudong Zhu, Zhihui Zhu. The Ohio State University.</p>
+      <p>
+        Website template adapted from <a href="https://nerfies.github.io" target="_blank" rel="noopener">Nerfies</a> (CC BY-SA 4.0).
+        View the project on <a href="https://github.com/xzAscC/robust-dim-prefix-steering" target="_blank" rel="noopener">GitHub</a>.
+      </p>
+    </div>
+  </footer>
+
+  <script src="static/js/main.js"></script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 # Technical Specification
 
-**Generated:** 2026-03-19
+**Generated:** 2026-06-15
 **Version:** 0.1.0
-**Branch:** refactor/architecture
+**Branch:** experiment/pipeline
 
 This document specifies the paper experiment scope for the Steering Geometry framework.
 The repository supports the NeurIPS 2026 paper, "Not All Tokens Are Equally Useful for

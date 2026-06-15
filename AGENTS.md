@@ -1,10 +1,16 @@
 # PROJECT KNOWLEDGE BASE
 
-**Updated:** 2026-05-31
-**Commit:** 3be3c56
+**Updated:** 2026-06-15
+**Commit:** 61130fd
 **Branch:** experiment/pipeline
 
 AI agents working in this repository MUST follow these rules.
+
+> **Development Philosophy: Test-Driven Development (TDD).** Every behavioral
+> change follows the **RED → GREEN → REFACTOR** cycle. Tests are written FIRST,
+> confirmed to FAIL for the right reason, then the minimum implementation makes
+> them pass. No production code is written without a preceding failing test,
+> and no code is merged with a red suite. See §5 and §11 for the full process.
 
 ## 1) Repository Snapshot
 
@@ -59,6 +65,7 @@ uv run pytest -m "not gpu"
 
 Before opening a PR, ALL of these must pass:
 
+- [ ] TDD cycle followed for every behavioral change: failing test written first (RED) → minimum code to pass (GREEN) → refactor with suite green (REFACTOR)
 - [ ] `uv sync` completes without errors
 - [ ] `uv run ruff check src/ tests/` → 0 violations
 - [ ] `uv run ruff format --check src/ tests/` → already formatted
@@ -67,6 +74,8 @@ Before opening a PR, ALL of these must pass:
 
 ## 4) When Writing Code
 
+- Production code is written ONLY inside a GREEN step to satisfy a pre-written failing test (see §5)
+- Write the MINIMUM code necessary to turn the current failing test(s) green — no speculative generality
 - Use ESM-style imports (`from x import y`)
 - Group imports: stdlib → third-party → local
 - Use type hints on ALL function parameters and returns
@@ -75,13 +84,49 @@ Before opening a PR, ALL of these must pass:
 - Throw typed/domain-specific errors
 - Preserve original error as `cause` when wrapping
 
-## 5) When Writing Tests
+## 5) Test-Driven Development (TDD)
 
-- Use pytest style (plain functions, assert statements)
+This project enforces strict TDD. Every behavioral change MUST go through the
+**RED → GREEN → REFACTOR** cycle BEFORE the implementation it exercises is
+written.
+
+### The TDD Cycle
+
+1. **RED** — Write ONE failing test that captures the next required behavior.
+   - Run it and CONFIRM it FAILS for the RIGHT reason (e.g. assertion failure,
+     `AttributeError`/`ImportError` for a not-yet-created function), not a
+     collection error, syntax error, or unrelated import problem.
+   - Command: `uv run pytest tests/unit/<file>::<test> -x`
+   - If you cannot write a failing test, the requirement is unclear → escalate
+     (see §7).
+2. **GREEN** — Write the MINIMUM code in `src/` that makes the failing test
+   pass. Do not add anything the test does not demand (no speculative
+   generality).
+   - Re-run the same test: it must now PASS.
+3. **REFACTOR** — Improve structure, naming, and remove duplication while
+   keeping the full suite green. Re-run `uv run pytest` after each refactor
+   step; if it goes red, revert the refactor.
+
+### Test Style
+
+- Use pytest style (plain functions, `assert` statements)
+- One behavior per test — name tests after the behavior they specify
 - Cover: happy path, edge cases, failure paths
 - Keep tests deterministic and isolated
-- Mock external boundaries (network, file I/O)
+- Mock external boundaries (network, file I/O, model loading)
 - Custom markers available: `@pytest.mark.slow`, `@pytest.mark.gpu`
+
+### TDD Discipline (NON-NEGOTIABLE)
+
+- NEVER write implementation code without a preceding failing test.
+- NEVER delete, skip (`@pytest.mark.skip`), or weaken a failing test to make
+  the suite green — fix the code instead.
+- NEVER bundle multiple new behaviors into a single test.
+- Commit at GREEN (clean red→green) or after REFACTOR — NEVER commit while RED.
+- When fixing a bug, FIRST write a test that reproduces the bug (RED), then
+  fix the code (GREEN).
+- Refactors (step 3) change structure only — no new behavior without a new
+  failing test first.
 
 ## 6) When Opening a PR
 
@@ -97,6 +142,7 @@ Include in description:
 STOP and report to human if:
 - Modifying more than 5 files not in the original plan
 - Encountering unclear requirements after 2 clarification attempts
+- Cannot write a failing test that captures the requirement (TDD RED phase blocked → behavior is ambiguous)
 - Need to add new dependencies
 - Changes affect security (auth, secrets, permissions)
 - Test coverage would drop below existing level
@@ -170,16 +216,24 @@ Enforced by ruff (see pyproject.toml):
 
 ## 11) Pipeline Workflow
 
-**ALWAYS follow this pipeline for every task:**
+**ALWAYS follow this TDD pipeline for every task:**
 
 ```
-1. READ PLAN    → Read PLAN.md, parse tasks, understand requirements
-2. CODE         → Implement following conventions in this file
-3. VERIFY       → Run: ruff check, ruff format, mypy, pytest (ALL must pass)
-4. MOVE PLAN    → ./scripts/complete_plan.sh <plan_name> (if script exists)
-5. UPDATE DOCS  → PLANS.md, QUALITY_SCORE.md, ARCHITECTURE.md as needed
-6. COMMIT/PR    → When logical unit complete + all checks pass
+1. READ PLAN      → Read PLAN.md, parse tasks, understand requirements
+2. RED            → Write ONE failing test for the next behavior;
+                    run it and CONFIRM it fails for the right reason
+3. GREEN          → Write the MINIMUM code in src/ to make the test pass
+4. REFACTOR       → Improve code while keeping the full suite green
+5. VERIFY         → Run: ruff check, ruff format, mypy, pytest (ALL must pass)
+6. MOVE PLAN      → ./scripts/complete_plan.sh <plan_name> (if script exists)
+7. UPDATE DOCS    → PLANS.md, QUALITY_SCORE.md, ARCHITECTURE.md as needed
+8. COMMIT/PR      → When logical unit complete + all checks pass
 ```
+
+**TDD enforcement:** Steps 2-4 (RED → GREEN → REFACTOR) repeat for each
+behavior unit. Do NOT move to VERIFY until every new test is green. Do NOT
+write production code outside of a GREEN step. If RED is blocked because no
+test can express the requirement, escalate (see §7).
 
 ### Extraction Scripts
 
@@ -269,6 +323,7 @@ outputs/
 
 Commit ONLY when ALL conditions met:
 - `uv sync` completes without errors
+- TDD cycle followed: RED (failing test first) → GREEN → REFACTOR
 - Logical unit of work complete
 - `uv run ruff check src/ tests/` → 0 violations
 - `uv run ruff format --check src/ tests/` → formatted
