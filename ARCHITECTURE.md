@@ -34,6 +34,8 @@ Evaluation is limited to the paper benchmarks: HarmBench, LLM-as-judge with thre
 | Model wrapper | HuggingFace model loading, tokenizer handling, and activation hooks | `src/steering_geometry/models.py` | PyTorch, Transformers |
 | Extraction | Steering vector extraction with DiM, PCA, weighted mean, and discriminative variants | `src/steering_geometry/extract.py` | PyTorch, NumPy, datasets |
 | Steering and evaluation | Prefix Steering, full-scope steering, HarmBench, LLM-as-judge, and MMLU-Pro evaluation | `src/steering_geometry/apply_steering.py` | PyTorch, Transformers |
+| Sweep evaluation | Strength × steer_tokens grid evaluation with concept-specific evaluators and MMLU-Pro, producing heatmap plots | `src/steering_geometry/sweep_evaluation.py` | PyTorch, Transformers, Matplotlib |
+| Prefix analysis | Per-token KL divergence and attention pattern analysis diagnosing why Prefix Steering works | `src/steering_geometry/prefix_analysis.py` | PyTorch, NumPy, Matplotlib |
 | Stability experiments | Cosine similarity sweeps for direction stability across methods, layers, and sample counts | `src/steering_geometry/stability_comparison.py` | NumPy, PyTorch, Matplotlib |
 | Token selection experiments | Construction diagnosis experiments for token count, token position, prompt versus response tokens, and steering scope | `src/steering_geometry/token_selection_experiments.py` | PyTorch, NumPy, Matplotlib |
 | Utilities | Shared filesystem, naming, sampling, and logging helpers | `src/steering_geometry/utils.py` | pathlib, logging |
@@ -106,6 +108,8 @@ The main workflow follows the paper experiment path from vector construction to 
 │   ├── models.py
 │   ├── extract.py
 │   ├── apply_steering.py
+│   ├── sweep_evaluation.py
+│   ├── prefix_analysis.py
 │   ├── stability_comparison.py
 │   ├── token_selection_experiments.py
 │   ├── utils.py
@@ -113,7 +117,9 @@ The main workflow follows the paper experiment path from vector construction to 
 ├── scripts/
 │   ├── apply_steering/
 │   ├── extract/
+│   ├── experiments/
 │   ├── pipeline/
+│   ├── prefix_analysis/
 │   ├── stability_comparison/
 │   ├── token_experiments/
 │   └── vector_analysis/
@@ -123,6 +129,7 @@ The main workflow follows the paper experiment path from vector construction to 
 │   ├── test_experiments.py
 │   ├── test_stability_comparison.py
 │   ├── test_stability_sweep.py
+│   ├── test_sweep_evaluation.py
 │   ├── test_token_selection_experiments.py
 │   └── unit/
 ├── data/
