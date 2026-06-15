@@ -1,0 +1,23 @@
+# Licensing
+
+This repository contains two separately licensed components.
+
+## Source code
+
+The experiment source code in `src/`, `scripts/`, and `tests/`, together with
+the root-level configuration files, is licensed under the **MIT License**. See
+the repository root [`LICENSE`](../LICENSE) for the full text.
+
+## Project website (`docs/`)
+
+The project page under `docs/` (HTML, CSS, JavaScript, and page figures) is
+adapted from the [Nerfies](https://nerfies.github.io) project page and is
+distributed under the
+[Creative Commons Attribution-ShareAlike 4.0 International License
+(CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/).
+
+Attribution: "Website template adapted from Nerfies." Changes have been made.
+
+Under CC BY-SA 4.0 you are free to share and adapt this material provided you
+give appropriate credit, indicate whether changes were made, and distribute any
+derivative works under the same license.
