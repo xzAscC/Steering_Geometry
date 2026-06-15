@@ -30,6 +30,8 @@ build/
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.ruff_cache/
 
 # Environment
 .env
@@ -50,3 +52,4 @@ outputs/
 
 # agent files
 .omo/
+.playwright-mcp/
