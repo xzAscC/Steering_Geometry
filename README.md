@@ -1,12 +1,10 @@
 # RobustDiM-PrefixSteering
 
 [![Paper](https://img.shields.io/badge/paper-PDF-red)](docs/paper.pdf)
-[![Project Page](https://img.shields.io/badge/🌐-Project_Page-3273dc)](https://xzasccc.github.io/robust-dim-prefix-steering/)
+[![Project Page](https://img.shields.io/badge/🌐-Project_Page-3273dc)](https://xzascc.github.io/RobustDiM-PrefixSteering/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Code accompanying the arXiv preprint *"Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering"*.
-
-🌐 **Project page**: <https://xzasccc.github.io/robust-dim-prefix-steering/> (source in [`docs/`](docs/index.html))
 
 This repository implements the paper's two activation-steering methods — **Robust DiM** for token-selective steering-direction construction and **Prefix Steering** for early-token intervention — together with experiments on safety/refusal, sentiment, and politeness across four models, evaluated with steering performance and general ability.
 
@@ -129,16 +127,8 @@ uv run pytest                          # tests
 If you use this code in your research, please cite our paper:
 
 ```bibtex
-@inproceedings{zhu2026steering,
-  title     = {Not All Tokens Are Equally Useful for Steering: Robust Directions and Prefix Steering},
-  author    = {Zhu, Xudong and Zhu, Zhihui},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
-  year      = {2026}
-}
 ```
 
 ## License
 
-MIT License. See `LICENSE` for details. The project page under `docs/` is
-adapted from [Nerfies](https://nerfies.github.io) and licensed separately under
-CC BY-SA 4.0; see `docs/LICENSE`.
+MIT License. See `LICENSE` for details. The project page under `docs/` is adapted from [Nerfies](https://nerfies.github.io) and licensed separately under CC BY-SA 4.0; see `docs/LICENSE`.
