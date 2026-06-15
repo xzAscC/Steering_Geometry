@@ -88,13 +88,13 @@ section[id] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   color: var(--color-panel);
-  font-size: 0.78rem;
+  font-size: 0.62rem;
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   background: linear-gradient(135deg, var(--color-accent), var(--color-teal));
   box-shadow: 0 0.5rem 1rem rgba(50, 115, 220, 0.22);
 }

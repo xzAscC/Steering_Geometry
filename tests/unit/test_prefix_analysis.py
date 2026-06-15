@@ -5,11 +5,13 @@ from pathlib import Path
 import pytest
 import torch
 
+from steering_geometry.models import HookedModel
 from steering_geometry.prefix_analysis import (
     AttentionAnalysisResult,
     AttentionLinkInstance,
     KLDivergenceResult,
     _compute_attn_cosine_distance,
+    _compute_avg_activation,
     _extract_attention_links,
     _extract_prefix_attention,
     _make_steering_hook,
@@ -855,7 +857,7 @@ class TestMakeSteeringHook:
 
     def test_applies_steering_for_exactly_steer_tokens_calls(self) -> None:
         """Hook should apply steering for exactly steer_tokens forward passes."""
-        sv = torch.ones(1, 4)
+        sv = torch.ones(4)
         scale = 2.0
         steer_tokens = 3
         step_counter = [0]
@@ -873,7 +875,7 @@ class TestMakeSteeringHook:
 
     def test_none_steer_tokens_applies_forever(self) -> None:
         """steer_tokens=None should apply steering to all calls."""
-        sv = torch.ones(1, 4)
+        sv = torch.ones(4)
         scale = 1.0
         step_counter = [0]
         hook = _make_steering_hook(sv, scale, None, step_counter)
@@ -885,7 +887,7 @@ class TestMakeSteeringHook:
 
     def test_zero_steer_tokens_applies_no_steering(self) -> None:
         """steer_tokens=0 should never apply steering."""
-        sv = torch.ones(1, 4)
+        sv = torch.ones(4)
         step_counter = [0]
         hook = _make_steering_hook(sv, 1.0, 0, step_counter)
 
@@ -895,7 +897,7 @@ class TestMakeSteeringHook:
 
     def test_counter_increments_on_each_call(self) -> None:
         """step_counter should increment by 1 on each hook invocation."""
-        sv = torch.ones(1, 4)
+        sv = torch.ones(4)
         step_counter = [0]
         hook = _make_steering_hook(sv, 1.0, None, step_counter)
 
@@ -905,7 +907,7 @@ class TestMakeSteeringHook:
 
     def test_tuple_output_with_steering(self) -> None:
         """Hook should handle tuple output, adding steering to first element."""
-        sv = torch.ones(1, 4)
+        sv = torch.ones(4)
         scale = 1.5
         step_counter = [0]
         hook = _make_steering_hook(sv, scale, None, step_counter)
@@ -921,7 +923,7 @@ class TestMakeSteeringHook:
 
     def test_tuple_output_passthrough_when_expired(self) -> None:
         """Expired hook should return tuple output unchanged."""
-        sv = torch.ones(1, 4)
+        sv = torch.ones(4)
         step_counter = [0]
         hook = _make_steering_hook(sv, 1.0, 1, step_counter)
 
@@ -933,31 +935,120 @@ class TestMakeSteeringHook:
         assert result[0] is base_tensor
         assert result[1] is extra
 
-    def test_prefill_counter_reset_semantic(self) -> None:
-        """After prefill increments counter to 1, resetting to 0 ensures N generation
-        steps are steered when steer_tokens=N (the off-by-one fix)."""
-        sv = torch.ones(1, 4)
+    def test_only_generation_steps_steered(self) -> None:
+        """Prefill is not hooked; steer_tokens=N steers exactly N generation steps.
+
+        The hook is registered AFTER prefill, so only generation forward passes
+        go through the hook. steer_tokens=N gives exactly N steered gen steps.
+        """
+        sv = torch.ones(4)
         scale = 1.0
         steer_tokens = 3
         step_counter = [0]
         hook = _make_steering_hook(sv, scale, steer_tokens, step_counter)
 
         base_output = torch.zeros(1, 4)
+        steered_count = 0
+        total_gen_steps = 6
 
-        # Simulate prefill: one forward pass
-        hook(object(), object(), base_output.clone())
-        assert step_counter[0] == 1
-
-        # Reset counter (this is what the off-by-one fix does after prefill)
-        step_counter[0] = 0
-
-        # Now 3 generation steps should all get steering
-        for gen_step in range(3):
+        for _ in range(total_gen_steps):
             result = hook(object(), object(), base_output.clone())
-            assert torch.allclose(result, base_output + sv * scale), (
-                f"Gen step {gen_step + 1}: expected steering"
-            )
+            if not torch.allclose(result, base_output):
+                steered_count += 1
 
-        # 4th generation step should NOT get steering
-        result = hook(object(), object(), base_output.clone())
-        assert torch.allclose(result, base_output), "Gen step 4: expected no steering"
+        assert steered_count == steer_tokens, (
+            f"Expected exactly {steer_tokens} steered gen steps, got {steered_count}"
+        )
+
+    def test_steers_only_last_position_prefill(self) -> None:
+        """During prefill (seq_len > 1), only the last token position is steered.
+
+        Earlier positions must remain unchanged so the KV cache for prompt
+        tokens stays clean.  Only the last position (which produces the
+        next-token logits) gets the steering vector added.
+        """
+        sv = torch.ones(4)
+        scale = 2.0
+        step_counter = [0]
+        hook = _make_steering_hook(sv, scale, None, step_counter)
+
+        base = torch.zeros(1, 5, 4)
+        result = hook(object(), object(), base)
+
+        assert torch.allclose(result[:, :-1, :], base[:, :-1, :]), (
+            "Earlier positions must not be steered"
+        )
+        expected_last = base[:, -1, :] + sv * scale
+        assert torch.allclose(result[:, -1, :], expected_last), "Last position must be steered"
+
+
+# ===========================================================================
+# 12. _compute_avg_activation
+# ===========================================================================
+
+
+class TestComputeAvgActivation:
+    """Tests for _compute_avg_activation."""
+
+    def test_uses_provided_texts_not_hardcoded_dummy(
+        self,
+        mock_hooked_model: HookedModel,
+    ) -> None:
+        """Function should pass the provided texts to get_activations, not a
+        hardcoded dummy prompt.
+
+        Spies on ``model.get_activations`` to verify the ``texts`` argument
+        matches the caller-provided list exactly.
+        """
+        from unittest.mock import MagicMock
+
+        texts = ["I love this product!", "This is the worst experience ever."]
+        steering_vector = torch.ones(8)
+
+        spy = MagicMock(wraps=mock_hooked_model.get_activations)
+        original = mock_hooked_model.get_activations
+        mock_hooked_model.get_activations = spy  # type: ignore[method-assign]
+        try:
+            result = _compute_avg_activation(
+                mock_hooked_model,
+                texts,
+                layer_idx=0,
+                steering_vector=steering_vector,
+            )
+        finally:
+            mock_hooked_model.get_activations = original  # type: ignore[method-assign]
+
+        spy.assert_called_once_with(texts, [0])
+        assert isinstance(result, float)
+        assert result > 0.0
+
+    def test_returns_positive_float(
+        self,
+        mock_hooked_model: HookedModel,
+    ) -> None:
+        """Result should be a positive float (activation norms are positive)."""
+        texts = ["a simple prompt for testing"]
+        steering_vector = torch.ones(8)
+        result = _compute_avg_activation(
+            mock_hooked_model,
+            texts,
+            layer_idx=0,
+            steering_vector=steering_vector,
+        )
+        assert isinstance(result, float)
+        assert result > 0.0
+
+    def test_empty_texts_falls_back_to_steering_vector_norm(
+        self,
+        mock_hooked_model: HookedModel,
+    ) -> None:
+        """Empty texts list → get_activations returns empty → should fall back
+        to steering_vector.norm() rather than crash."""
+        steering_vector = torch.tensor([3.0, 4.0])  # norm = 5.0
+        result = _compute_avg_activation(
+            mock_hooked_model,
+            [],
+            layer_idx=0,
+            steering_vector=steering_vector,
+        )
+        assert result == pytest.approx(5.0, rel=1e-4)

@@ -67,16 +67,16 @@ class KLDivergenceResult:
     prompt: str
 
 
-_DEFAULT_POST_STEER_STEPS: int = 5
+_DEFAULT_POST_STEER_STEPS: int = 1
 
 
 @dataclass
 class PrefixLengthKLSweepResult:
-    """KL divergence at steps N+1..N+K for varying prefix steering lengths.
+    """KL divergence at steps N..N+K-1 for varying prefix steering lengths.
 
     For each prefix length N in ``steer_tokens_list``, measures the KL
     divergence at the first ``num_post_steer_steps`` unsteered steps
-    (steps N+1 through N+K) between:
+    (steps N through N+K-1) between:
 
     - ``KL(prefix_N || no_steer)`` — divergence from the unsteered baseline
     - ``KL(prefix_N || all_steer)`` — distance from full (all-step) steering
@@ -172,7 +172,7 @@ class PrefixAnalysisReport:
 
     Attributes:
         kl_results: Per-prompt KL divergence results (legacy per-step experiment).
-        kl_sweep_result: Prefix-length sweep KL results (N vs KL at steps N+1..N+K).
+        kl_sweep_result: Prefix-length sweep KL results (N vs KL at steps N..N+K-1).
         attention_results: Per-prompt attention analysis results.
         config_dict: Experiment configuration as serializable dict.
     """
@@ -223,16 +223,16 @@ def _make_steering_hook(
     steer_tokens: int | None,
     step_counter: list[int],
 ) -> Callable[[object, object, Tensor], Tensor]:
-    """Create a forward-hook that adds a steering vector for a limited number of steps.
+    """Create a forward-hook that steers only the last token position.
 
-    The hook increments ``step_counter[0]`` on every forward call and applies
-    ``output + steering_vector * scale`` while the counter has not exceeded
-    ``steer_tokens``.
+    During prefill (seq_len > 1), only the last prompt token is steered so
+    the KV cache for earlier positions stays clean.  During generation
+    (seq_len == 1), the single token is the last position by definition.
 
     Args:
-        steering_vector: Normalized steering direction.
+        steering_vector: Normalized steering direction, shape (hidden_dim,).
         scale: Steering scale factor.
-        steer_tokens: Max generation steps to steer (``None`` = all).
+        steer_tokens: Max forward passes to steer (``None`` = all).
         step_counter: Mutable single-element list used as a counter.
 
     Returns:
@@ -240,16 +240,17 @@ def _make_steering_hook(
     """
 
     def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
-        """Forward hook body: add scaled steering vector until step_counter exceeds steer_tokens."""
+        """Forward hook: add steering vector to the last token position only."""
         step_counter[0] += 1
         if steer_tokens is not None and step_counter[0] > steer_tokens:
             return output
         tensor_output = output[0] if isinstance(output, tuple) else output
         sv = steering_vector.to(device=tensor_output.device, dtype=tensor_output.dtype)
-        tensor_output = tensor_output + sv * scale
+        steered = tensor_output.clone()
+        steered[..., -1, :] = steered[..., -1, :] + sv * scale
         if isinstance(output, tuple):
-            return (tensor_output,) + output[1:]
-        return tensor_output
+            return (steered,) + output[1:]
+        return steered
 
     return steering_hook
 
@@ -309,8 +310,6 @@ def _generate_with_logits(
             next_logits = outputs.logits[:, -1, :]
             all_logits.append(next_logits.cpu())
             past_kv = outputs.past_key_values
-
-            step_counter[0] = 0
 
             if temperature > 0:
                 probs = functional.softmax(next_logits / temperature, dim=-1)
@@ -467,7 +466,7 @@ def run_kl_divergence_experiment(
 # =============================================================================
 
 
-_DEFAULT_STEER_TOKENS_LIST: list[int] = [0, 2, 4, 6, 8, 10, 20, 50, 100, 200]
+_DEFAULT_STEER_TOKENS_LIST: list[int] = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
 
 
 def run_prefix_length_kl_sweep(
@@ -484,8 +483,8 @@ def run_prefix_length_kl_sweep(
     """Sweep prefix steering length N and measure KL at the next K steps.
 
     For each N in ``steer_tokens_list``, generates with ``steer_tokens=N``,
-    then measures the KL divergence at generation steps N+1 through
-    N+K (the first ``num_post_steer_steps`` unsteered steps) against
+    then measures the KL divergence at generation steps N through
+    N+K-1 (the first ``num_post_steer_steps`` unsteered steps) against
     no-steering and all-step-steering baselines.
 
     The no-steering and all-step-steering baselines are computed once per
@@ -684,8 +683,6 @@ def _generate_with_attention(
                     if target_layers is None or li in target_layers:
                         step_attns[li] = attn.detach().cpu()
                 all_attns.append(step_attns)
-
-            step_counter[0] = 0
 
             next_logits = outputs.logits[:, -1, :]
             next_token = next_logits.argmax(dim=-1, keepdim=True)
@@ -1108,6 +1105,7 @@ def plot_prefix_length_kl_sweep(
     """
     import matplotlib.pyplot as plt
 
+    # TODO: 保存目录有很大的问题
     ensure_dir(output_dir)
 
     n_values = sorted(result.steer_tokens_list)
@@ -1141,7 +1139,7 @@ def plot_prefix_length_kl_sweep(
         "-o",
         color="#2196F3",
         markersize=5,
-        label=f"KL(Prefix_N ‖ No Steer) avg steps N+1..N+{k}",
+        label=f"KL(Prefix_N ‖ No Steer) avg steps N..N+{k - 1}",
     )
     ax.fill_between(
         n_values,
@@ -1157,7 +1155,7 @@ def plot_prefix_length_kl_sweep(
         "-s",
         color="#4CAF50",
         markersize=5,
-        label=f"KL(Prefix_N ‖ All Steer) avg steps N+1..N+{k}",
+        label=f"KL(Prefix_N ‖ All Steer) avg steps N..N+{k - 1}",
     )
     ax.fill_between(
         n_values,
@@ -1168,7 +1166,7 @@ def plot_prefix_length_kl_sweep(
     )
 
     ax.set_xlabel("Prefix Steering Length (N)", fontsize=12)
-    ax.set_ylabel(f"KL Divergence avg(steps N+1..N+{k}) (nats)", fontsize=12)
+    ax.set_ylabel(f"KL Divergence avg(steps N..N+{k - 1}) (nats)", fontsize=12)
     ax.set_title(
         f"KL Divergence (avg next {k} tokens) vs Prefix Steering Length",
         fontsize=14,
@@ -1431,16 +1429,16 @@ def generate_analysis_report(
         lines.append("## 1. KL Divergence Sweep: Prefix Length Analysis\n")
         lines.append(
             f"For each prefix steering length N, measures KL divergence at "
-            f"steps N+1 through N+{k} (the first {k} unsteered steps) "
+            f"steps N through N+{k - 1} (the first {k} unsteered steps) "
             "against no-steering and all-step-steering baselines.\n"
         )
         n_values = sorted(kl_sweep_result.steer_tokens_list)
         header = "| N | "
         sep = "|---|"
-        for offset in range(1, k + 1):
+        for offset in range(k):
             header += f" KL(‖No) N+{offset} |"
             sep += "----------|"
-        for offset in range(1, k + 1):
+        for offset in range(k):
             header += f" KL(‖All) N+{offset} |"
             sep += "----------|"
         lines.append(header)
@@ -1861,34 +1859,45 @@ def generate_analysis_report(
 
 def _compute_avg_activation(
     model: HookedModel,
-    steering_vector: Tensor,
+    texts: list[str],
     layer_idx: int,
+    steering_vector: Tensor,
 ) -> float:
     """Compute average activation norm at a layer for scaling.
 
-    Uses a simple dummy prompt to determine the typical activation
-    magnitude, which is then used to scale the steering vector.
+    Runs the provided real calibration texts through the model to determine
+    the typical activation magnitude at ``layer_idx``, which is then used to
+    scale the steering vector.  Falls back to ``steering_vector.norm()`` when
+    ``texts`` is empty or produces near-zero activations.
 
     Args:
         model: HookedModel instance.
-        steering_vector: Steering vector (used only for dimension check).
+        texts: Real concept prompts used for calibration (e.g. contrast-pair
+            positives and negatives).  Should total at least ~100 tokens for
+            a stable estimate.
         layer_idx: Absolute layer index to measure.
+        steering_vector: Steering vector (used only as a fallback).
 
     Returns:
         Average activation norm at the target layer.
     """
-    dummy = ["The quick brown fox jumps over the lazy dog."]
-    activations = model.get_activations(dummy, [layer_idx])
+    if not texts:
+        return _safe_fallback_norm(steering_vector)
+
+    activations = model.get_activations(texts, [layer_idx])
     if layer_idx not in activations:
-        return 1.0
+        return _safe_fallback_norm(steering_vector)
+
     avg_norm = float(activations[layer_idx].norm(dim=-1).mean().item())
-    # If avg_norm is suspiciously small (e.g., near zero), use the steering
-    # vector norm as fallback to avoid division issues
     if avg_norm < 1e-6:
-        avg_norm = float(steering_vector.norm().item())
-        if avg_norm < 1e-6:
-            return 1.0
+        return _safe_fallback_norm(steering_vector)
     return avg_norm
+
+
+def _safe_fallback_norm(steering_vector: Tensor) -> float:
+    """Return steering_vector norm, or 1.0 if that is also near zero."""
+    norm = float(steering_vector.norm().item())
+    return norm if norm >= 1e-6 else 1.0
 
 
 # =============================================================================
@@ -1975,11 +1984,6 @@ def run_prefix_analysis(
     if norm > 0:
         steering_vector = steering_vector / norm
 
-    # Compute scale from average activation norm
-    avg_act = _compute_avg_activation(model, steering_vector, layer_idx)
-    scale = avg_act * scale_multiplier
-    logger.info("Scale: %.4f (avg_act=%.4f, mult=%.2f)", scale, avg_act, scale_multiplier)
-
     # Load prompts
     if concept == "refusal":
         pairs = load_contrast_pairs(concept, num_prompts, data_mode="prompt_only")
@@ -1987,6 +1991,11 @@ def run_prefix_analysis(
         pairs = load_contrast_pairs(concept, num_prompts)
     prompts = [pair.negative for pair in pairs[:num_prompts]]
     logger.info("Loaded %d prompts for analysis", len(prompts))
+
+    calibration_texts = [t for pair in pairs for t in (pair.positive, pair.negative)]
+    avg_act = _compute_avg_activation(model, calibration_texts, layer_idx, steering_vector)
+    scale = avg_act * scale_multiplier
+    logger.info("Scale: %.4f (avg_act=%.4f, mult=%.2f)", scale, avg_act, scale_multiplier)
 
     # Run KL prefix length sweep
     logger.info("=== Running KL Prefix Length Sweep ===")
@@ -1997,21 +2006,23 @@ def run_prefix_analysis(
         layer_idx=layer_idx,
         layer_frac=layer_frac,
         scale=scale,
+        # TODO: 这个要作为一个可变参数
         steer_tokens_list=list(_DEFAULT_STEER_TOKENS_LIST),
     )
 
     # Run legacy per-step KL experiment (single steer_tokens value)
-    logger.info("=== Running KL Divergence Experiment (per-step) ===")
-    kl_results = run_kl_divergence_experiment(
-        model=model,
-        prompts=prompts,
-        steering_vector=steering_vector,
-        layer_idx=layer_idx,
-        layer_frac=layer_frac,
-        scale=scale,
-        steer_tokens=steer_tokens,
-        max_new_tokens=max_new_tokens,
-    )
+    # logger.info("=== Running KL Divergence Experiment (per-step) ===")
+    # kl_results = run_kl_divergence_experiment(
+    #     model=model,
+    #     prompts=prompts,
+    #     steering_vector=steering_vector,
+    #     layer_idx=layer_idx,
+    #     layer_frac=layer_frac,
+    #     scale=scale,
+    #     steer_tokens=steer_tokens,
+    #     max_new_tokens=max_new_tokens,
+    # )
+    kl_results: list[KLDivergenceResult] = []
 
     # Run attention analysis
     attention_results: list[AttentionAnalysisResult] = []

@@ -184,7 +184,7 @@ Enforced by ruff (see pyproject.toml):
 | Test fixtures | `tests/conftest.py` | `mock_hooked_model`, `sample_contrast_pairs`, `FakeTokenizer`, `FakeCausalLM` |
 | Extraction scripts | `scripts/extract/` | Paper extraction entry points |
 | Prefix Steering scripts | `scripts/apply_steering/` | Steering and evaluation entry points |
-| Prefix analysis scripts | `scripts/prefix_analysis/` | `run_analysis.sh`, `run_all_concepts.sh` |
+| Prefix analysis scripts | `scripts/prefix_analysis/` | `run_kl_divergence.sh` (KL-only), `run_analysis.sh` (full), `run_all_concepts.sh` |
 | Pipeline scripts | `scripts/pipeline/` | Paper pipeline orchestration |
 | Construction diagnosis scripts | `scripts/token_experiments/` | Token count, token position, prompt vs response, and steering scope runs |
 | Vector analysis scripts | `scripts/vector_analysis/` | Stability sweeps and heatmap generation |
@@ -254,7 +254,8 @@ uv run python -m steering_geometry.extract --concept politeness --model "allenai
 ./scripts/apply_steering/run_steering.sh
 
 # Prefix analysis (KL divergence + attention patterns)
-./scripts/prefix_analysis/run_analysis.sh
+./scripts/prefix_analysis/run_kl_divergence.sh   # KL-only (fast, no eager-attention reload)
+./scripts/prefix_analysis/run_analysis.sh        # full (KL + attention)
 ./scripts/prefix_analysis/run_all_concepts.sh
 ```
 
