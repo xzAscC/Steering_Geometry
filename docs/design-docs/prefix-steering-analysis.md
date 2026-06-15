@@ -76,7 +76,12 @@ The generation hook increments a step counter each time the steered layer runs. 
 | `plot_attention_link_heatmap()` | Plots concrete attention links for heads with the largest prefix attention increase. | Attention link heatmap files. |
 | `generate_analysis_report()` | Writes a combined analysis report from KL and attention outputs. | Markdown report. |
 | `run_prefix_analysis()` | Top-level orchestration for loading data, running analyses, plotting, and reporting. | `PrefixAnalysisReport`. |
-| `run_steering_scope_experiment()` | Compares prefix steering against all-token steering across concepts and models. | Steering scope experiment outputs for trade-off figures. |
+
+> **Cross-module note.** The prefix-vs-all-token steering scope comparison
+> (`run_steering_scope_experiment()`, driving `early_token_intervention*.pdf`)
+> lives in `src/steering_geometry/token_selection_experiments.py`, not in
+> `prefix_analysis.py`. See `construction-diagnosis.md` for its design. It is
+> invoked through `scripts/token_experiments/4_steering_scope.sh`.
 
 ### KL divergence measurement
 
@@ -127,7 +132,8 @@ This module is the comprehensive evaluation layer for prefix steering because it
 
 | Script | Purpose | Typical output |
 |--------|---------|----------------|
-| `scripts/prefix_analysis/run_analysis.sh` | Runs KL divergence and attention analysis for a configured model and concept. | KL curves, attention plots, analysis report. |
+| `scripts/prefix_analysis/run_kl_divergence.sh` | Runs KL divergence only (skips attention analysis — no eager-model reload). Use for fast KL curves and prefix-length sweeps. | KL per-step plots, KL prefix-length sweep plot, analysis report (KL sections). |
+| `scripts/prefix_analysis/run_analysis.sh` | Runs the full analysis: KL divergence + attention patterns. | KL curves, attention plots, full analysis report. |
 | `scripts/prefix_analysis/run_all_concepts.sh` | Runs prefix analysis for safety/refusal, sentiment, and politeness. | Cross-concept analysis outputs. |
 | `scripts/token_experiments/4_steering_scope.sh` | Runs prefix vs all-token steering scope comparison. | Scope comparison data for paper trade-off figures. |
 
