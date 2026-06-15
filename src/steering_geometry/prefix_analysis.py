@@ -466,7 +466,7 @@ def run_kl_divergence_experiment(
 # =============================================================================
 
 
-_DEFAULT_STEER_TOKENS_LIST: list[int] = [0, 2, 4, 6, 8, 10, 20, 50, 100, 200]
+_DEFAULT_STEER_TOKENS_LIST: list[int] = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
 
 
 def run_prefix_length_kl_sweep(
@@ -1104,7 +1104,8 @@ def plot_prefix_length_kl_sweep(
         Paths to saved plot files.
     """
     import matplotlib.pyplot as plt
-    #TODO: 保存目录有很大的问题
+
+    # TODO: 保存目录有很大的问题
     ensure_dir(output_dir)
 
     n_values = sorted(result.steer_tokens_list)
@@ -1858,34 +1859,45 @@ def generate_analysis_report(
 
 def _compute_avg_activation(
     model: HookedModel,
-    steering_vector: Tensor,
+    texts: list[str],
     layer_idx: int,
+    steering_vector: Tensor,
 ) -> float:
     """Compute average activation norm at a layer for scaling.
 
-    Uses a simple dummy prompt to determine the typical activation
-    magnitude, which is then used to scale the steering vector.
+    Runs the provided real calibration texts through the model to determine
+    the typical activation magnitude at ``layer_idx``, which is then used to
+    scale the steering vector.  Falls back to ``steering_vector.norm()`` when
+    ``texts`` is empty or produces near-zero activations.
 
     Args:
         model: HookedModel instance.
-        steering_vector: Steering vector (used only for dimension check).
+        texts: Real concept prompts used for calibration (e.g. contrast-pair
+            positives and negatives).  Should total at least ~100 tokens for
+            a stable estimate.
         layer_idx: Absolute layer index to measure.
+        steering_vector: Steering vector (used only as a fallback).
 
     Returns:
         Average activation norm at the target layer.
     """
-    dummy = ["The quick brown fox jumps over the lazy dog."]
-    activations = model.get_activations(dummy, [layer_idx])
+    if not texts:
+        return _safe_fallback_norm(steering_vector)
+
+    activations = model.get_activations(texts, [layer_idx])
     if layer_idx not in activations:
-        return 1.0
+        return _safe_fallback_norm(steering_vector)
+
     avg_norm = float(activations[layer_idx].norm(dim=-1).mean().item())
-    # If avg_norm is suspiciously small (e.g., near zero), use the steering
-    # vector norm as fallback to avoid division issues
     if avg_norm < 1e-6:
-        avg_norm = float(steering_vector.norm().item())
-        if avg_norm < 1e-6:
-            return 1.0
+        return _safe_fallback_norm(steering_vector)
     return avg_norm
+
+
+def _safe_fallback_norm(steering_vector: Tensor) -> float:
+    """Return steering_vector norm, or 1.0 if that is also near zero."""
+    norm = float(steering_vector.norm().item())
+    return norm if norm >= 1e-6 else 1.0
 
 
 # =============================================================================
@@ -1972,11 +1984,6 @@ def run_prefix_analysis(
     if norm > 0:
         steering_vector = steering_vector / norm
 
-    # Compute scale from average activation norm
-    avg_act = _compute_avg_activation(model, steering_vector, layer_idx)
-    scale = avg_act * scale_multiplier
-    logger.info("Scale: %.4f (avg_act=%.4f, mult=%.2f)", scale, avg_act, scale_multiplier)
-
     # Load prompts
     if concept == "refusal":
         pairs = load_contrast_pairs(concept, num_prompts, data_mode="prompt_only")
@@ -1984,6 +1991,11 @@ def run_prefix_analysis(
         pairs = load_contrast_pairs(concept, num_prompts)
     prompts = [pair.negative for pair in pairs[:num_prompts]]
     logger.info("Loaded %d prompts for analysis", len(prompts))
+
+    calibration_texts = [t for pair in pairs for t in (pair.positive, pair.negative)]
+    avg_act = _compute_avg_activation(model, calibration_texts, layer_idx, steering_vector)
+    scale = avg_act * scale_multiplier
+    logger.info("Scale: %.4f (avg_act=%.4f, mult=%.2f)", scale, avg_act, scale_multiplier)
 
     # Run KL prefix length sweep
     logger.info("=== Running KL Prefix Length Sweep ===")
@@ -1994,21 +2006,23 @@ def run_prefix_analysis(
         layer_idx=layer_idx,
         layer_frac=layer_frac,
         scale=scale,
+        # TODO: 这个要作为一个可变参数
         steer_tokens_list=list(_DEFAULT_STEER_TOKENS_LIST),
     )
 
     # Run legacy per-step KL experiment (single steer_tokens value)
-    logger.info("=== Running KL Divergence Experiment (per-step) ===")
-    kl_results = run_kl_divergence_experiment(
-        model=model,
-        prompts=prompts,
-        steering_vector=steering_vector,
-        layer_idx=layer_idx,
-        layer_frac=layer_frac,
-        scale=scale,
-        steer_tokens=steer_tokens,
-        max_new_tokens=max_new_tokens,
-    )
+    # logger.info("=== Running KL Divergence Experiment (per-step) ===")
+    # kl_results = run_kl_divergence_experiment(
+    #     model=model,
+    #     prompts=prompts,
+    #     steering_vector=steering_vector,
+    #     layer_idx=layer_idx,
+    #     layer_frac=layer_frac,
+    #     scale=scale,
+    #     steer_tokens=steer_tokens,
+    #     max_new_tokens=max_new_tokens,
+    # )
+    kl_results: list[KLDivergenceResult] = []
 
     # Run attention analysis
     attention_results: list[AttentionAnalysisResult] = []

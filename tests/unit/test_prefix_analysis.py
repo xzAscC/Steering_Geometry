@@ -5,11 +5,13 @@ from pathlib import Path
 import pytest
 import torch
 
+from steering_geometry.models import HookedModel
 from steering_geometry.prefix_analysis import (
     AttentionAnalysisResult,
     AttentionLinkInstance,
     KLDivergenceResult,
     _compute_attn_cosine_distance,
+    _compute_avg_activation,
     _extract_attention_links,
     _extract_prefix_attention,
     _make_steering_hook,
@@ -978,3 +980,75 @@ class TestMakeSteeringHook:
         )
         expected_last = base[:, -1, :] + sv * scale
         assert torch.allclose(result[:, -1, :], expected_last), "Last position must be steered"
+
+
+# ===========================================================================
+# 12. _compute_avg_activation
+# ===========================================================================
+
+
+class TestComputeAvgActivation:
+    """Tests for _compute_avg_activation."""
+
+    def test_uses_provided_texts_not_hardcoded_dummy(
+        self,
+        mock_hooked_model: HookedModel,
+    ) -> None:
+        """Function should pass the provided texts to get_activations, not a
+        hardcoded dummy prompt.
+
+        Spies on ``model.get_activations`` to verify the ``texts`` argument
+        matches the caller-provided list exactly.
+        """
+        from unittest.mock import MagicMock
+
+        texts = ["I love this product!", "This is the worst experience ever."]
+        steering_vector = torch.ones(8)
+
+        spy = MagicMock(wraps=mock_hooked_model.get_activations)
+        original = mock_hooked_model.get_activations
+        mock_hooked_model.get_activations = spy  # type: ignore[method-assign]
+        try:
+            result = _compute_avg_activation(
+                mock_hooked_model,
+                texts,
+                layer_idx=0,
+                steering_vector=steering_vector,
+            )
+        finally:
+            mock_hooked_model.get_activations = original  # type: ignore[method-assign]
+
+        spy.assert_called_once_with(texts, [0])
+        assert isinstance(result, float)
+        assert result > 0.0
+
+    def test_returns_positive_float(
+        self,
+        mock_hooked_model: HookedModel,
+    ) -> None:
+        """Result should be a positive float (activation norms are positive)."""
+        texts = ["a simple prompt for testing"]
+        steering_vector = torch.ones(8)
+        result = _compute_avg_activation(
+            mock_hooked_model,
+            texts,
+            layer_idx=0,
+            steering_vector=steering_vector,
+        )
+        assert isinstance(result, float)
+        assert result > 0.0
+
+    def test_empty_texts_falls_back_to_steering_vector_norm(
+        self,
+        mock_hooked_model: HookedModel,
+    ) -> None:
+        """Empty texts list → get_activations returns empty → should fall back
+        to steering_vector.norm() rather than crash."""
+        steering_vector = torch.tensor([3.0, 4.0])  # norm = 5.0
+        result = _compute_avg_activation(
+            mock_hooked_model,
+            [],
+            layer_idx=0,
+            steering_vector=steering_vector,
+        )
+        assert result == pytest.approx(5.0, rel=1e-4)
