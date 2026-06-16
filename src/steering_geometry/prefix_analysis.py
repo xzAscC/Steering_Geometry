@@ -34,6 +34,8 @@ from .utils import ensure_dir, safe_model_name
 
 logger = logging.getLogger(__name__)
 
+type HookOutput = Tensor | tuple[Tensor, ...]
+
 
 # =============================================================================
 # Data Types
@@ -222,7 +224,7 @@ def _make_steering_hook(
     scale: float,
     steer_tokens: int | None,
     step_counter: list[int],
-) -> Callable[[object, object, Tensor], Tensor]:
+) -> Callable[[object, object, HookOutput], HookOutput]:
     """Create a forward-hook that steers only the last token position.
 
     During prefill (seq_len > 1), only the last prompt token is steered so
@@ -239,7 +241,7 @@ def _make_steering_hook(
         A callable suitable for ``register_forward_hook``.
     """
 
-    def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
+    def steering_hook(module: object, inp: object, output: HookOutput) -> HookOutput:
         """Forward hook: add steering vector to the last token position only."""
         step_counter[0] += 1
         if steer_tokens is not None and step_counter[0] > steer_tokens:
@@ -1105,7 +1107,6 @@ def plot_prefix_length_kl_sweep(
     """
     import matplotlib.pyplot as plt
 
-    # TODO: 保存目录有很大的问题
     ensure_dir(output_dir)
 
     n_values = sorted(result.steer_tokens_list)
@@ -1468,8 +1469,8 @@ def generate_analysis_report(
         "This measures how much the prefix-steered output distribution "
         "diverges from the unsteered baseline at each generation step.\n"
     )
+    all_kl_no: list[float] = []
     if kl_results:
-        all_kl_no: list[float] = []
         for kl_r in kl_results:
             all_kl_no.extend(kl_r.step_kl_no_steer)
         if all_kl_no:
@@ -2046,7 +2047,7 @@ def run_prefix_analysis(
 
     # Generate plots
     logger.info("=== Generating Plots ===")
-    plot_dir = ensure_dir(effective_output_dir / "plots")
+    plot_dir = ensure_dir(effective_output_dir)
     kl_sweep_plot_paths = plot_prefix_length_kl_sweep(kl_sweep_result, plot_dir)
     kl_plot_paths = plot_kl_divergence_curves(kl_results, plot_dir)
     attn_plot_paths: list[Path] = []

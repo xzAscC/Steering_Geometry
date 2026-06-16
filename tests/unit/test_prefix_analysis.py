@@ -5,11 +5,13 @@ from pathlib import Path
 import pytest
 import torch
 
+import steering_geometry.prefix_analysis as prefix_analysis
 from steering_geometry.models import HookedModel
 from steering_geometry.prefix_analysis import (
     AttentionAnalysisResult,
     AttentionLinkInstance,
     KLDivergenceResult,
+    PrefixLengthKLSweepResult,
     _compute_attn_cosine_distance,
     _compute_avg_activation,
     _extract_attention_links,
@@ -21,6 +23,7 @@ from steering_geometry.prefix_analysis import (
     plot_attention_link_heatmap,
     plot_kl_divergence_curves,
 )
+from steering_geometry.types import ContrastPair
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -848,7 +851,136 @@ class TestPlotAttentionLinkHeatmap:
 
 
 # ===========================================================================
-# 11. _make_steering_hook
+# 11. run_prefix_analysis output layout
+# ===========================================================================
+
+
+class TestRunPrefixAnalysisOutputLayout:
+    """Tests for run_prefix_analysis output layout."""
+
+    def test_writes_pdfs_and_report_directly_in_model_directory(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Run output should not create a nested plots directory."""
+
+        class FakeHookedModel:
+            def resolve_layers(self, layer_fracs: list[float]) -> list[int]:
+                return [0 for _ in layer_fracs]
+
+        base_dir = tmp_path / "prefix_analysis"
+        model_name = "Qwen/Qwen3-1.7B"
+        concept = "sentiment"
+        expected_dir = base_dir / concept / "Qwen_Qwen3-1.7B"
+        plot_dirs: list[Path] = []
+        report_paths: list[Path] = []
+
+        def fake_load_contrast_pairs(
+            requested_concept: str,
+            num_prompts: int,
+            data_mode: str | None = None,
+        ) -> list[ContrastPair]:
+            return [
+                ContrastPair(
+                    positive=f"positive {idx}",
+                    negative=f"negative {idx}",
+                    metadata={"concept": requested_concept, "dataset": data_mode or "default"},
+                )
+                for idx in range(num_prompts)
+            ]
+
+        def fake_run_prefix_length_kl_sweep(
+            model: HookedModel,
+            prompts: list[str],
+            steering_vector: torch.Tensor,
+            layer_idx: int,
+            layer_frac: float,
+            scale: float,
+            steer_tokens_list: list[int] | None = None,
+            temperature: float = 0.0,
+            num_post_steer_steps: int = 1,
+        ) -> PrefixLengthKLSweepResult:
+            return PrefixLengthKLSweepResult(
+                steer_tokens_list=[0],
+                kl_vs_no_steer={0: [[0.1]]},
+                kl_vs_all_steer={0: [[0.2]]},
+                layer_frac=layer_frac,
+                scale=scale,
+                num_prompts=len(prompts),
+                num_post_steer_steps=num_post_steer_steps,
+            )
+
+        def fake_plot_prefix_length_kl_sweep(
+            result: PrefixLengthKLSweepResult,
+            output_dir: Path,
+        ) -> list[Path]:
+            plot_dirs.append(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            plot_path = output_dir / "kl_prefix_length_sweep.pdf"
+            plot_path.write_text("pdf")
+            return [plot_path]
+
+        def fake_plot_kl_divergence_curves(
+            results: list[KLDivergenceResult],
+            output_dir: Path,
+        ) -> list[Path]:
+            plot_dirs.append(output_dir)
+            return []
+
+        def fake_generate_analysis_report(
+            kl_results: list[KLDivergenceResult],
+            attention_results: list[AttentionAnalysisResult],
+            config_dict: dict[str, str | int | float | bool],
+            plot_paths: list[Path],
+            output_path: Path,
+            kl_sweep_result: PrefixLengthKLSweepResult | None = None,
+        ) -> Path:
+            report_paths.append(output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text("report")
+            return output_path
+
+        monkeypatch.setattr(prefix_analysis, "HookedModel", lambda config: FakeHookedModel())
+        monkeypatch.setattr(prefix_analysis.torch, "load", lambda *args, **kwargs: torch.ones(8))
+        monkeypatch.setattr(prefix_analysis, "load_contrast_pairs", fake_load_contrast_pairs)
+        monkeypatch.setattr(prefix_analysis, "_compute_avg_activation", lambda *args: 1.0)
+        monkeypatch.setattr(
+            prefix_analysis,
+            "run_prefix_length_kl_sweep",
+            fake_run_prefix_length_kl_sweep,
+        )
+        monkeypatch.setattr(
+            prefix_analysis,
+            "plot_prefix_length_kl_sweep",
+            fake_plot_prefix_length_kl_sweep,
+        )
+        monkeypatch.setattr(
+            prefix_analysis,
+            "plot_kl_divergence_curves",
+            fake_plot_kl_divergence_curves,
+        )
+        monkeypatch.setattr(
+            prefix_analysis, "generate_analysis_report", fake_generate_analysis_report
+        )
+
+        prefix_analysis.run_prefix_analysis(
+            model_name=model_name,
+            concept=concept,
+            vector_path=tmp_path / "vector.pt",
+            run_attention=False,
+            output_dir=base_dir,
+        )
+
+        assert plot_dirs == [expected_dir, expected_dir]
+        assert report_paths == [expected_dir / "analysis_report.md"]
+        assert (expected_dir / "kl_prefix_length_sweep.pdf").exists()
+        assert (expected_dir / "analysis_report.md").exists()
+        assert not (expected_dir / "plots").exists()
+
+
+# ===========================================================================
+# 12. _make_steering_hook
 # ===========================================================================
 
 
@@ -983,7 +1115,7 @@ class TestMakeSteeringHook:
 
 
 # ===========================================================================
-# 12. _compute_avg_activation
+# 13. _compute_avg_activation
 # ===========================================================================
 
 
