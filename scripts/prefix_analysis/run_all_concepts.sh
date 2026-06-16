@@ -18,9 +18,9 @@
 #
 # Output per concept:
 #   outputs/prefix_analysis/{concept}/{model}/
-#     ├── plots/attention_to_prefix.pdf
-#     ├── plots/attention_cosine_shift.pdf
-#     ├── plots/kl_prefix_length_sweep.pdf
+#     ├── attention_to_prefix.pdf
+#     ├── attention_cosine_shift.pdf
+#     ├── kl_prefix_length_sweep.pdf
 #     └── analysis_report.md
 # =============================================================================
 set -euo pipefail
@@ -81,5 +81,5 @@ echo -e "Output directories:"
 for CONCEPT in $CONCEPTS; do
     SAFE_MODEL="${MODEL//\//_}"
     DIR="outputs/prefix_analysis/${CONCEPT}/${SAFE_MODEL}"
-    echo -e "  ${BLUE}${DIR}/plots/${NC}"
+    echo -e "  ${BLUE}${DIR}/${NC}"
 done

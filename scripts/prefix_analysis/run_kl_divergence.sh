@@ -22,10 +22,9 @@
 #
 # Output:
 #   outputs/prefix_analysis/{concept}/{model}/
-#     ├── plots/
-#     │   ├── kl_prefix_vs_no_steer.pdf
-#     │   ├── kl_prefix_vs_all_steer.pdf
-#     │   └── kl_prefix_length_sweep.pdf
+#     ├── kl_prefix_vs_no_steer.pdf
+#     ├── kl_prefix_vs_all_steer.pdf
+#     ├── kl_prefix_length_sweep.pdf
 #     └── analysis_report.md        (KL sections populated; attention sections empty)
 #
 # Note: For the full analysis including attention patterns, use run_analysis.sh instead.
@@ -123,7 +122,7 @@ echo ""
 echo -e "${GREEN}=== KL Divergence Analysis Complete ===${NC}"
 echo -e "Output directory: ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}${NC}"
 echo -e "Report:           ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/analysis_report.md${NC}"
-echo -e "KL plots:         ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/plots/${NC}"
+echo -e "KL plots:         ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/${NC}"
 echo -e "  - kl_prefix_vs_no_steer.pdf"
 echo -e "  - kl_prefix_vs_all_steer.pdf"
 echo -e "  - kl_prefix_length_sweep.pdf"
