@@ -978,6 +978,95 @@ class TestRunPrefixAnalysisOutputLayout:
         assert (expected_dir / "analysis_report.md").exists()
         assert not (expected_dir / "plots").exists()
 
+    def test_forwards_steer_tokens_list_and_num_post_steer_steps(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """run_prefix_analysis should forward the two sweep kwargs verbatim."""
+
+        class FakeHookedModel:
+            def resolve_layers(self, layer_fracs: list[float]) -> list[int]:
+                return [0 for _ in layer_fracs]
+
+        captured: dict[str, object] = {}
+
+        def fake_load_contrast_pairs(
+            requested_concept: str,
+            num_prompts: int,
+            data_mode: str | None = None,
+        ) -> list[ContrastPair]:
+            return [
+                ContrastPair(
+                    positive=f"positive {idx}",
+                    negative=f"negative {idx}",
+                    metadata={"concept": requested_concept},
+                )
+                for idx in range(num_prompts)
+            ]
+
+        def fake_run_prefix_length_kl_sweep(
+            model: HookedModel,
+            prompts: list[str],
+            steering_vector: torch.Tensor,
+            layer_idx: int,
+            layer_frac: float,
+            scale: float,
+            steer_tokens_list: list[int] | None = None,
+            temperature: float = 0.0,
+            num_post_steer_steps: int = 1,
+        ) -> PrefixLengthKLSweepResult:
+            captured["steer_tokens_list"] = list(steer_tokens_list or [])
+            captured["num_post_steer_steps"] = num_post_steer_steps
+            return PrefixLengthKLSweepResult(
+                steer_tokens_list=list(steer_tokens_list or []),
+                kl_vs_no_steer={0: [[0.1]]},
+                kl_vs_all_steer={0: [[0.2]]},
+                layer_frac=layer_frac,
+                scale=scale,
+                num_prompts=len(prompts),
+                num_post_steer_steps=num_post_steer_steps,
+            )
+
+        def fake_plot_prefix_length_kl_sweep(
+            result: PrefixLengthKLSweepResult,
+            output_dir: Path,
+        ) -> list[Path]:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            return [output_dir / "kl_prefix_length_sweep.pdf"]
+
+        monkeypatch.setattr(prefix_analysis, "HookedModel", lambda config: FakeHookedModel())
+        monkeypatch.setattr(prefix_analysis.torch, "load", lambda *args, **kwargs: torch.ones(8))
+        monkeypatch.setattr(prefix_analysis, "load_contrast_pairs", fake_load_contrast_pairs)
+        monkeypatch.setattr(prefix_analysis, "_compute_avg_activation", lambda *args: 1.0)
+        monkeypatch.setattr(
+            prefix_analysis,
+            "run_prefix_length_kl_sweep",
+            fake_run_prefix_length_kl_sweep,
+        )
+        monkeypatch.setattr(
+            prefix_analysis,
+            "plot_prefix_length_kl_sweep",
+            fake_plot_prefix_length_kl_sweep,
+        )
+        monkeypatch.setattr(prefix_analysis, "plot_kl_divergence_curves", lambda *a, **k: [])
+        monkeypatch.setattr(
+            prefix_analysis, "generate_analysis_report", lambda *a, **k: tmp_path / "report.md"
+        )
+
+        prefix_analysis.run_prefix_analysis(
+            model_name="Qwen/Qwen3-1.7B",
+            concept="sentiment",
+            vector_path=tmp_path / "vector.pt",
+            steer_tokens_list=[0, 5, 10],
+            num_post_steer_steps=3,
+            run_attention=False,
+            output_dir=tmp_path / "prefix_analysis",
+        )
+
+        assert captured["steer_tokens_list"] == [0, 5, 10]
+        assert captured["num_post_steer_steps"] == 3
+
 
 # ===========================================================================
 # 12. _make_steering_hook

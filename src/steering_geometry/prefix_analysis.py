@@ -1917,6 +1917,8 @@ def run_prefix_analysis(
     max_new_tokens: int = 100,
     attention_max_tokens: int = 50,
     run_attention: bool = True,
+    steer_tokens_list: list[int] | None = None,
+    num_post_steer_steps: int | None = None,
     output_dir: Path = Path("outputs/prefix_analysis"),
 ) -> PrefixAnalysisReport:
     """Main entry point for Prefix Steering analysis.
@@ -1940,6 +1942,10 @@ def run_prefix_analysis(
         max_new_tokens: Maximum tokens for KL divergence experiments.
         attention_max_tokens: Maximum tokens for attention analysis (lower for memory).
         run_attention: Whether to run attention analysis (memory-intensive).
+        steer_tokens_list: Prefix lengths to sweep in the KL sweep. When ``None``,
+            falls back to the module global ``_DEFAULT_STEER_TOKENS_LIST``.
+        num_post_steer_steps: Unsteered steps observed after steering ends in the
+            KL sweep. When ``None``, falls back to ``_DEFAULT_POST_STEER_STEPS``.
         output_dir: Base output directory.
 
     Returns:
@@ -1952,6 +1958,15 @@ def run_prefix_analysis(
         concept,
         layer_frac,
         steer_tokens,
+    )
+
+    effective_steer_tokens_list = (
+        list(steer_tokens_list)
+        if steer_tokens_list is not None
+        else list(_DEFAULT_STEER_TOKENS_LIST)
+    )
+    effective_num_post_steer_steps = (
+        num_post_steer_steps if num_post_steer_steps is not None else _DEFAULT_POST_STEER_STEPS
     )
 
     effective_output_dir = ensure_dir(output_dir / concept / safe_model_name(model_name))
@@ -2007,8 +2022,8 @@ def run_prefix_analysis(
         layer_idx=layer_idx,
         layer_frac=layer_frac,
         scale=scale,
-        # TODO: 这个要作为一个可变参数
-        steer_tokens_list=list(_DEFAULT_STEER_TOKENS_LIST),
+        steer_tokens_list=effective_steer_tokens_list,
+        num_post_steer_steps=effective_num_post_steer_steps,
     )
 
     # Run legacy per-step KL experiment (single steer_tokens value)
@@ -2074,6 +2089,8 @@ def run_prefix_analysis(
         "num_prompts": num_prompts,
         "max_new_tokens": max_new_tokens,
         "run_attention": run_attention,
+        "steer_tokens_list": str(effective_steer_tokens_list),
+        "num_post_steer_steps": effective_num_post_steer_steps,
     }
     generate_analysis_report(
         kl_results=kl_results,
