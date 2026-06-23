@@ -57,7 +57,7 @@ The generation hook increments a step counter each time the steered layer runs. 
 | Data class | Main fields | Purpose |
 |------------|-------------|---------|
 | `KLDivergenceResult` | `step_kl_no_steer`, `step_kl_all_steer`, generated text for no-steer, prefix-steer, and all-steer runs, `steer_tokens`, `scale`, `layer_frac`, `prompt` | Stores per-prompt KL curves comparing prefix steering with both baselines. |
-| `PrefixLengthKLSweepResult` | `steer_tokens_list`, `kl_vs_no_steer`, `kl_vs_all_steer`, `layer_frac`, `scale`, `num_prompts`, `num_post_steer_steps` | Stores KL values after the steering window ends for each prefix length. |
+| `PrefixLengthKLSweepResult` | `steer_tokens_list`, concept KL dictionaries, General KL dictionaries, exact all-steer-vs-no-steer KL, `layer_frac`, `scale`, prompt counts, `num_post_steer_steps` | Stores concept and MMLU-Pro General KL values after the steering window ends for each prefix length. |
 | `AttentionLinkInstance` | `layer_idx`, `head_idx`, `step`, prefix attention before and after steering, top prefix token and position | Stores concrete per-head examples of attention shifting to prefix tokens. |
 | `AttentionAnalysisResult` | Prefix attention curves for no-steer, prefix-steer, and all-steer runs, `attn_cosine_shift`, `steered_layer_attn_diff`, `prompt_tokens`, `steer_tokens`, `attention_links` | Stores attention mechanism measurements for a single prompt. |
 | `PrefixAnalysisReport` | `kl_results`, `kl_sweep_result`, `attention_results`, `config_dict` | Bundles all analysis outputs and run configuration. |
@@ -71,7 +71,7 @@ The generation hook increments a step counter each time the steered layer runs. 
 | `run_prefix_length_kl_sweep()` | Sweeps multiple prefix lengths and measures KL at the first post-prefix steps. | `PrefixLengthKLSweepResult`. |
 | `run_attention_analysis()` | Compares attention to prefix positions under no-steer, prefix-steer, and all-steer runs. | List of `AttentionAnalysisResult`. |
 | `plot_kl_divergence_curves()` | Plots per-step KL curves over generation. | KL curve figure files. |
-| `plot_prefix_length_kl_sweep()` | Plots KL as a function of prefix length. | Prefix-length sweep figure files. |
+| `plot_prefix_length_kl_sweep()` | Plots Concept KL and General KL as dual-axis curves over prefix length. | Prefix-vs-no-steer and prefix-vs-all-steer sweep figure files. |
 | `plot_attention_analysis()` | Plots aggregate attention shifts and cosine distance. | Attention summary figure files. |
 | `plot_attention_link_heatmap()` | Plots concrete attention links for heads with the largest prefix attention increase. | Attention link heatmap files. |
 | `generate_analysis_report()` | Writes a combined analysis report from KL and attention outputs. | Markdown report. |
@@ -93,12 +93,13 @@ The KL experiment compares three generation modes for the same prompt:
 | Prefix steering | `N` | Steering applies only to the first `N` generated tokens. |
 | All-token steering | `None` | Steering applies at every generated token. |
 
-For each generation step, the analysis computes two values:
+For each generation step, the analysis computes Concept KL on concept prompts and General KL on 10 MMLU-Pro prompts:
 
 | Metric | Interpretation |
 |--------|----------------|
 | `KL(prefix_steer || no_steer)` | How far the prefix-steered distribution has moved from the base model. |
 | `KL(prefix_steer || all_steer)` | How close prefix steering is to full steering. |
+| `KL(all_steer || no_steer)` | Exact value for the final `All` tick in the prefix-vs-no-steer plot. |
 
 The prefix-length sweep then asks what happens after steering stops. For each prefix length `N`, it records KL at steps `N+1` through `N+K`. This isolates carryover from the early intervention window rather than measuring tokens that are still directly steered.
 
@@ -132,7 +133,7 @@ This module is the comprehensive evaluation layer for prefix steering because it
 
 | Script | Purpose | Typical output |
 |--------|---------|----------------|
-| `scripts/prefix_analysis/run_kl_divergence.sh` | Runs KL divergence only (skips attention analysis — no eager-model reload). Use for fast KL curves and prefix-length sweeps. | KL per-step plots, KL prefix-length sweep plot, analysis report (KL sections). |
+| `scripts/prefix_analysis/run_kl_divergence.sh` | Runs KL divergence only (skips attention analysis — no eager-model reload). Use for fast KL curves and prefix-length sweeps. | KL per-step plots, dual-axis Concept/General KL prefix-length sweep plots, analysis report (KL sections). |
 | `scripts/prefix_analysis/run_analysis.sh` | Runs the full analysis: KL divergence + attention patterns. | KL curves, attention plots, full analysis report. |
 | `scripts/prefix_analysis/run_all_concepts.sh` | Runs prefix analysis for safety/refusal, sentiment, and politeness. | Cross-concept analysis outputs. |
 | `scripts/token_experiments/4_steering_scope.sh` | Runs prefix vs all-token steering scope comparison. | Scope comparison data for paper trade-off figures. |
