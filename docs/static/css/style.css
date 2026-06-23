@@ -7,6 +7,7 @@
   --color-accent: #3273dc;
   --color-accent-dark: #2057aa;
   --color-teal: #00a993;
+  --color-violet: #7957d5;
   --color-code-bg: #1e1e1e;
   --color-code-text: #f2f6fb;
   --font-body: "Source Sans 3", BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -260,6 +261,16 @@ section[id] {
   box-shadow: var(--shadow-card);
 }
 
+.robust-dim-card {
+  padding: var(--space-6);
+  border: 1px solid rgba(121, 87, 213, 0.22);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, rgba(121, 87, 213, 0.08), rgba(91, 47, 197, 0.06)),
+    var(--color-panel);
+  box-shadow: var(--shadow-card);
+}
+
 .finding-list {
   margin-top: var(--space-5);
 }
@@ -271,6 +282,10 @@ section[id] {
 
 .finding-list li::marker {
   color: var(--color-teal);
+}
+
+.robust-dim-card .finding-list li::marker {
+  color: var(--color-violet);
 }
 
 .headline-callout {
@@ -411,6 +426,7 @@ section[id] {
   }
 
   .prefix-card,
+  .robust-dim-card,
   .result-card,
   .bibtex-wrapper pre {
     border-radius: var(--radius-md);

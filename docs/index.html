@@ -26,7 +26,7 @@
         integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1.9.4/css/academicons.min.css"
         integrity="sha384-cxs0Bj979VdNByRZzAJ2KJWG8vH/kG7fwWZAIZW3Tmsw0rAuP/pu3I3LitFWEs18" crossorigin="anonymous">
-  <link rel="stylesheet" href="static/css/style.css">
+  <link rel="stylesheet" href="static/css/style.css?v=20260623a">
   <link rel="icon" href="data:,">
 </head>
 <body>
@@ -94,9 +94,11 @@
         <div class="container has-text-centered">
           <h2 id="teaser-heading" class="is-sr-only">Paper teaser</h2>
           <figure class="publication-figure teaser-figure">
-            <img class="teaser-image" src="static/images/teaser.png" alt="Two-panel overview of Robust DiM direction construction and Prefix Steering intervention placement.">
+            <object class="teaser-image" data="static/images/poster.pdf#toolbar=0&navpanes=0&view=FitH" type="application/pdf" style="display:block; width:100%; aspect-ratio:4/3; margin:0 auto;" aria-label="Robust DiM and Prefix Steering overview poster showing how steering-direction construction and intervention-time token selection contribute equally.">
+              <p style="margin: var(--space-4) auto;">Your browser cannot display the embedded poster. <a href="static/images/poster.pdf">Download the poster PDF</a>.</p>
+            </object>
             <figcaption class="figure-caption">
-              Overview of our two contributions: (Left) Robust DiM constructs steering directions from token-selective activations that are both representative and discriminative. (Right) Prefix Steering applies intervention only to early generated tokens, preserving general capability.
+              How a steering direction is constructed and how the intervention is applied are equally important. We address the former with Robust DiM and the latter with Prefix Steering.
             </figcaption>
           </figure>
         </div>
@@ -118,12 +120,17 @@
       <div class="container is-max-desktop">
         <h2 class="title is-3 has-text-centered">Method</h2>
 
-        <article class="method-block">
+        <article class="method-block robust-dim-card">
           <h3 class="title is-4">Robust DiM — Token-Selective Direction Construction</h3>
           <div class="content publication-copy">
             <p>
               Standard DiM averages activations over all tokens and examples, treating every activation as equally useful. We show this is suboptimal: interference from stable but intervention-irrelevant concepts degrades the direction. Robust DiM scores each activation by its relative margin between class means, selects the top-K most representative-and-discriminative activations per class, and constructs the direction from this refined subset.
             </p>
+            <ul class="finding-list">
+              <li>Standard DiM averaging ignores per-activation usefulness</li>
+              <li>Each activation is scored by its relative margin between class means</li>
+              <li>Top-K selection retains activations that are both representative and discriminative</li>
+            </ul>
           </div>
         </article>
 

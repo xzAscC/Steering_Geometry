@@ -17,11 +17,10 @@
 #
 # Output:
 #   outputs/prefix_analysis/{concept}/{model}/
-#     ├── plots/
-#     │   ├── kl_prefix_vs_no_steer.pdf
-#     │   ├── kl_prefix_vs_all_steer.pdf
-#     │   ├── attention_to_prefix.pdf
-#     │   └── attention_cosine_shift.pdf
+#     ├── kl_prefix_vs_no_steer.pdf
+#     ├── kl_prefix_vs_all_steer.pdf
+#     ├── attention_to_prefix.pdf
+#     ├── attention_cosine_shift.pdf
 #     └── analysis_report.md
 # =============================================================================
 set -euo pipefail
@@ -113,4 +112,4 @@ echo ""
 echo -e "${GREEN}=== Analysis Complete ===${NC}"
 echo -e "Output directory: ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}${NC}"
 echo -e "Report:           ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/analysis_report.md${NC}"
-echo -e "Plots:            ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/plots/${NC}"
+echo -e "Plots:            ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/${NC}"

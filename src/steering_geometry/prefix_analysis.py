@@ -34,6 +34,8 @@ from .utils import ensure_dir, safe_model_name
 
 logger = logging.getLogger(__name__)
 
+type HookOutput = Tensor | tuple[Tensor, ...]
+
 
 # =============================================================================
 # Data Types
@@ -222,7 +224,7 @@ def _make_steering_hook(
     scale: float,
     steer_tokens: int | None,
     step_counter: list[int],
-) -> Callable[[object, object, Tensor], Tensor]:
+) -> Callable[[object, object, HookOutput], HookOutput]:
     """Create a forward-hook that steers only the last token position.
 
     During prefill (seq_len > 1), only the last prompt token is steered so
@@ -239,7 +241,7 @@ def _make_steering_hook(
         A callable suitable for ``register_forward_hook``.
     """
 
-    def steering_hook(module: object, inp: object, output: Tensor) -> Tensor:
+    def steering_hook(module: object, inp: object, output: HookOutput) -> HookOutput:
         """Forward hook: add steering vector to the last token position only."""
         step_counter[0] += 1
         if steer_tokens is not None and step_counter[0] > steer_tokens:
@@ -1105,7 +1107,6 @@ def plot_prefix_length_kl_sweep(
     """
     import matplotlib.pyplot as plt
 
-    # TODO: 保存目录有很大的问题
     ensure_dir(output_dir)
 
     n_values = sorted(result.steer_tokens_list)
@@ -1468,8 +1469,8 @@ def generate_analysis_report(
         "This measures how much the prefix-steered output distribution "
         "diverges from the unsteered baseline at each generation step.\n"
     )
+    all_kl_no: list[float] = []
     if kl_results:
-        all_kl_no: list[float] = []
         for kl_r in kl_results:
             all_kl_no.extend(kl_r.step_kl_no_steer)
         if all_kl_no:
@@ -1916,6 +1917,8 @@ def run_prefix_analysis(
     max_new_tokens: int = 100,
     attention_max_tokens: int = 50,
     run_attention: bool = True,
+    steer_tokens_list: list[int] | None = None,
+    num_post_steer_steps: int | None = None,
     output_dir: Path = Path("outputs/prefix_analysis"),
 ) -> PrefixAnalysisReport:
     """Main entry point for Prefix Steering analysis.
@@ -1939,6 +1942,10 @@ def run_prefix_analysis(
         max_new_tokens: Maximum tokens for KL divergence experiments.
         attention_max_tokens: Maximum tokens for attention analysis (lower for memory).
         run_attention: Whether to run attention analysis (memory-intensive).
+        steer_tokens_list: Prefix lengths to sweep in the KL sweep. When ``None``,
+            falls back to the module global ``_DEFAULT_STEER_TOKENS_LIST``.
+        num_post_steer_steps: Unsteered steps observed after steering ends in the
+            KL sweep. When ``None``, falls back to ``_DEFAULT_POST_STEER_STEPS``.
         output_dir: Base output directory.
 
     Returns:
@@ -1951,6 +1958,15 @@ def run_prefix_analysis(
         concept,
         layer_frac,
         steer_tokens,
+    )
+
+    effective_steer_tokens_list = (
+        list(steer_tokens_list)
+        if steer_tokens_list is not None
+        else list(_DEFAULT_STEER_TOKENS_LIST)
+    )
+    effective_num_post_steer_steps = (
+        num_post_steer_steps if num_post_steer_steps is not None else _DEFAULT_POST_STEER_STEPS
     )
 
     effective_output_dir = ensure_dir(output_dir / concept / safe_model_name(model_name))
@@ -2006,8 +2022,8 @@ def run_prefix_analysis(
         layer_idx=layer_idx,
         layer_frac=layer_frac,
         scale=scale,
-        # TODO: 这个要作为一个可变参数
-        steer_tokens_list=list(_DEFAULT_STEER_TOKENS_LIST),
+        steer_tokens_list=effective_steer_tokens_list,
+        num_post_steer_steps=effective_num_post_steer_steps,
     )
 
     # Run legacy per-step KL experiment (single steer_tokens value)
@@ -2046,7 +2062,7 @@ def run_prefix_analysis(
 
     # Generate plots
     logger.info("=== Generating Plots ===")
-    plot_dir = ensure_dir(effective_output_dir / "plots")
+    plot_dir = ensure_dir(effective_output_dir)
     kl_sweep_plot_paths = plot_prefix_length_kl_sweep(kl_sweep_result, plot_dir)
     kl_plot_paths = plot_kl_divergence_curves(kl_results, plot_dir)
     attn_plot_paths: list[Path] = []
@@ -2073,6 +2089,8 @@ def run_prefix_analysis(
         "num_prompts": num_prompts,
         "max_new_tokens": max_new_tokens,
         "run_attention": run_attention,
+        "steer_tokens_list": str(effective_steer_tokens_list),
+        "num_post_steer_steps": effective_num_post_steer_steps,
     }
     generate_analysis_report(
         kl_results=kl_results,

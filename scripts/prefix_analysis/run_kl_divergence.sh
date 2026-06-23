@@ -13,19 +13,25 @@
 # 3. Prefix-length sweep: KL averaged over the first K post-steer steps vs N
 #
 # Usage:
-#   ./run_kl_divergence.sh [concept] [model] [layer_frac] [steer_tokens] [num_prompts] [max_new_tokens] [scale_mult]
+#   ./run_kl_divergence.sh [concept] [model] [layer_frac] [steer_tokens] [num_prompts] [max_new_tokens] [scale_mult] [steer_tokens_list] [num_post_steer_steps]
 #
 # Examples:
 #   ./run_kl_divergence.sh                                         # defaults
 #   ./run_kl_divergence.sh sentiment Qwen/Qwen3-1.7B 0.7 10 10
 #   ./run_kl_divergence.sh refusal Qwen/Qwen3-1.7B 0.7 15 10
+#   ./run_kl_divergence.sh sentiment Qwen/Qwen3-1.7B 0.7 10 10 100 0.1 "0,4,8,12" 3
+#
+# Args 8-9 (optional):
+#   steer_tokens_list      Comma-separated prefix lengths for the KL sweep
+#                          (e.g. "0,2,4,6,8,10"). Empty -> Python default.
+#   num_post_steer_steps   Unsteered steps observed after steering ends (int).
+#                          Empty -> Python default.
 #
 # Output:
 #   outputs/prefix_analysis/{concept}/{model}/
-#     ├── plots/
-#     │   ├── kl_prefix_vs_no_steer.pdf
-#     │   ├── kl_prefix_vs_all_steer.pdf
-#     │   └── kl_prefix_length_sweep.pdf
+#     ├── kl_prefix_vs_no_steer.pdf
+#     ├── kl_prefix_vs_all_steer.pdf
+#     ├── kl_prefix_length_sweep.pdf
 #     └── analysis_report.md        (KL sections populated; attention sections empty)
 #
 # Note: For the full analysis including attention patterns, use run_analysis.sh instead.
@@ -43,6 +49,20 @@ STEER_TOKENS="${4:-10}"
 NUM_PROMPTS="${5:-10}"
 MAX_NEW_TOKENS="${6:-100}"
 SCALE_MULT="${7:-0.1}"
+STEER_TOKENS_LIST_STR="${8:-}"
+NUM_POST_STEER_STEPS_STR="${9:-}"
+
+# Validate optional args
+if [ -n "$STEER_TOKENS_LIST_STR" ] \
+    && ! [[ "$STEER_TOKENS_LIST_STR" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+    echo "Error: STEER_TOKENS_LIST must be comma-separated ints (got: '$STEER_TOKENS_LIST_STR')" >&2
+    exit 1
+fi
+if [ -n "$NUM_POST_STEER_STEPS_STR" ] \
+    && ! [[ "$NUM_POST_STEER_STEPS_STR" =~ ^[0-9]+$ ]]; then
+    echo "Error: NUM_POST_STEER_STEPS must be a non-negative int (got: '$NUM_POST_STEER_STEPS_STR')" >&2
+    exit 1
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -58,6 +78,10 @@ echo -e "  Steer tokens: ${GREEN}${STEER_TOKENS}${NC}"
 echo -e "  Num prompts:  ${GREEN}${NUM_PROMPTS}${NC}"
 echo -e "  Max tokens:   ${GREEN}${MAX_NEW_TOKENS}${NC}"
 echo -e "  Scale mult:   ${GREEN}${SCALE_MULT}${NC}"
+STEER_TOKENS_LIST_DISPLAY="${STEER_TOKENS_LIST_STR:-<default>}"
+NUM_POST_STEER_STEPS_DISPLAY="${NUM_POST_STEER_STEPS_STR:-<default>}"
+echo -e "  Steer list:   ${GREEN}${STEER_TOKENS_LIST_DISPLAY}${NC}"
+echo -e "  Post steps:   ${GREEN}${NUM_POST_STEER_STEPS_DISPLAY}${NC}"
 echo -e "  Attention:    ${RED}skipped${NC} (KL-only run)"
 echo ""
 
@@ -84,6 +108,17 @@ if [ -n "$VECTOR_PATH" ]; then
     VECTOR_ARG="vector_path=Path('${VECTOR_PATH}'),"
 fi
 
+STEER_TOKENS_LIST_ARG=""
+if [ -n "$STEER_TOKENS_LIST_STR" ]; then
+    # shellcheck disable=SC2086
+    STEER_TOKENS_LIST_ARG="steer_tokens_list=[int(x) for x in '${STEER_TOKENS_LIST_STR}'.split(',')],"
+fi
+
+NUM_POST_STEER_STEPS_ARG=""
+if [ -n "$NUM_POST_STEER_STEPS_STR" ]; then
+    NUM_POST_STEER_STEPS_ARG="num_post_steer_steps=${NUM_POST_STEER_STEPS_STR},"
+fi
+
 echo -e "${BLUE}Running KL divergence analysis...${NC}"
 echo ""
 
@@ -106,6 +141,8 @@ report = run_prefix_analysis(
     num_prompts=${NUM_PROMPTS},
     max_new_tokens=${MAX_NEW_TOKENS},
     run_attention=False,
+    ${STEER_TOKENS_LIST_ARG}
+    ${NUM_POST_STEER_STEPS_ARG}
     output_dir=Path('${OUTPUT_DIR}'),
 )
 
@@ -123,7 +160,7 @@ echo ""
 echo -e "${GREEN}=== KL Divergence Analysis Complete ===${NC}"
 echo -e "Output directory: ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}${NC}"
 echo -e "Report:           ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/analysis_report.md${NC}"
-echo -e "KL plots:         ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/plots/${NC}"
+echo -e "KL plots:         ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/${NC}"
 echo -e "  - kl_prefix_vs_no_steer.pdf"
 echo -e "  - kl_prefix_vs_all_steer.pdf"
 echo -e "  - kl_prefix_length_sweep.pdf"
