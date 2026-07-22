@@ -903,12 +903,20 @@ class MMLUProEvaluator:
         return question
 
     def _format_cot_example(self, example: MMLUProQuestion, include_answer: bool = True) -> str:
-        """Format a single example for few-shot CoT prompt.
+        """Format a single example for a few-shot MMLU-Pro prompt.
+
+        Branches on ``self.config.use_cot``:
+
+        - CoT mode: few-shot answers include the dataset's ``cot_content`` chain
+          before the final letter, and the test question is probed with
+          ``Answer: Let's think step by step.``.
+        - Non-CoT mode: ``cot_content`` is skipped and the test question is
+          probed with a bare ``Answer:`` instruction.
 
         Args:
             example: Question dict with question text, options, and CoT content.
-            include_answer: If True, append the answer; if False, append
-                "Let's think step by step." for the test question.
+            include_answer: If True, append the answer (with CoT if enabled);
+                if False, append the probe for the test question.
 
         Returns:
             Formatted example string.
@@ -932,11 +940,22 @@ class MMLUProEvaluator:
         return "\n".join(parts)
 
     def format_prompt(self, question: MMLUProQuestion, few_shot: list[MMLUProQuestion]) -> str:
-        """Format full evaluation prompt with n-shot CoT examples.
+        """Format the full MMLU-Pro evaluation prompt.
+
+        Selects the category header template based on ``self.config.use_cot``:
+
+        - CoT mode uses ``COT_PROMPT_TEMPLATE`` ("Think step by step and then
+          finish your answer with 'the answer is (X)'").
+        - Non-CoT mode uses ``NON_COT_PROMPT_TEMPLATE`` (direct "Answer with
+          the letter of the correct choice").
+
+        Then prepends ``n_shot`` few-shot examples (formatted via
+        :meth:`_format_cot_example`, which also branches on ``use_cot``) and
+        appends the test question.
 
         Args:
             question: Test question dict.
-            few_shot: List of validation examples to prepend as CoT demonstrations.
+            few_shot: List of validation examples to prepend as demonstrations.
 
         Returns:
             Full prompt string: category template + few-shot examples + test question.
