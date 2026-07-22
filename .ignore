@@ -1,4 +1,7 @@
 !69bcbe7d4df5c45bb65cfa76/
 !outputs/
 !logs/
+# Keep notebooks searchable by ripgrep/fd even though .gitignore drops them.
+# Both *.ipynb (loose notebooks) and notebooks/** (the dedicated folder).
 !*.ipynb
+!notebooks/

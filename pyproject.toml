@@ -17,6 +17,12 @@ dependencies = [
     "jinja2>=3.0.0,<4.0",
     "matplotlib>=3.8.0,<4.0",
     "torch>=2.10.0",
+]
+
+[project.optional-dependencies]
+# Notebook tooling for exploratory analysis and heatmap demos.
+# Install with: uv sync --extra notebooks
+notebooks = [
     "jupyter>=1.1.1",
     "seaborn>=0.13.2",
 ]
