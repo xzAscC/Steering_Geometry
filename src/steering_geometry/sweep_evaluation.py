@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import random
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, cast
 
@@ -918,7 +919,63 @@ def main() -> None:
         logger.info("Saved plot: %s", path)
 
 
+def _build_plot_heatmap_parser() -> argparse.ArgumentParser:
+    """Build argument parser for the ``plot-heatmap`` subcommand."""
+    parser = argparse.ArgumentParser(
+        prog="steering_geometry.sweep_evaluation plot-heatmap",
+        description="Render the paper-style sweep heatmap from a saved sweep_results.json",
+    )
+    parser.add_argument(
+        "--result",
+        required=True,
+        help="Path to sweep_results.json (from a prior run_sweep_evaluation call)",
+    )
+    parser.add_argument(
+        "--output",
+        default="",
+        help="Output directory (defaults to the directory containing --result)",
+    )
+    parser.add_argument(
+        "--formats",
+        default="pdf,png",
+        help="Comma-separated output formats (default: pdf,png)",
+    )
+    return parser
+
+
+class _PlotHeatmapArgs(Protocol):
+    """Protocol for the plot-heatmap subcommand arguments."""
+
+    result: str
+    output: str
+    formats: str
+
+
+def plot_heatmap_main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point for the ``plot-heatmap`` subcommand.
+
+    Renders the paper-style sweep heatmap from an already-saved
+    ``sweep_results.json`` without rerunning the grid. Exposed via
+    ``python -m steering_geometry.sweep_evaluation plot-heatmap ...`` so the
+    shell wrapper in ``scripts/experiments/plot_sweep_heatmaps.sh`` needs no
+    embedded Python source.
+    """
+    args = cast(_PlotHeatmapArgs, _build_plot_heatmap_parser().parse_args(argv))
+    result = load_sweep_result_json(args.result)
+    output_dir = args.output if args.output else str(Path(args.result).parent)
+    formats = [fmt for fmt in args.formats.split(",") if fmt]
+    paths = plot_paper_sweep_heatmap(result, output_dir=output_dir, formats=formats)
+    for path in paths:
+        print(f"Saved: {path}")
+    return 0
+
+
 if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "plot-heatmap":
+        sys.argv.pop(1)
+        raise SystemExit(plot_heatmap_main())
     main()
 
 
