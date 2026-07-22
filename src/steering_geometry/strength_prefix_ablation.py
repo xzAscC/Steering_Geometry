@@ -138,22 +138,31 @@ class SummaryCell(TypedDict):
 # =============================================================================
 
 
-def _load_steering_vector(vector_path: str) -> tuple[Tensor, str]:
+def _load_steering_vector(vector_path: str, layer_idx: int | None = None) -> tuple[Tensor, str]:
     """Load and unit-normalize a steering vector from ``.pt`` file.
 
     Accepts the three formats produced by the extraction pipeline: a raw
     tensor, a ``{"vector": SteeringVector, ...}`` dict, or a plain
     ``SteeringVector`` object.
 
+    When the loaded object is a multi-layer :class:`SteeringVector`,
+    ``layer_idx`` selects which layer's activation to return. If the requested
+    layer is missing, ``ValueError`` is raised — this prevents silently
+    falling back to the lowest layer and misattributing results.
+
     Args:
         vector_path: Path to the saved steering vector.
+        layer_idx: Absolute layer index to select from a multi-layer
+            ``SteeringVector``. May be ``None`` only when the file holds a
+            raw tensor or a single-layer vector.
 
     Returns:
         Tuple of ``(normalized_vector, concept)`` where ``normalized_vector``
         has unit L2 norm.
 
     Raises:
-        ValueError: If the vector has zero norm or the format is unrecognized.
+        ValueError: If the vector has zero norm, the format is unrecognized,
+            or ``layer_idx`` is not present in a multi-layer vector.
         FileNotFoundError: If ``vector_path`` does not exist.
     """
     try:
@@ -171,8 +180,9 @@ def _load_steering_vector(vector_path: str) -> tuple[Tensor, str]:
         sv = raw["vector"]
         concept = getattr(sv, "concept", "unknown")
         if hasattr(sv, "layer_activations"):
-            first_layer = sorted(sv.layer_activations.keys())[0]
-            vector = sv.layer_activations[first_layer]
+            layer_activations: dict[int, Tensor] = dict(sv.layer_activations)
+            chosen_layer = _select_layer_index(layer_activations, layer_idx, vector_path)
+            vector = layer_activations[chosen_layer]
         else:
             vector = cast(Tensor, sv)
     elif isinstance(raw, Tensor):
@@ -186,6 +196,31 @@ def _load_steering_vector(vector_path: str) -> tuple[Tensor, str]:
         msg = f"Zero-norm vector loaded from {vector_path}"
         raise ValueError(msg)
     return vector / norm, concept
+
+
+def _select_layer_index(
+    layer_activations: dict[int, Tensor],
+    layer_idx: int | None,
+    vector_path: str,
+) -> int:
+    """Pick the layer index to load from a multi-layer vector file.
+
+    - Single-layer file with ``layer_idx=None`` → return the only key.
+    - Multi-layer file requires ``layer_idx`` to be present; missing → raise.
+    """
+    available = sorted(layer_activations.keys())
+    if layer_idx is None:
+        if len(available) == 1:
+            return available[0]
+        msg = (
+            f"{vector_path} contains multi-layer vector with layers {available}; "
+            "layer_idx must be specified."
+        )
+        raise ValueError(msg)
+    if layer_idx not in layer_activations:
+        msg = f"layer {layer_idx} not found in {vector_path}; available layers: {available}"
+        raise ValueError(msg)
+    return layer_idx
 
 
 def compute_avg_activation_norm(
@@ -456,7 +491,7 @@ def run_strength_prefix_ablation(
     # ------------------------------------------------------------------
     # Load and normalize steering vector
     # ------------------------------------------------------------------
-    normalized_vector, vector_concept = _load_steering_vector(vector_path)
+    normalized_vector, vector_concept = _load_steering_vector(vector_path, layer_idx=layer_idx)
     vector_norm = float(normalized_vector.norm())
     logger.info(
         "Loaded vector from %s (unit norm=%.4f, concept=%s)",
