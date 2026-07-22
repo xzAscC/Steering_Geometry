@@ -102,34 +102,12 @@ class TestLoadSteeringVectorLayerSelection:
 # ---------------------------------------------------------------------------
 
 
-class _FakeTokenizerForNorm:
-    """Tokenizer stub that pads to the longest text and exposes attention_mask."""
-
-    def __call__(
-        self,
-        texts: list[str],
-        return_tensors: str = "pt",
-        padding: bool = False,
-        truncation: bool = False,
-    ) -> dict[str, torch.Tensor]:
-        del return_tensors, padding, truncation
-        encoded = [[ord(c) % 10 + 1 for c in t] for t in texts]
-        max_len = max(len(ids) for ids in encoded)
-        input_ids = torch.zeros(len(texts), max_len, dtype=torch.long)
-        attention_mask = torch.zeros(len(texts), max_len, dtype=torch.long)
-        for i, ids in enumerate(encoded):
-            input_ids[i, : len(ids)] = torch.tensor(ids, dtype=torch.long)
-            attention_mask[i, : len(ids)] = 1
-        return {"input_ids": input_ids, "attention_mask": attention_mask}
-
-
 class _FakeModelForNorm:
     """Model stub returning controlled activations whose padding rows are 0."""
 
-    def __init__(self, activations: torch.Tensor, attention_mask: torch.Tensor) -> None:
+    def __init__(self, activations: torch.Tensor, tokenizer: object) -> None:
         self._activations = activations
-        self._mask = attention_mask
-        self.tokenizer = _FakeTokenizerForNorm()
+        self.tokenizer = tokenizer
 
     def get_activations(self, texts: list[str], layers: list[int]) -> dict[int, torch.Tensor]:
         del texts, layers
@@ -141,9 +119,13 @@ class TestComputeAvgActivationNormMasksPadding:
 
     def test_padding_excluded_from_norm(self) -> None:
         """Two prompts of different lengths: padded tokens contribute 0 to mean."""
+        # Reuse the project-wide FakeTokenizer from tests/conftest.py instead
+        # of a local stub, so any future fix to its padding logic propagates.
+        from conftest import FakeTokenizer
+
         # Batch of 2 prompts: prompt A has 3 real tokens, prompt B has 2.
         # Padding = 1 column on row B.
-        # Real-token norms all = 4.0 (sqrt(4*4)), padded norm = 99.0.
+        # Real-token norms all = 4.0, padded norm = 99.0.
         # Without masking, mean would be inflated by the 99.
         real_norm_value = 4.0
         padded_norm_value = 99.0
@@ -157,8 +139,7 @@ class TestComputeAvgActivationNormMasksPadding:
             return row
 
         activations = torch.stack([make_row(3, 3), make_row(2, 3)])  # shape (2, 3, 4)
-        mask = torch.tensor([[1, 1, 1], [1, 1, 0]])
-        model = cast("object", _FakeModelForNorm(activations, mask))
+        model = cast("object", _FakeModelForNorm(activations, FakeTokenizer()))
 
         result = compute_avg_activation_norm(model, ["abc", "ab"], 0)  # type: ignore[arg-type]
 
