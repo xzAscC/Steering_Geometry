@@ -231,8 +231,9 @@ def compute_avg_activation_norm(
     """Compute the average L2 norm of hidden-state activations (``\\bar{\\alpha}``).
 
     Runs a single forward pass over ``texts`` and averages the per-token
-    activation norm at ``layer_idx``.  This is the reference scale used to
-    set steering strength: ``scale = multiplier * avg_activation_norm``.
+    activation norm at ``layer_idx`` over non-padding positions only.
+    This is the reference scale used to set steering strength:
+    ``scale = multiplier * avg_activation_norm``.
 
     Args:
         model: Loaded ``HookedModel``.
@@ -240,10 +241,24 @@ def compute_avg_activation_norm(
         layer_idx: Absolute layer index.
 
     Returns:
-        Scalar average activation norm.
+        Scalar average activation norm (padding tokens excluded).
     """
     activations = model.get_activations(texts, [layer_idx])
-    return float(activations[layer_idx].norm(dim=-1).mean().item())
+    layer_act = activations[layer_idx]
+    # Re-tokenize to obtain the attention mask matching ``layer_act``. The
+    # activations were extracted with padding=True, so padded positions have
+    # arbitrary values that would inflate the mean if not masked out.
+    inputs = model.tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
+    attention_mask = inputs["attention_mask"].to(layer_act.device)
+    # Token-level L2 norm → (batch, seq). Mask padding to 0 before averaging.
+    per_token_norm = layer_act.norm(dim=-1)
+    mask = attention_mask.to(per_token_norm.dtype)
+    masked_sum = float((per_token_norm * mask).sum().item())
+    num_tokens = float(mask.sum().item())
+    if num_tokens <= 0:
+        msg = "compute_avg_activation_norm received texts that produced no tokens"
+        raise ValueError(msg)
+    return masked_sum / num_tokens
 
 
 def _evaluate_concept(
@@ -339,6 +354,7 @@ def _evaluate_mmlu_pro(
     layer_idx: int,
     scale: float,
     steer_tokens: int | None,
+    rng: random.Random | None = None,
 ) -> tuple[float, int, int, list[MMLUProResponse]]:
     """Run MMLU-Pro under steering and capture raw responses.
 
@@ -353,10 +369,13 @@ def _evaluate_mmlu_pro(
         layer_idx: Absolute layer index.
         scale: Steering scale (``multiplier * avg_activation_norm``).
         steer_tokens: Prefix length (``None`` = full sequence).
+        rng: Seeded RNG used for the random-guess fallback when answer
+            extraction returns ``None``. Required for reproducible runs.
 
     Returns:
         Tuple of ``(accuracy, correct, total, per_question_records)``.
     """
+    fallback_rng = rng if rng is not None else random.Random(0)
     test_data, val_data = mmlu_evaluator.load_dataset()
     responses: list[MMLUProResponse] = []
     correct = 0
@@ -381,7 +400,10 @@ def _evaluate_mmlu_pro(
             options = question.get("options", [])
             if options:
                 valid_labels = MMLUProEvaluator.CHOICES[: len(options)]
-                predicted = random.choice(valid_labels)
+                # Use the seeded RNG so that two runs with the same seed pick
+                # the same fallback answers — otherwise MMLU-Pro accuracy
+                # would silently depend on global random state.
+                predicted = fallback_rng.choice(valid_labels)
 
         ground_truth = question.get("answer", "")
         is_correct = predicted == ground_truth
@@ -504,6 +526,9 @@ def run_strength_prefix_ablation(
     # Select concept prompts and compute ᾱ over them
     # ------------------------------------------------------------------
     rng = random.Random(seed)
+    # Separate RNG for MMLU-Pro fallback so that prompt sampling and answer
+    # fallback stay independent streams (changing one does not perturb the other).
+    mmlu_rng = random.Random(seed)
     pairs = load_contrast_pairs(concept, num_pairs=max(500, num_samples))
     selected = rng.sample(pairs, min(num_samples, len(pairs)))
     prompts: list[str] = [pair.negative for pair in selected]
@@ -542,6 +567,7 @@ def run_strength_prefix_ablation(
         mmlu_config = MMLUProConfig(
             num_questions=mmlu_pro_num_questions,
             use_cot=mmlu_pro_use_cot,
+            seed=seed,
         )
         mmlu_evaluator = MMLUProEvaluator(mmlu_config, model)
         logger.info("Initialized MMLUProEvaluator (%d questions)", mmlu_pro_num_questions)
@@ -634,6 +660,7 @@ def run_strength_prefix_ablation(
                     layer_idx=layer_idx,
                     scale=scale,
                     steer_tokens=prefix_length,
+                    rng=mmlu_rng,
                 )
                 logger.info(
                     "  MMLU-Pro: %.2f%% (%d/%d)",
