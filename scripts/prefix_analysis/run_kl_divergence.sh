@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Prefix Steering — KL Divergence Analysis (KL-only)
+# Prefix Steering — KL Divergence Analysis (teacher-forced replay, KL-only)
 #
-# Runs ONLY the KL divergence experiments for Prefix Steering, skipping the
-# expensive attention-pattern analysis (which requires loading a second model
-# with eager attention). Use this when you only need the KL curves and the
-# prefix-length sweep.
+# Runs ONLY the prefix-length KL sweep, skipping the expensive attention-pattern
+# analysis (which requires loading a second model with eager attention).
 #
-# Produces:
-# 1. Per-step KL:     KL(Prefix Steering ‖ No Steering)   over generation steps
-# 2. Per-step KL:     KL(Prefix Steering ‖ All-Step Steering) over generation steps
-# 3. Prefix-length sweep: KL averaged over the first K post-steer steps vs N
+# KL divergences use teacher-forced replay with greedy decoding (temperature=0):
+#   - KL_{prefix(m)||none}: replay the UNSTEERED continuation y^none under
+#     pi_none and pi_prefix(m) (both runs share the history (x, y^none_<t)).
+#   - KL_{prefix(m)||full}: replay the PREFIX-steered continuation y^prefix(m)
+#     under pi_prefix(m) and pi_full (both runs share (x, y^prefix(m)_<t)).
+# For each prefix length N, KL is averaged over the window t=N+1..N+K.
+# Concept KL is computed on the target-concept prompts; General KL is computed
+# on 10 MMLU-Pro prompts and plotted on a secondary axis.
 #
 # Usage:
 #   ./run_kl_divergence.sh [concept] [model] [layer_frac] [steer_tokens] [num_prompts] [max_new_tokens] [scale_mult] [steer_tokens_list] [num_post_steer_steps]
@@ -24,17 +26,24 @@
 # Args 8-9 (optional):
 #   steer_tokens_list      Comma-separated prefix lengths for the KL sweep
 #                          (e.g. "0,2,4,6,8,10"). Empty -> Python default.
+#                          This is the operative knob for the KL sweep output.
 #   num_post_steer_steps   Unsteered steps observed after steering ends (int).
 #                          Empty -> Python default.
 #
-# Output:
-#   outputs/prefix_analysis/{concept}/{model}/
-#     ├── kl_prefix_vs_no_steer.pdf
-#     ├── kl_prefix_vs_all_steer.pdf
-#     ├── kl_prefix_length_sweep.pdf
-#     └── analysis_report.md        (KL sections populated; attention sections empty)
+# Note: args 4 (steer_tokens) and 6 (max_new_tokens) are accepted for API
+# compatibility but only affect the (skipped) attention / legacy per-step paths;
+# the KL-only output is governed by steer_tokens_list and num_post_steer_steps.
 #
-# Note: For the full analysis including attention patterns, use run_analysis.sh instead.
+# Output (in outputs/prefix_analysis/{concept}/{model}/):
+#   ├── kl_prefix_length_concept_general_vs_no_steer.pdf
+#   │     Concept + General KL(prefix_N ‖ no_steer) vs prefix length N
+#   ├── kl_prefix_length_concept_general_vs_all_steer.pdf
+#   │     Concept + General KL(prefix_N ‖ all_steer) vs prefix length N
+#   └── analysis_report.md        (KL sweep section populated; attention empty)
+#
+# Note: the legacy per-step KL curves (kl_prefix_vs_*.pdf) and attention plots
+# are NOT produced by this KL-only run. For the full analysis (including
+# attention patterns), use run_analysis.sh instead.
 # =============================================================================
 set -euo pipefail
 
@@ -150,8 +159,14 @@ print()
 print('=' * 60)
 print('KL DIVERGENCE ANALYSIS COMPLETE')
 print('=' * 60)
-print(f'KL results:        {len(report.kl_results)} prompts')
-print(f'KL sweep result:   {\"present\" if report.kl_sweep_result is not None else \"None\"}')
+_sweep = report.kl_sweep_result
+_status = 'present' if _sweep is not None else 'None'
+print(f'KL sweep:          {_status}')
+if _sweep is not None:
+    print(f'  Concept prompts:  {_sweep.num_prompts}')
+    print(f'  General prompts:  {_sweep.num_general_prompts} (MMLU-Pro)')
+    print(f'  Prefix lengths:   {_sweep.steer_tokens_list}')
+print(f'Per-step KL:       {len(report.kl_results)} prompts (legacy per-step run disabled)')
 print(f'Attention results: {len(report.attention_results)} prompts (skipped)')
 print(f'Output dir:        ${OUTPUT_DIR}')
 "
@@ -161,6 +176,5 @@ echo -e "${GREEN}=== KL Divergence Analysis Complete ===${NC}"
 echo -e "Output directory: ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}${NC}"
 echo -e "Report:           ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/analysis_report.md${NC}"
 echo -e "KL plots:         ${BLUE}${OUTPUT_DIR}/${CONCEPT}/${SAFE_MODEL}/${NC}"
-echo -e "  - kl_prefix_vs_no_steer.pdf"
-echo -e "  - kl_prefix_vs_all_steer.pdf"
-echo -e "  - kl_prefix_length_sweep.pdf"
+echo -e "  - kl_prefix_length_concept_general_vs_no_steer.pdf"
+echo -e "  - kl_prefix_length_concept_general_vs_all_steer.pdf"
