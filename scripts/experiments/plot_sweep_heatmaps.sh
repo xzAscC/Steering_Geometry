@@ -41,12 +41,16 @@ if [[ -z "$OUTPUT_DIR" ]]; then
     OUTPUT_DIR="$(dirname "$RESULT_JSON")"
 fi
 
+# Pass inputs as argv (not interpolated source) so paths with quotes / shell
+# metacharacters cannot break the embedded Python.
 uv run python -u -c "
+import sys
+
 from steering_geometry.sweep_evaluation import load_sweep_result_json, plot_paper_sweep_heatmap
 
-result = load_sweep_result_json('${RESULT_JSON}')
-formats = [fmt for fmt in '${FORMATS}'.split(',') if fmt]
-paths = plot_paper_sweep_heatmap(result, output_dir='${OUTPUT_DIR}', formats=formats)
-for path in paths:
+result_json, output_dir, formats_csv = sys.argv[1:4]
+result = load_sweep_result_json(result_json)
+formats = [fmt for fmt in formats_csv.split(',') if fmt]
+for path in plot_paper_sweep_heatmap(result, output_dir=output_dir, formats=formats):
     print(f'Saved: {path}')
-"
+" "$RESULT_JSON" "$OUTPUT_DIR" "$FORMATS"
