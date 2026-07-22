@@ -632,6 +632,10 @@ class TestMMLUProEvaluator:
         assert "A. 3" in result
         assert "B. 4" in result
         assert "Answer:" in result
+        # use_cot=False must NOT inject the chain-of-thought instruction.
+        # If it did, the flag would have no observable effect on prompt format.
+        assert "step by step" not in result
+        assert "Think step by step" not in result
 
     def test_extract_answer_primary(self) -> None:
         """Test 'answer is (X)' pattern extraction."""

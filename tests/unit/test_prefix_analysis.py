@@ -1,6 +1,9 @@
 """Tests for prefix_analysis module."""
 
+import math
+from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 import torch
@@ -17,11 +20,14 @@ from steering_geometry.prefix_analysis import (
     _extract_attention_links,
     _extract_prefix_attention,
     _make_steering_hook,
+    _measure_prefix_length_kl_for_prompts,
     generate_analysis_report,
     per_token_kl_divergence,
     plot_attention_analysis,
     plot_attention_link_heatmap,
     plot_kl_divergence_curves,
+    plot_prefix_length_kl_sweep,
+    run_kl_divergence_experiment,
 )
 from steering_geometry.types import ContrastPair
 
@@ -156,6 +162,108 @@ class TestKLDivergence:
         logits_q = torch.tensor([[3.0]])
         kl = per_token_kl_divergence(logits_p, logits_q)
         assert kl == pytest.approx(0.0, abs=1e-6)
+
+
+class TestRunKLDivergenceExperiment:
+    """Tests for KL experiment orchestration (teacher-forced replay)."""
+
+    def test_kl_prefix_vs_none_uses_unsteered_trajectory(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """KL_{prefix||none} replays the UNSTEERED greedy continuation y^none.
+
+        Per arxiv.tex (pi-notation), KL_{prefix||none} fixes the trajectory to
+        y^none and replays it under pi_none and pi_prefix(m); both runs share
+        the token history (x, y^none_<t). KL_{prefix||full} instead fixes the
+        trajectory to the prefix-steered continuation y^prefix.
+        """
+        none_logits = [torch.tensor([[1.0, 0.0]]), torch.tensor([[0.0, 1.0]])]
+        prefix_logits = [torch.tensor([[3.0, 0.0]]), torch.tensor([[0.0, 3.0]])]
+        none_ids = [10, 11]
+        prefix_ids = [20, 21]
+        prefix_on_none = [torch.tensor([[2.0, 0.0]]), torch.tensor([[0.0, 2.0]])]
+        full_on_prefix = [torch.tensor([[0.0, 2.0]]), torch.tensor([[2.0, 0.0]])]
+        gen_calls: list[tuple[bool, int | None]] = []
+        score_calls: list[tuple[list[int], bool, int | None]] = []
+
+        def fake_generate_with_logits_and_ids(
+            model: HookedModel,
+            prompt: str,
+            layer_idx: int,
+            steering_vector: torch.Tensor | None,
+            scale: float,
+            max_new_tokens: int,
+            temperature: float,
+            steer_tokens: int | None,
+        ) -> tuple[str, list[torch.Tensor], list[int]]:
+            sv_none = steering_vector is None
+            gen_calls.append((sv_none, steer_tokens))
+            if sv_none:
+                return "none text", none_logits, none_ids
+            if steer_tokens is None:
+                return "all text", [torch.zeros(1, 2)], [30, 31]
+            return "prefix text", prefix_logits, prefix_ids
+
+        def fake_score_reference_logits(
+            model: HookedModel,
+            prompt: str,
+            reference_token_ids: list[int],
+            layer_idx: int,
+            steering_vector: torch.Tensor | None,
+            scale: float,
+            steer_tokens: int | None,
+        ) -> list[torch.Tensor]:
+            ref = list(reference_token_ids)
+            score_calls.append((ref, steering_vector is None, steer_tokens))
+            if ref == none_ids:
+                return prefix_on_none
+            if ref == prefix_ids:
+                return full_on_prefix
+            return [torch.zeros(1, 2)]
+
+        monkeypatch.setattr(
+            prefix_analysis,
+            "_generate_with_logits_and_ids",
+            fake_generate_with_logits_and_ids,
+        )
+        monkeypatch.setattr(
+            prefix_analysis,
+            "_score_reference_logits",
+            fake_score_reference_logits,
+        )
+
+        result = run_kl_divergence_experiment(
+            cast(HookedModel, object()),
+            prompts=["prompt"],
+            steering_vector=torch.ones(2),
+            layer_idx=0,
+            layer_frac=0.5,
+            scale=1.0,
+            steer_tokens=2,
+            max_new_tokens=2,
+        )[0]
+
+        # KL_{prefix||none}: prefix(2) replayed on the UNSTEERED trajectory y^none.
+        assert (none_ids, False, 2) in score_calls
+        # KL_{prefix||full}: full replayed on the PREFIX trajectory y^prefix.
+        assert (prefix_ids, False, None) in score_calls
+        # Must NOT replay the prefix trajectory under no-steer for KL_{prefix||none}
+        # (that was the old buggy behaviour).
+        assert not any(ref == prefix_ids and sv_none for ref, sv_none, _ in score_calls)
+
+        assert result.step_kl_no_steer == pytest.approx(
+            [
+                per_token_kl_divergence(prefix_on_none[0], none_logits[0]),
+                per_token_kl_divergence(prefix_on_none[1], none_logits[1]),
+            ]
+        )
+        assert result.step_kl_all_steer == pytest.approx(
+            [
+                per_token_kl_divergence(prefix_logits[0], full_on_prefix[0]),
+                per_token_kl_divergence(prefix_logits[1], full_on_prefix[1]),
+            ]
+        )
 
 
 # ===========================================================================
@@ -532,6 +640,117 @@ class TestPlotKLDivergenceCurves:
 
 
 # ===========================================================================
+# 6b. plot_prefix_length_kl_sweep
+# ===========================================================================
+
+
+class TestPlotPrefixLengthKLSweep:
+    """Tests for plot_prefix_length_kl_sweep."""
+
+    def test_creates_dual_axis_concept_and_general_kl_plots(self, tmp_path: Path) -> None:
+        """Should create one dual-axis plot per KL comparison when general KL exists."""
+
+        result = PrefixLengthKLSweepResult(
+            steer_tokens_list=[0, 1, 3],
+            kl_vs_no_steer={0: [[0.0]], 1: [[0.2]], 3: [[0.5]]},
+            kl_vs_all_steer={0: [[0.6]], 1: [[0.3]], 3: [[0.1]]},
+            general_kl_vs_no_steer={0: [[0.0]], 1: [[0.02]], 3: [[0.08]]},
+            general_kl_vs_all_steer={0: [[0.09]], 1: [[0.04]], 3: [[0.01]]},
+            layer_frac=0.7,
+            scale=1.0,
+            num_prompts=1,
+            num_general_prompts=10,
+        )
+
+        paths = plot_prefix_length_kl_sweep(result, tmp_path)
+        names = {p.name for p in paths}
+
+        assert names == {
+            "kl_prefix_length_concept_general_vs_no_steer.pdf",
+            "kl_prefix_length_concept_general_vs_all_steer.pdf",
+        }
+        for path in paths:
+            assert path.exists()
+            assert path.stat().st_size > 0
+
+    def test_uses_image_style_axis_labels_and_all_tick(self, tmp_path: Path) -> None:
+        """Plot should label concept/general KL axes and render the final all-steer tick."""
+        import matplotlib.pyplot as plt
+        from matplotlib.figure import Figure
+
+        result = PrefixLengthKLSweepResult(
+            steer_tokens_list=[0, 5, 15],
+            kl_vs_no_steer={0: [[0.0]], 5: [[0.5]], 15: [[0.9]]},
+            kl_vs_all_steer={0: [[0.7]], 5: [[0.2]], 15: [[0.0]]},
+            general_kl_vs_no_steer={0: [[0.0]], 5: [[0.03]], 15: [[0.15]]},
+            general_kl_vs_all_steer={0: [[0.12]], 5: [[0.06]], 15: [[0.0]]},
+            layer_frac=0.7,
+            scale=1.0,
+            num_prompts=1,
+            num_general_prompts=10,
+        )
+        captured_figs: list[Figure] = []
+
+        def _capture_close(fig: object | None = None) -> None:
+            if fig is not None:
+                captured_figs.append(cast(Figure, fig))
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(plt, "close", _capture_close)
+            plot_prefix_length_kl_sweep(result, tmp_path)
+
+        first_fig = captured_figs[0]
+        left_ax = first_fig.axes[0]
+        right_ax = first_fig.axes[1]
+
+        assert left_ax.get_ylabel() == "Concept KL"
+        assert right_ax.get_ylabel() == "General KL"
+        assert left_ax.get_xlabel() == "Early-token intervention length"
+        assert [tick.get_text() for tick in left_ax.get_xticklabels()] == ["0", "5", "15", "All"]
+        plt.close("all")
+
+    def test_vs_no_steer_all_tick_uses_exact_all_steer_kl(self, tmp_path: Path) -> None:
+        """Vs-no-steer All tick should use explicit all-steer-vs-no-steer KL."""
+        import matplotlib.pyplot as plt
+        from matplotlib.figure import Figure
+
+        result = PrefixLengthKLSweepResult(
+            steer_tokens_list=[0, 5],
+            kl_vs_no_steer={0: [[0.0]], 5: [[0.5]]},
+            kl_vs_all_steer={0: [[0.7]], 5: [[0.1]]},
+            all_steer_kl_vs_no_steer=[[0.9]],
+            general_kl_vs_no_steer={0: [[0.0]], 5: [[0.05]]},
+            general_kl_vs_all_steer={0: [[0.12]], 5: [[0.02]]},
+            general_all_steer_kl_vs_no_steer=[[0.2]],
+            layer_frac=0.7,
+            scale=1.0,
+            num_prompts=1,
+            num_general_prompts=10,
+        )
+        captured_figs: list[Figure] = []
+
+        def _capture_close(fig: object | None = None) -> None:
+            if fig is not None:
+                captured_figs.append(cast(Figure, fig))
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(plt, "close", _capture_close)
+            plot_prefix_length_kl_sweep(result, tmp_path)
+
+        left_ax = captured_figs[0].axes[0]
+        right_ax = captured_figs[0].axes[1]
+        left_ydata = [
+            float(value) for value in cast("Iterable[float]", left_ax.lines[0].get_ydata())
+        ]
+        right_ydata = [
+            float(value) for value in cast("Iterable[float]", right_ax.lines[0].get_ydata())
+        ]
+        assert left_ydata == [0.0, 0.5, 0.9]
+        assert right_ydata == [0.0, 0.05, 0.2]
+        plt.close("all")
+
+
+# ===========================================================================
 # 7. plot_attention_analysis
 # ===========================================================================
 
@@ -900,6 +1119,7 @@ class TestRunPrefixAnalysisOutputLayout:
             steer_tokens_list: list[int] | None = None,
             temperature: float = 0.0,
             num_post_steer_steps: int = 1,
+            general_prompts: list[str] | None = None,
         ) -> PrefixLengthKLSweepResult:
             return PrefixLengthKLSweepResult(
                 steer_tokens_list=[0],
@@ -1015,6 +1235,7 @@ class TestRunPrefixAnalysisOutputLayout:
             steer_tokens_list: list[int] | None = None,
             temperature: float = 0.0,
             num_post_steer_steps: int = 1,
+            general_prompts: list[str] | None = None,
         ) -> PrefixLengthKLSweepResult:
             captured["steer_tokens_list"] = list(steer_tokens_list or [])
             captured["num_post_steer_steps"] = num_post_steer_steps
@@ -1066,6 +1287,87 @@ class TestRunPrefixAnalysisOutputLayout:
 
         assert captured["steer_tokens_list"] == [0, 5, 10]
         assert captured["num_post_steer_steps"] == 3
+
+    def test_run_prefix_analysis_uses_ten_mmlu_pro_prompts_for_general_kl(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """run_prefix_analysis should include 10 MMLU-Pro prompts for General KL."""
+
+        class FakeHookedModel:
+            def resolve_layers(self, layer_fracs: list[float]) -> list[int]:
+                return [0 for _ in layer_fracs]
+
+        captured: dict[str, object] = {}
+
+        def fake_load_contrast_pairs(
+            requested_concept: str,
+            num_prompts: int,
+            data_mode: str | None = None,
+        ) -> list[ContrastPair]:
+            return [
+                ContrastPair(
+                    positive=f"positive {idx}",
+                    negative=f"negative {idx}",
+                    metadata={"concept": requested_concept, "dataset": data_mode or "default"},
+                )
+                for idx in range(num_prompts)
+            ]
+
+        def fake_load_mmlu_pro_prompts(model: HookedModel, num_prompts: int) -> list[str]:
+            captured["mmlu_num_prompts"] = num_prompts
+            return [f"mmlu prompt {idx}" for idx in range(num_prompts)]
+
+        def fake_run_prefix_length_kl_sweep(
+            model: HookedModel,
+            prompts: list[str],
+            steering_vector: torch.Tensor,
+            layer_idx: int,
+            layer_frac: float,
+            scale: float,
+            steer_tokens_list: list[int] | None = None,
+            temperature: float = 0.0,
+            num_post_steer_steps: int = 1,
+            general_prompts: list[str] | None = None,
+        ) -> PrefixLengthKLSweepResult:
+            captured["general_prompts"] = list(general_prompts or [])
+            return PrefixLengthKLSweepResult(
+                steer_tokens_list=list(steer_tokens_list or []),
+                kl_vs_no_steer={0: [[0.1]]},
+                kl_vs_all_steer={0: [[0.2]]},
+                layer_frac=layer_frac,
+                scale=scale,
+                num_prompts=len(prompts),
+                num_post_steer_steps=num_post_steer_steps,
+            )
+
+        monkeypatch.setattr(prefix_analysis, "HookedModel", lambda config: FakeHookedModel())
+        monkeypatch.setattr(prefix_analysis.torch, "load", lambda *args, **kwargs: torch.ones(8))
+        monkeypatch.setattr(prefix_analysis, "load_contrast_pairs", fake_load_contrast_pairs)
+        monkeypatch.setattr(prefix_analysis, "_compute_avg_activation", lambda *args: 1.0)
+        monkeypatch.setattr(prefix_analysis, "_load_mmlu_pro_prompts", fake_load_mmlu_pro_prompts)
+        monkeypatch.setattr(
+            prefix_analysis,
+            "run_prefix_length_kl_sweep",
+            fake_run_prefix_length_kl_sweep,
+        )
+        monkeypatch.setattr(prefix_analysis, "plot_prefix_length_kl_sweep", lambda *a, **k: [])
+        monkeypatch.setattr(prefix_analysis, "plot_kl_divergence_curves", lambda *a, **k: [])
+        monkeypatch.setattr(
+            prefix_analysis, "generate_analysis_report", lambda *a, **k: tmp_path / "report.md"
+        )
+
+        prefix_analysis.run_prefix_analysis(
+            model_name="Qwen/Qwen3-1.7B",
+            concept="sentiment",
+            vector_path=tmp_path / "vector.pt",
+            run_attention=False,
+            output_dir=tmp_path,
+        )
+
+        assert captured["mmlu_num_prompts"] == 10
+        assert captured["general_prompts"] == [f"mmlu prompt {idx}" for idx in range(10)]
 
 
 # ===========================================================================
@@ -1273,3 +1575,376 @@ class TestComputeAvgActivation:
             steering_vector=steering_vector,
         )
         assert result == pytest.approx(5.0, rel=1e-4)
+
+
+# ===========================================================================
+# 14. Teacher-forced replay trajectories (KL methodology fix, arxiv.tex)
+# ===========================================================================
+
+
+class _KVLayer(torch.nn.Module):
+    """Layer whose forward output a registered hook can modify."""
+
+    def __init__(self, hidden_dim: int) -> None:
+        super().__init__()
+        self.scale = torch.nn.Parameter(torch.ones(hidden_dim))
+
+    def forward(self, hidden: torch.Tensor) -> torch.Tensor:
+        return hidden * self.scale
+
+
+class _KVOutput:
+    def __init__(self, logits: torch.Tensor, past_key_values: object) -> None:
+        self.logits = logits
+        self.past_key_values = past_key_values
+
+
+class _KVCacheCausalLM(torch.nn.Module):
+    """Causal LM stub supporting ``use_cache`` + ``past_key_values`` + logits.
+
+    Layers run so registered forward hooks fire and can modify the last
+    position's hidden state, which then propagates to that position's logits.
+    """
+
+    def __init__(
+        self, num_layers: int = 2, hidden_dim: int = 8, vocab_size: int = 20, seed: int = 1
+    ) -> None:
+        super().__init__()
+        gen = torch.Generator().manual_seed(seed)
+        self.layers = torch.nn.ModuleList([_KVLayer(hidden_dim) for _ in range(num_layers)])
+        self.embed = torch.nn.Parameter(torch.randn(vocab_size, hidden_dim, generator=gen))
+        self.unembed = torch.nn.Parameter(torch.randn(hidden_dim, vocab_size, generator=gen))
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        past_key_values: object | None = None,
+        use_cache: bool = True,
+        **kwargs: object,
+    ) -> _KVOutput:
+        hidden = self.embed[input_ids]
+        for layer in self.layers:
+            hidden = layer(hidden)
+        logits = hidden @ self.unembed
+        return _KVOutput(logits=logits, past_key_values=input_ids if use_cache else None)
+
+
+class _KVTokenizer:
+    """Tokenizer stub with a real ``eos_token_id`` for generation-style tests."""
+
+    def __init__(self, eos_token_id: int = -1) -> None:
+        self.eos_token_id = eos_token_id
+        self.pad_token = None
+        self.pad_token_id = 0
+
+    def __call__(
+        self, text: str, return_tensors: str = "pt", **kwargs: object
+    ) -> dict[str, torch.Tensor]:
+        ids = [(ord(c) % 19) + 5 for c in text] or [5]
+        tensor = torch.tensor([ids], dtype=torch.long)
+        return {"input_ids": tensor, "attention_mask": torch.ones_like(tensor)}
+
+    def decode(self, token_ids: object, skip_special_tokens: bool = True) -> str:
+        return "decoded"
+
+
+def _make_kv_model(num_layers: int = 2, hidden_dim: int = 8, vocab_size: int = 20) -> HookedModel:
+    model = HookedModel.__new__(HookedModel)
+    model.model = _KVCacheCausalLM(num_layers, hidden_dim, vocab_size)  # type: ignore[assignment]
+    model.tokenizer = _KVTokenizer()  # type: ignore[assignment]
+    model.config = None  # type: ignore[assignment]
+    return model
+
+
+class TestMeasurePrefixLengthKLSweepTrajectories:
+    """Teacher-forced trajectories must match the paper (arxiv.tex pi-notation).
+
+    ``KL_{prefix(N)||none}`` replays the UNSTEERED greedy continuation
+    ``y^none`` under ``pi_prefix(N)`` and ``pi_none`` (shared history
+    ``(x, y^none_<t)``). ``KL_{prefix(N)||full}`` replays the PREFIX-steered
+    continuation ``y^prefix(N)`` under ``pi_prefix(N)`` and ``pi_full``.
+    """
+
+    @staticmethod
+    def _install_recorders(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+        gen_calls: list[dict[str, object]] = []
+        score_calls: list[dict[str, object]] = []
+
+        def fake_gen(
+            model: HookedModel,
+            prompt: str,
+            layer_idx: int,
+            steering_vector: torch.Tensor | None,
+            scale: float,
+            max_new_tokens: int,
+            temperature: float,
+            steer_tokens: int | None,
+        ) -> tuple[str, list[torch.Tensor], list[int]]:
+            sv_none = steering_vector is None
+            gen_calls.append(
+                {
+                    "sv_none": sv_none,
+                    "steer_tokens": steer_tokens,
+                    "max_new_tokens": max_new_tokens,
+                }
+            )
+            count = int(max_new_tokens)
+            if sv_none:
+                ids = [100 + i for i in range(count)]
+            elif steer_tokens is None:
+                ids = [200 + i for i in range(count)]
+            else:
+                ids = [300 + int(steer_tokens) + i for i in range(count)]
+            logits = [torch.tensor([[float(i), 0.0]]) for i in range(count)]
+            return "txt", logits, ids
+
+        def fake_score(
+            model: HookedModel,
+            prompt: str,
+            reference_token_ids: list[int],
+            layer_idx: int,
+            steering_vector: torch.Tensor | None,
+            scale: float,
+            steer_tokens: int | None,
+        ) -> list[torch.Tensor]:
+            score_calls.append(
+                {
+                    "ref": list(reference_token_ids),
+                    "sv_none": steering_vector is None,
+                    "steer_tokens": steer_tokens,
+                }
+            )
+            return [torch.tensor([[0.0, float(i)]]) for i in range(len(reference_token_ids))]
+
+        monkeypatch.setattr(prefix_analysis, "_generate_with_logits_and_ids", fake_gen)
+        monkeypatch.setattr(prefix_analysis, "_score_reference_logits", fake_score)
+        return gen_calls, score_calls
+
+    def test_prefix_vs_none_replays_unsteered_trajectory(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        gen_calls, score_calls = self._install_recorders(monkeypatch)
+        max_tokens_needed = 2 + 1
+        none_ids = [100 + i for i in range(max_tokens_needed)]
+
+        _measure_prefix_length_kl_for_prompts(
+            cast(HookedModel, object()),
+            prompts=["p"],
+            steering_vector=torch.ones(2),
+            layer_idx=0,
+            scale=1.0,
+            steer_tokens_list=[0, 2],
+            temperature=0.0,
+            num_post_steer_steps=1,
+        )
+
+        # y^none generated exactly once (unsteered baseline).
+        assert len([c for c in gen_calls if c["sv_none"]]) == 1
+        # KL_{prefix||none}: prefix(N) replayed on the UNSTEERED trajectory y^none.
+        for n in [0, 2]:
+            assert any(sc["ref"] == none_ids and sc["steer_tokens"] == n for sc in score_calls), (
+                f"KL_prefix||none must replay y^none under prefix({n})"
+            )
+        # All-tick (m -> inf): full replayed on the UNSTEERED trajectory y^none.
+        assert any(sc["ref"] == none_ids and sc["steer_tokens"] is None for sc in score_calls)
+
+    def test_prefix_vs_full_replays_prefix_trajectory(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _, score_calls = self._install_recorders(monkeypatch)
+        _measure_prefix_length_kl_for_prompts(
+            cast(HookedModel, object()),
+            prompts=["p"],
+            steering_vector=torch.ones(2),
+            layer_idx=0,
+            scale=1.0,
+            steer_tokens_list=[0, 2],
+            temperature=0.0,
+            num_post_steer_steps=1,
+        )
+        # KL_{prefix||full}: full replayed on the PREFIX-steered trajectory y^prefix(N).
+        for n in [0, 2]:
+            prefix_ids_n = [300 + n + i for i in range(n + 1)]
+            assert any(
+                sc["ref"] == prefix_ids_n and sc["steer_tokens"] is None for sc in score_calls
+            ), f"KL_prefix||full must replay y^prefix({n}) under full"
+
+    def test_vs_none_does_not_replay_prefix_history(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Regression guard: KL_{prefix||none} must NOT replay the prefix trajectory."""
+        _, score_calls = self._install_recorders(monkeypatch)
+        _measure_prefix_length_kl_for_prompts(
+            cast(HookedModel, object()),
+            prompts=["p"],
+            steering_vector=torch.ones(2),
+            layer_idx=0,
+            scale=1.0,
+            steer_tokens_list=[0, 2],
+            temperature=0.0,
+            num_post_steer_steps=1,
+        )
+        for n in [0, 2]:
+            prefix_ids_n = [300 + n + i for i in range(n + 1)]
+            bad = [
+                sc
+                for sc in score_calls
+                if sc["ref"] == prefix_ids_n and sc["steer_tokens"] is not None
+            ]
+            assert not bad, f"prefix({n}) trajectory must not be replayed under prefix steering"
+
+
+class TestSweepRunsOnFakeKVModel:
+    """End-to-end smoke: the sweep runs on a KV-cache fake and yields finite KL."""
+
+    def test_returns_finite_kl_values(self) -> None:
+        model = _make_kv_model()
+        kl_no, kl_all, all_kl = _measure_prefix_length_kl_for_prompts(
+            model,
+            prompts=["ab", "cd"],
+            steering_vector=torch.ones(8),
+            layer_idx=0,
+            scale=0.5,
+            steer_tokens_list=[0, 2],
+            temperature=0.0,
+            num_post_steer_steps=1,
+        )
+
+        assert set(kl_no.keys()) == {0, 2}
+        assert set(kl_all.keys()) == {0, 2}
+        for n in [0, 2]:
+            for prompt_kl in kl_no[n] + kl_all[n]:
+                for value in prompt_kl:
+                    assert math.isfinite(value), f"non-finite KL at n={n}: {value}"
+        for prompt_kl in all_kl:
+            for value in prompt_kl:
+                assert math.isfinite(value)
+
+
+class TestGreedyDecodingEnforced:
+    """Teacher-forced KL methodology requires a deterministic (greedy) reference
+    trajectory; a non-zero temperature would sample that trajectory and break it."""
+
+    def test_measure_rejects_nonzero_temperature(self) -> None:
+        with pytest.raises(AssertionError):
+            _measure_prefix_length_kl_for_prompts(
+                cast(HookedModel, object()),
+                prompts=["p"],
+                steering_vector=torch.ones(2),
+                layer_idx=0,
+                scale=1.0,
+                steer_tokens_list=[0],
+                temperature=0.5,
+                num_post_steer_steps=1,
+            )
+
+    def test_run_kl_experiment_rejects_nonzero_temperature(self) -> None:
+        with pytest.raises(AssertionError):
+            run_kl_divergence_experiment(
+                cast(HookedModel, object()),
+                prompts=["p"],
+                steering_vector=torch.ones(2),
+                layer_idx=0,
+                layer_frac=0.5,
+                scale=1.0,
+                steer_tokens=2,
+                max_new_tokens=2,
+                temperature=0.7,
+            )
+
+
+# ---------------------------------------------------------------------------
+# EOS handling in teacher-forced replay
+# ---------------------------------------------------------------------------
+
+
+class _FakeForwardOutput:
+    """Minimal stand-in for transformers model outputs used by the generator."""
+
+    def __init__(self, logits: torch.Tensor, past_key_values: object) -> None:
+        self.logits = logits
+        self.past_key_values = past_key_values
+
+
+class _FakeModelForEosTest:
+    """Tiny stand-in for HookedModel whose first generated token is EOS.
+
+    The model produces a vocab of 4 tokens. The first forward pass returns a
+    one-hot-like logit tensor whose argmax is ``eos_token_id``. Subsequent
+    calls return different logits so that any loop that fails to break on the
+    initial EOS will produce additional (invalid) entries.
+    """
+
+    def __init__(self, eos_token_id: int = 3, vocab_size: int = 4) -> None:
+        self.eos_token_id = eos_token_id
+        self.vocab_size = vocab_size
+        self._call_count = 0
+        self._params = torch.nn.Parameter(torch.zeros(1))
+        self.model = self
+
+    def parameters(self, recurse: bool = True) -> Iterator[torch.nn.Parameter]:
+        del recurse
+        yield self._params
+
+    def _get_layers_module(self) -> list[torch.nn.Module]:
+        return [torch.nn.Identity()]
+
+    def __call__(
+        self,
+        input_ids: torch.Tensor,
+        use_cache: bool = True,
+        past_key_values: object | None = None,
+    ) -> _FakeForwardOutput:
+        del input_ids, use_cache, past_key_values
+        self._call_count += 1
+        logits = torch.full((1, 1, self.vocab_size), -10.0)
+        if self._call_count == 1:
+            # First call → argmax is EOS.
+            logits[0, -1, self.eos_token_id] = 10.0
+        else:
+            # Subsequent calls → argmax is some non-EOS token.
+            non_eos = (self.eos_token_id + 1) % self.vocab_size
+            logits[0, -1, non_eos] = 10.0
+        return _FakeForwardOutput(logits=logits, past_key_values=object())
+
+
+class _FakeTokenizerForEosTest:
+    """Tokenizer stand-in: returns a fixed prompt encoding and EOS id."""
+
+    def __init__(self, eos_token_id: int = 3) -> None:
+        self.eos_token_id = eos_token_id
+
+    def __call__(self, prompt: str, return_tensors: str = "pt") -> dict[str, torch.Tensor]:
+        del prompt, return_tensors
+        return {"input_ids": torch.tensor([[1, 2, 3]], dtype=torch.long)}
+
+    def decode(self, token_ids: torch.Tensor | list[int], skip_special_tokens: bool = True) -> str:
+        del skip_special_tokens
+        ids = token_ids.tolist() if isinstance(token_ids, torch.Tensor) else token_ids
+        return "".join(chr(97 + (t % 26)) for t in ids)
+
+
+class TestInitialEosTerminatesAutoregressiveLoop:
+    """Regression tests: first-token EOS must end generation immediately."""
+
+    def test_generate_with_logits_and_ids_stops_at_initial_eos(self) -> None:
+        """RED → GREEN: when the first generated token is EOS, all_logits and
+        generated_ids must have length 1 (not max_new_tokens)."""
+        from steering_geometry.prefix_analysis import _generate_with_logits_and_ids
+
+        fake_model = cast(HookedModel, _FakeModelForEosTest(eos_token_id=3))
+        # Attach the matching tokenizer.
+        object.__setattr__(fake_model, "tokenizer", _FakeTokenizerForEosTest(eos_token_id=3))
+
+        _, all_logits, generated_ids = _generate_with_logits_and_ids(
+            model=fake_model,
+            prompt="prompt",
+            layer_idx=0,
+            steering_vector=None,
+            scale=0.0,
+            max_new_tokens=5,
+            temperature=0.0,
+            steer_tokens=None,
+        )
+        assert generated_ids == [3]
+        assert len(all_logits) == 1

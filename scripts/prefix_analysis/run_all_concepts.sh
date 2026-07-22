@@ -20,7 +20,8 @@
 #   outputs/prefix_analysis/{concept}/{model}/
 #     ├── attention_to_prefix.pdf
 #     ├── attention_cosine_shift.pdf
-#     ├── kl_prefix_length_sweep.pdf
+#     ├── kl_prefix_length_concept_general_vs_no_steer.pdf
+#     ├── kl_prefix_length_concept_general_vs_all_steer.pdf
 #     └── analysis_report.md
 # =============================================================================
 set -euo pipefail

@@ -829,6 +829,10 @@ class MMLUProEvaluator:
         'Think step by step and then finish your answer with "the answer is (X)" '
         "where X is the correct letter choice."
     )
+    NON_COT_PROMPT_TEMPLATE = (
+        "The following are multiple choice questions (with answers) about {category}.\n"
+        'Answer with the letter of the correct choice in the form "the answer is (X)".'
+    )
     CHOICES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 
     REFUSAL_PATTERNS = [
@@ -899,12 +903,20 @@ class MMLUProEvaluator:
         return question
 
     def _format_cot_example(self, example: MMLUProQuestion, include_answer: bool = True) -> str:
-        """Format a single example for few-shot CoT prompt.
+        """Format a single example for a few-shot MMLU-Pro prompt.
+
+        Branches on ``self.config.use_cot``:
+
+        - CoT mode: few-shot answers include the dataset's ``cot_content`` chain
+          before the final letter, and the test question is probed with
+          ``Answer: Let's think step by step.``.
+        - Non-CoT mode: ``cot_content`` is skipped and the test question is
+          probed with a bare ``Answer:`` instruction.
 
         Args:
             example: Question dict with question text, options, and CoT content.
-            include_answer: If True, append the answer; if False, append
-                "Let's think step by step." for the test question.
+            include_answer: If True, append the answer (with CoT if enabled);
+                if False, append the probe for the test question.
 
         Returns:
             Formatted example string.
@@ -916,28 +928,41 @@ class MMLUProEvaluator:
                 parts.append(f"{self.CHOICES[i]}. {opt}")
 
         if include_answer:
-            cot = example.get("cot_content", "")
-            if cot:
-                parts.append(cot)
+            if self.config.use_cot:
+                cot = example.get("cot_content", "")
+                if cot:
+                    parts.append(cot)
             parts.append(f"The answer is ({example.get('answer', '')})")
             parts.append("")
         else:
-            parts.append("Answer: Let's think step by step.")
+            parts.append("Answer: Let's think step by step." if self.config.use_cot else "Answer:")
 
         return "\n".join(parts)
 
     def format_prompt(self, question: MMLUProQuestion, few_shot: list[MMLUProQuestion]) -> str:
-        """Format full evaluation prompt with n-shot CoT examples.
+        """Format the full MMLU-Pro evaluation prompt.
+
+        Selects the category header template based on ``self.config.use_cot``:
+
+        - CoT mode uses ``COT_PROMPT_TEMPLATE`` ("Think step by step and then
+          finish your answer with 'the answer is (X)'").
+        - Non-CoT mode uses ``NON_COT_PROMPT_TEMPLATE`` (direct "Answer with
+          the letter of the correct choice").
+
+        Then prepends ``n_shot`` few-shot examples (formatted via
+        :meth:`_format_cot_example`, which also branches on ``use_cot``) and
+        appends the test question.
 
         Args:
             question: Test question dict.
-            few_shot: List of validation examples to prepend as CoT demonstrations.
+            few_shot: List of validation examples to prepend as demonstrations.
 
         Returns:
             Full prompt string: category template + few-shot examples + test question.
         """
         category = question.get("category", "")
-        parts = [self.COT_PROMPT_TEMPLATE.format(category=category), ""]
+        template = self.COT_PROMPT_TEMPLATE if self.config.use_cot else self.NON_COT_PROMPT_TEMPLATE
+        parts = [template.format(category=category), ""]
 
         for example in few_shot[: self.config.n_shot]:
             parts.append(self._format_cot_example(example, include_answer=True))

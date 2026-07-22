@@ -52,3 +52,7 @@ outputs/
 # agent files
 .omo/
 .playwright-mcp/
+
+# jupyter notebook
+*.ipynb
+notebooks/
