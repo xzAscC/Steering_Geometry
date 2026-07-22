@@ -1,7 +1,7 @@
 """Tests for prefix_analysis module."""
 
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import cast
 
@@ -1851,3 +1851,100 @@ class TestGreedyDecodingEnforced:
                 max_new_tokens=2,
                 temperature=0.7,
             )
+
+
+# ---------------------------------------------------------------------------
+# EOS handling in teacher-forced replay
+# ---------------------------------------------------------------------------
+
+
+class _FakeForwardOutput:
+    """Minimal stand-in for transformers model outputs used by the generator."""
+
+    def __init__(self, logits: torch.Tensor, past_key_values: object) -> None:
+        self.logits = logits
+        self.past_key_values = past_key_values
+
+
+class _FakeModelForEosTest:
+    """Tiny stand-in for HookedModel whose first generated token is EOS.
+
+    The model produces a vocab of 4 tokens. The first forward pass returns a
+    one-hot-like logit tensor whose argmax is ``eos_token_id``. Subsequent
+    calls return different logits so that any loop that fails to break on the
+    initial EOS will produce additional (invalid) entries.
+    """
+
+    def __init__(self, eos_token_id: int = 3, vocab_size: int = 4) -> None:
+        self.eos_token_id = eos_token_id
+        self.vocab_size = vocab_size
+        self._call_count = 0
+        self._params = torch.nn.Parameter(torch.zeros(1))
+        self.model = self
+
+    def parameters(self, recurse: bool = True) -> Iterator[torch.nn.Parameter]:
+        del recurse
+        yield self._params
+
+    def _get_layers_module(self) -> list[torch.nn.Module]:
+        return [torch.nn.Identity()]
+
+    def __call__(
+        self,
+        input_ids: torch.Tensor,
+        use_cache: bool = True,
+        past_key_values: object | None = None,
+    ) -> _FakeForwardOutput:
+        del input_ids, use_cache, past_key_values
+        self._call_count += 1
+        logits = torch.full((1, 1, self.vocab_size), -10.0)
+        if self._call_count == 1:
+            # First call → argmax is EOS.
+            logits[0, -1, self.eos_token_id] = 10.0
+        else:
+            # Subsequent calls → argmax is some non-EOS token.
+            non_eos = (self.eos_token_id + 1) % self.vocab_size
+            logits[0, -1, non_eos] = 10.0
+        return _FakeForwardOutput(logits=logits, past_key_values=object())
+
+
+class _FakeTokenizerForEosTest:
+    """Tokenizer stand-in: returns a fixed prompt encoding and EOS id."""
+
+    def __init__(self, eos_token_id: int = 3) -> None:
+        self.eos_token_id = eos_token_id
+
+    def __call__(self, prompt: str, return_tensors: str = "pt") -> dict[str, torch.Tensor]:
+        del prompt, return_tensors
+        return {"input_ids": torch.tensor([[1, 2, 3]], dtype=torch.long)}
+
+    def decode(self, token_ids: torch.Tensor | list[int], skip_special_tokens: bool = True) -> str:
+        del skip_special_tokens
+        ids = token_ids.tolist() if isinstance(token_ids, torch.Tensor) else token_ids
+        return "".join(chr(97 + (t % 26)) for t in ids)
+
+
+class TestInitialEosTerminatesAutoregressiveLoop:
+    """Regression tests: first-token EOS must end generation immediately."""
+
+    def test_generate_with_logits_and_ids_stops_at_initial_eos(self) -> None:
+        """RED → GREEN: when the first generated token is EOS, all_logits and
+        generated_ids must have length 1 (not max_new_tokens)."""
+        from steering_geometry.prefix_analysis import _generate_with_logits_and_ids
+
+        fake_model = cast(HookedModel, _FakeModelForEosTest(eos_token_id=3))
+        # Attach the matching tokenizer.
+        object.__setattr__(fake_model, "tokenizer", _FakeTokenizerForEosTest(eos_token_id=3))
+
+        _, all_logits, generated_ids = _generate_with_logits_and_ids(
+            model=fake_model,
+            prompt="prompt",
+            layer_idx=0,
+            steering_vector=None,
+            scale=0.0,
+            max_new_tokens=5,
+            temperature=0.0,
+            steer_tokens=None,
+        )
+        assert generated_ids == [3]
+        assert len(all_logits) == 1

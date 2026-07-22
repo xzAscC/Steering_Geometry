@@ -327,6 +327,14 @@ def _generate_with_logits_and_ids(
 
             generated_ids.append(int(next_token.item()))
 
+            # If the very first generated token is EOS, stop before entering the
+            # autoregressive loop. Otherwise we replay past termination and the
+            # returned logits/logit_ids carry invalid post-EOS positions.
+            if int(next_token.item()) == model.tokenizer.eos_token_id:
+                raw_text = model.tokenizer.decode(generated_ids, skip_special_tokens=True)
+                assert isinstance(raw_text, str)
+                return raw_text, all_logits, generated_ids
+
             # Autoregressive loop
             for _ in range(max_new_tokens - 1):
                 outputs = model.model(
