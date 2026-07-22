@@ -6,13 +6,15 @@ for sentiment/politeness) and MMLU-Pro, then produces heatmap plots of the
 results.
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
 import logging
 import random
 from pathlib import Path
-from typing import Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, cast
 
 import numpy as np
 import torch
@@ -25,6 +27,10 @@ from .models import HookedModel
 from .utils import configure_logging, ensure_dir, safe_model_name
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.colors import Colormap
 
 
 class SweepCellResult(TypedDict):
@@ -48,6 +54,9 @@ class SweepResult(TypedDict):
     steer_tokens_values: list[int | None]
     cells: list[SweepCellResult]
     output_dir: str
+
+
+SweepMetric = Literal["concept_score", "mmlu_pro_accuracy"]
 
 
 def run_sweep_evaluation(
@@ -438,6 +447,271 @@ def plot_sweep_heatmaps(
     return saved_paths
 
 
+def load_sweep_result_json(path: str | Path) -> SweepResult:
+    """Load a saved sweep_results.json file."""
+    with Path(path).open() as f:
+        return cast(SweepResult, json.load(f))
+
+
+def _format_alpha_label(multiplier: float) -> str:
+    return rf"$\alpha={multiplier:g}$"
+
+
+def _format_tokens_label(steer_tokens: int | None) -> str:
+    if steer_tokens is None:
+        return "all"
+    return str(steer_tokens)
+
+
+def _format_prefix_label(steer_tokens: int | None) -> str:
+    if steer_tokens is None:
+        return "L"
+    return str(steer_tokens)
+
+
+_CONCEPT_DISPLAY: dict[str, str] = {
+    "refusal": "Safety",
+    "polite": "Politeness",
+    "sentiment": "Sentiment",
+}
+
+
+def _concept_display_name(concept: str) -> str:
+    return _CONCEPT_DISPLAY.get(concept, concept.title())
+
+
+def _build_token_by_alpha_matrix(result: SweepResult, metric: SweepMetric) -> np.ndarray:
+    multipliers = result["multipliers"]
+    steer_tokens_values = result["steer_tokens_values"]
+    matrix = np.full((len(steer_tokens_values), len(multipliers)), np.nan)
+    cell_map: dict[tuple[float, int | None], SweepCellResult] = {
+        (cell["multiplier"], cell["steer_tokens"]): cell for cell in result["cells"]
+    }
+
+    for row_idx, steer_tokens in enumerate(steer_tokens_values):
+        for col_idx, multiplier in enumerate(multipliers):
+            cell = cell_map.get((multiplier, steer_tokens))
+            if cell is not None:
+                matrix[row_idx, col_idx] = cell[metric]
+
+    return matrix
+
+
+def _annotate_heatmap_cells(ax: Axes, matrix: np.ndarray, fontsize: float = 9.0) -> None:
+    finite_values = matrix[np.isfinite(matrix)]
+    if finite_values.size:
+        color_flip = float(finite_values.min() + 0.68 * (finite_values.max() - finite_values.min()))
+    else:
+        color_flip = 0.0
+
+    for row_idx in range(matrix.shape[0]):
+        for col_idx in range(matrix.shape[1]):
+            value = matrix[row_idx, col_idx]
+            if np.isnan(value):
+                label = "--"
+                color = "#333333"
+            else:
+                label = f"{value:.2f}"
+                color = "white" if value > color_flip else "#222222"
+            ax.text(
+                col_idx, row_idx, label, ha="center", va="center", fontsize=fontsize, color=color
+            )
+
+
+def _draw_tradeoff_panel(
+    ax: Axes,
+    matrix: np.ndarray,
+    cmap: Colormap,
+    x_labels: list[str],
+    y_labels: list[str],
+    tick_fontsize: float = 9.0,
+    annotation_fontsize: float = 9.0,
+    grid_linewidth: float = 1.1,
+) -> None:
+    finite_values = matrix[np.isfinite(matrix)]
+    vmin = float(finite_values.min()) if finite_values.size else 0.0
+    vmax = float(finite_values.max()) if finite_values.size else 1.0
+    if vmin == vmax:
+        vmax = vmin + 1.0
+    ax.imshow(matrix, cmap=cmap, aspect="auto", vmin=vmin, vmax=vmax)
+    ax.set_xticks(range(len(x_labels)))
+    ax.set_xticklabels(x_labels, fontsize=tick_fontsize)
+    ax.set_yticks(range(len(y_labels)))
+    ax.set_yticklabels(y_labels, fontsize=tick_fontsize)
+    ax.set_xticks(np.arange(-0.5, len(x_labels), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(y_labels), 1), minor=True)
+    ax.grid(which="minor", color="white", linestyle="-", linewidth=grid_linewidth)
+    ax.tick_params(which="minor", bottom=False, left=False)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    _annotate_heatmap_cells(ax, matrix, fontsize=annotation_fontsize)
+
+
+def plot_paper_sweep_heatmap(
+    result: SweepResult,
+    output_dir: str | Path | None = None,
+    formats: list[str] | None = None,
+) -> list[Path]:
+    """Generate the paper-style sweep trade-off heatmap."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LinearSegmentedColormap
+
+    if formats is None:
+        formats = ["pdf", "png"]
+    if output_dir is None:
+        output_dir = result["output_dir"]
+
+    output_path = ensure_dir(Path(output_dir))
+    multipliers = result["multipliers"]
+    steer_tokens_values = result["steer_tokens_values"]
+    x_labels = [_format_alpha_label(multiplier) for multiplier in multipliers]
+    y_labels = [_format_tokens_label(steer_tokens) for steer_tokens in steer_tokens_values]
+
+    target_matrix = _build_token_by_alpha_matrix(result, "concept_score")
+    general_matrix = _build_token_by_alpha_matrix(result, "mmlu_pro_accuracy")
+
+    steering_color = "#ff7f0e"
+    general_color = "#2ca02c"
+    target_cmap = LinearSegmentedColormap.from_list("paper_target", ["#fff3df", steering_color])
+    general_cmap = LinearSegmentedColormap.from_list("paper_general", ["#eaf7e8", general_color])
+
+    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.7), sharey=True)
+
+    _draw_tradeoff_panel(axes[0], target_matrix, target_cmap, x_labels, y_labels)
+    axes[0].set_title("Target Concept", fontsize=11, fontweight="bold", pad=8)
+    axes[0].set_xlabel("Steering strength", fontsize=9)
+
+    _draw_tradeoff_panel(axes[1], general_matrix, general_cmap, x_labels, y_labels)
+    axes[1].set_title("General Ability", fontsize=11, fontweight="bold", pad=8)
+    axes[1].set_xlabel("Steering strength", fontsize=9)
+
+    axes[0].set_ylabel("Tokens", fontsize=9)
+    fig.suptitle(
+        f"{_concept_display_name(result['concept'])} sweep ({result['model']})",
+        fontsize=10,
+        y=1.02,
+    )
+    fig.tight_layout(w_pad=1.4)
+
+    saved_paths: list[Path] = []
+    for fmt in formats:
+        path = output_path / f"sweep_tradeoff_table_heatmap.{fmt}"
+        fig.savefig(path, bbox_inches="tight", format=fmt)
+        saved_paths.append(path)
+        logger.info("Saved paper-style sweep heatmap to %s", path)
+    plt.close(fig)
+
+    return saved_paths
+
+
+def plot_paper_sweep_concept_grid(
+    results: list[SweepResult],
+    output_dir: str | Path | None = None,
+    formats: list[str] | None = None,
+) -> list[Path]:
+    """Generate a 2-row concept grid: general ability on top, steering on bottom.
+
+    Each column corresponds to one concept; each panel is a 2D heatmap with
+    prefix length on the Y-axis and steering strength on the X-axis.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LinearSegmentedColormap
+
+    if not results:
+        msg = "results must contain at least one SweepResult"
+        raise ValueError(msg)
+    if formats is None:
+        formats = ["pdf", "png"]
+    if output_dir is None:
+        output_dir = results[0]["output_dir"]
+
+    output_path = ensure_dir(Path(output_dir))
+    first = results[0]
+    x_labels = [f"{m:g}" for m in first["multipliers"]]
+    y_labels = [_format_prefix_label(st) for st in first["steer_tokens_values"]]
+
+    steering_color = "#ff7f0e"
+    general_color = "#2ca02c"
+    steering_cmap = LinearSegmentedColormap.from_list(
+        "paper_steering_lively", ["#fff3df", steering_color]
+    )
+    general_cmap = LinearSegmentedColormap.from_list(
+        "paper_general_lively", ["#eaf7e8", general_color]
+    )
+
+    n_cols = len(results)
+    fig, axes = plt.subplots(
+        2,
+        n_cols,
+        figsize=(2.15 * n_cols, 2.55),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
+
+    for col, result in enumerate(results):
+        general_matrix = _build_token_by_alpha_matrix(result, "mmlu_pro_accuracy")
+        steering_matrix = _build_token_by_alpha_matrix(result, "concept_score")
+
+        _draw_tradeoff_panel(
+            axes[0, col],
+            general_matrix,
+            general_cmap,
+            x_labels,
+            y_labels,
+            tick_fontsize=6.8,
+            annotation_fontsize=6.5,
+            grid_linewidth=0.65,
+        )
+        _draw_tradeoff_panel(
+            axes[1, col],
+            steering_matrix,
+            steering_cmap,
+            x_labels,
+            y_labels,
+            tick_fontsize=6.8,
+            annotation_fontsize=6.5,
+            grid_linewidth=0.65,
+        )
+
+        axes[0, col].set_title(
+            _concept_display_name(result["concept"]), fontsize=8.5, fontweight="bold", pad=2
+        )
+
+    for ax in axes[0, :]:
+        ax.tick_params(axis="x", labelbottom=False)
+
+    fig.subplots_adjust(left=0.20, right=0.995, bottom=0.18, top=0.90, hspace=0.24, wspace=0.08)
+    fig.text(0.055, 0.69, "General", ha="left", va="center", fontsize=7.0, fontweight="bold")
+    fig.text(
+        0.055,
+        0.31,
+        "Steering",
+        ha="left",
+        va="center",
+        fontsize=7.0,
+        fontweight="bold",
+    )
+    fig.text(
+        0.58,
+        0.035,
+        r"Steering strength ($\alpha \times \bar{r}$)",
+        ha="center",
+        va="center",
+        fontsize=7.2,
+    )
+
+    saved_paths: list[Path] = []
+    for fmt in formats:
+        path = output_path / f"sweep_concept_grid_heatmap.{fmt}"
+        fig.savefig(path, bbox_inches="tight", format=fmt)
+        saved_paths.append(path)
+        logger.info("Saved concept grid sweep heatmap to %s", path)
+    plt.close(fig)
+
+    return saved_paths
+
+
 # =============================================================================
 # CLI
 # =============================================================================
@@ -598,6 +872,7 @@ def main() -> None:
     )
 
     plot_paths = plot_sweep_heatmaps(result)
+    plot_paths.extend(plot_paper_sweep_heatmap(result))
     for path in plot_paths:
         logger.info("Saved plot: %s", path)
 
@@ -609,6 +884,9 @@ if __name__ == "__main__":
 __all__ = [
     "SweepCellResult",
     "SweepResult",
+    "load_sweep_result_json",
     "run_sweep_evaluation",
     "plot_sweep_heatmaps",
+    "plot_paper_sweep_heatmap",
+    "plot_paper_sweep_concept_grid",
 ]

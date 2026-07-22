@@ -169,6 +169,129 @@ def test_plot_sweep_heatmaps_none_label(tmp_path: Path) -> None:
     plt.close("all")
 
 
+def test_plot_paper_sweep_heatmap_uses_tokens_rows_and_alpha_columns(tmp_path: Path) -> None:
+    """Paper sweep heatmap uses token rows, alpha columns, and one combined figure."""
+    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
+
+    from steering_geometry.sweep_evaluation import plot_paper_sweep_heatmap
+
+    result_data = _make_sweep_result_data(
+        multipliers=[0.1, 1.0, 10.0],
+        steer_tokens_values=[1, 5, 10],
+    )
+    result_data["output_dir"] = str(tmp_path)
+
+    captured_figs: list[Figure] = []
+
+    def _capture_close(fig: object) -> None:
+        captured_figs.append(cast(Figure, fig))
+
+    with patch("matplotlib.pyplot.close", side_effect=_capture_close):
+        paths = plot_paper_sweep_heatmap(result_data, output_dir=tmp_path, formats=["png"])
+
+    assert len(paths) == 1
+    assert paths[0].name == "sweep_tradeoff_table_heatmap.png"
+    assert paths[0].exists()
+    assert paths[0].stat().st_size > 0
+
+    axes = captured_figs[0].axes[:2]
+    assert [tick.get_text() for tick in axes[0].get_xticklabels()] == [
+        r"$\alpha=0.1$",
+        r"$\alpha=1$",
+        r"$\alpha=10$",
+    ]
+    assert [tick.get_text() for tick in axes[0].get_yticklabels()] == ["1", "5", "10"]
+    assert axes[0].get_title() == "Target Concept"
+    assert axes[1].get_title() == "General Ability"
+    plt.close("all")
+
+
+def _make_4x4_result(concept: str, output_dir: str) -> dict[str, object]:
+    """Build a 4x4 (strength x prefix) SweepResult for one concept."""
+    multipliers = [0.01, 0.1, 1.0, 10.0]
+    steer_tokens_values: list[int | None] = [1, 5, 10, None]
+    cells: list[dict[str, object]] = []
+    for mult in multipliers:
+        for st in steer_tokens_values:
+            cells.append(
+                {
+                    "multiplier": mult,
+                    "steer_tokens": st,
+                    "concept_score": 70.0,
+                    "fluency_score": 0.0,
+                    "mmlu_pro_accuracy": 50.0,
+                    "num_samples": 4,
+                }
+            )
+    return {
+        "concept": concept,
+        "model": "Qwen/Qwen3-14B",
+        "layer_frac": 0.7,
+        "multipliers": multipliers,
+        "steer_tokens_values": steer_tokens_values,
+        "cells": cells,
+        "output_dir": output_dir,
+    }
+
+
+def test_plot_paper_sweep_concept_grid_arranges_metrics_in_two_rows(tmp_path: Path) -> None:
+    """Concept grid plots general ability on row 0, steering performance on row 1."""
+    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
+
+    from steering_geometry.sweep_evaluation import plot_paper_sweep_concept_grid
+
+    results = [
+        _make_4x4_result("refusal", str(tmp_path)),
+        _make_4x4_result("polite", str(tmp_path)),
+        _make_4x4_result("sentiment", str(tmp_path)),
+    ]
+
+    captured_figs: list[Figure] = []
+
+    def _capture_close(fig: object) -> None:
+        captured_figs.append(cast(Figure, fig))
+
+    with patch("matplotlib.pyplot.close", side_effect=_capture_close):
+        paths = plot_paper_sweep_concept_grid(results, output_dir=tmp_path, formats=["png"])
+
+    assert len(paths) == 1
+    assert paths[0].name == "sweep_concept_grid_heatmap.png"
+    assert paths[0].exists()
+    assert paths[0].stat().st_size > 0
+
+    fig = captured_figs[0]
+    assert len(fig.axes) == 6
+    width, height = fig.get_size_inches()
+    assert 6.2 <= width <= 6.8
+    assert height <= 3.0
+
+    top_titles = [fig.axes[i].get_title() for i in range(3)]
+    assert top_titles == ["Safety", "Politeness", "Sentiment"]
+    assert fig.axes[0].get_ylabel() == ""
+    assert fig.axes[3].get_ylabel() == ""
+    assert fig.axes[0].images[0].cmap.name == "paper_general_lively"
+    assert fig.axes[3].images[0].cmap.name == "paper_steering_lively"
+
+    figure_labels = [text.get_text() for text in fig.texts]
+    assert "General" in figure_labels
+    assert "Steering" in figure_labels
+    assert any(r"\bar{r}" in label for label in figure_labels)
+    row_label_x = [text.get_position()[0] for text in fig.texts if text.get_text() == "General"]
+    assert row_label_x == [0.055]
+    assert all(ax.get_xlabel() == "" for ax in fig.axes)
+
+    cell_labels = [text.get_text() for text in fig.axes[0].texts]
+    assert "50.00" in cell_labels
+
+    bottom_xticks = [tick.get_text() for tick in fig.axes[3].get_xticklabels()]
+    assert bottom_xticks == ["0.01", "0.1", "1", "10"]
+    bottom_yticks = [tick.get_text() for tick in fig.axes[3].get_yticklabels()]
+    assert bottom_yticks == ["1", "5", "10", "L"]
+    plt.close("all")
+
+
 # ---------------------------------------------------------------------------
 # Test 6: Grid construction via run_sweep_evaluation cell count
 # ---------------------------------------------------------------------------
