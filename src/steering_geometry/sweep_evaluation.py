@@ -475,9 +475,27 @@ _CONCEPT_DISPLAY: dict[str, str] = {
     "sentiment": "Sentiment",
 }
 
+# Concepts whose `concept_score` is an attack-success-rate (lower is better).
+# When plotting, these are inverted (100 - score) so the heatmap's "darker =
+# stronger steering" visual convention stays consistent across concepts.
+_ASR_CONCEPTS: frozenset[str] = frozenset({"refusal", "safety"})
+
 
 def _concept_display_name(concept: str) -> str:
     return _CONCEPT_DISPLAY.get(concept, concept.title())
+
+
+def _steering_matrix_for_display(concept: str, matrix: np.ndarray) -> np.ndarray:
+    """Return the steering matrix in the orientation where higher = better.
+
+    For most concepts ``concept_score`` already encodes "more of the concept"
+    so it is returned as-is. For ASR-based safety concepts (``refusal`` /
+    ``safety``) the stored score is the attack-success-rate, where lower is
+    better, so the displayed matrix is inverted to ``100 - ASR``.
+    """
+    if concept in _ASR_CONCEPTS:
+        return 100.0 - matrix
+    return matrix
 
 
 def _build_token_by_alpha_matrix(result: SweepResult, metric: SweepMetric) -> np.ndarray:
@@ -567,7 +585,9 @@ def plot_paper_sweep_heatmap(
     x_labels = [_format_alpha_label(multiplier) for multiplier in multipliers]
     y_labels = [_format_tokens_label(steer_tokens) for steer_tokens in steer_tokens_values]
 
-    target_matrix = _build_token_by_alpha_matrix(result, "concept_score")
+    target_matrix = _steering_matrix_for_display(
+        result["concept"], _build_token_by_alpha_matrix(result, "concept_score")
+    )
     general_matrix = _build_token_by_alpha_matrix(result, "mmlu_pro_accuracy")
 
     steering_color = "#ff7f0e"
@@ -594,8 +614,10 @@ def plot_paper_sweep_heatmap(
     fig.tight_layout(w_pad=1.4)
 
     saved_paths: list[Path] = []
+    safe_model = safe_model_name(result["model"])
+    filename_stem = f"sweep_tradeoff_table_heatmap__{result['concept']}__{safe_model}"
     for fmt in formats:
-        path = output_path / f"sweep_tradeoff_table_heatmap.{fmt}"
+        path = output_path / f"{filename_stem}.{fmt}"
         fig.savefig(path, bbox_inches="tight", format=fmt)
         saved_paths.append(path)
         logger.info("Saved paper-style sweep heatmap to %s", path)
@@ -630,6 +652,19 @@ def plot_paper_sweep_concept_grid(
     x_labels = [f"{m:g}" for m in first["multipliers"]]
     y_labels = [_format_prefix_label(st) for st in first["steer_tokens_values"]]
 
+    # Every panel must share the same multiplier and prefix axes; otherwise the
+    # shared x/y tick labels (taken from the first result) would silently
+    # mislabel the matrices of the others.
+    for r in results[1:]:
+        if list(r["multipliers"]) != list(first["multipliers"]) or list(
+            r["steer_tokens_values"]
+        ) != list(first["steer_tokens_values"]):
+            msg = (
+                "All results must share identical grid definitions "
+                "(multipliers and steer_tokens_values); got mismatched axes."
+            )
+            raise ValueError(msg)
+
     steering_color = "#ff7f0e"
     general_color = "#2ca02c"
     steering_cmap = LinearSegmentedColormap.from_list(
@@ -651,7 +686,9 @@ def plot_paper_sweep_concept_grid(
 
     for col, result in enumerate(results):
         general_matrix = _build_token_by_alpha_matrix(result, "mmlu_pro_accuracy")
-        steering_matrix = _build_token_by_alpha_matrix(result, "concept_score")
+        steering_matrix = _steering_matrix_for_display(
+            result["concept"], _build_token_by_alpha_matrix(result, "concept_score")
+        )
 
         _draw_tradeoff_panel(
             axes[0, col],
@@ -702,8 +739,12 @@ def plot_paper_sweep_concept_grid(
     )
 
     saved_paths: list[Path] = []
+    # Scope by the first result's model name. Concept grid spans multiple
+    # concepts so the model name is the natural discriminator.
+    safe_model = safe_model_name(first["model"])
+    filename_stem = f"sweep_concept_grid_heatmap__{safe_model}"
     for fmt in formats:
-        path = output_path / f"sweep_concept_grid_heatmap.{fmt}"
+        path = output_path / f"{filename_stem}.{fmt}"
         fig.savefig(path, bbox_inches="tight", format=fmt)
         saved_paths.append(path)
         logger.info("Saved concept grid sweep heatmap to %s", path)

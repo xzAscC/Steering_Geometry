@@ -191,7 +191,9 @@ def test_plot_paper_sweep_heatmap_uses_tokens_rows_and_alpha_columns(tmp_path: P
         paths = plot_paper_sweep_heatmap(result_data, output_dir=tmp_path, formats=["png"])
 
     assert len(paths) == 1
-    assert paths[0].name == "sweep_tradeoff_table_heatmap.png"
+    # _make_sweep_result_data uses concept="sentiment" and model="test-model";
+    # safe_model_name only replaces "/" with "_", so the hyphen stays.
+    assert paths[0].name == "sweep_tradeoff_table_heatmap__sentiment__test-model.png"
     assert paths[0].exists()
     assert paths[0].stat().st_size > 0
 
@@ -257,7 +259,8 @@ def test_plot_paper_sweep_concept_grid_arranges_metrics_in_two_rows(tmp_path: Pa
         paths = plot_paper_sweep_concept_grid(results, output_dir=tmp_path, formats=["png"])
 
     assert len(paths) == 1
-    assert paths[0].name == "sweep_concept_grid_heatmap.png"
+    # _make_4x4_result uses model "Qwen/Qwen3-14B" → "Qwen_Qwen3-14B".
+    assert paths[0].name == "sweep_concept_grid_heatmap__Qwen_Qwen3-14B.png"
     assert paths[0].exists()
     assert paths[0].stat().st_size > 0
 
@@ -629,3 +632,68 @@ def test_run_sweep_evaluation_harmbench_aligned_behavior_ids(
     assert list(completions.keys()) == behavior_ids
     assert len(result["cells"]) == 1
     assert result["cells"][0]["concept_score"] == 50.0
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Paper plot path scoping, grid validation, ASR direction
+# ---------------------------------------------------------------------------
+
+
+def test_plot_paper_sweep_heatmap_filename_scoped_by_concept_and_model(
+    tmp_path: Path,
+) -> None:
+    """Per-concept/model heatmap filename prevents accidental overwrites."""
+    from steering_geometry.sweep_evaluation import plot_paper_sweep_heatmap
+
+    result_data = _make_sweep_result_data()
+    result_data["output_dir"] = str(tmp_path)
+
+    with patch("matplotlib.pyplot.close"):
+        paths = plot_paper_sweep_heatmap(result_data, output_dir=tmp_path, formats=["png"])
+
+    assert len(paths) == 1
+    # Filename must include both the concept and the sanitized model name so
+    # two runs into the same output_dir don't clobber each other.
+    assert "sentiment" in paths[0].name
+    assert "test-model" in paths[0].name
+
+
+def test_plot_paper_sweep_concept_grid_rejects_mixed_grid_definitions(
+    tmp_path: Path,
+) -> None:
+    """Concept grid raises ValueError when results have different axes."""
+    from steering_geometry.sweep_evaluation import plot_paper_sweep_concept_grid
+
+    refusal = _make_4x4_result("refusal", str(tmp_path))
+    # Same shape but different multipliers → must raise.
+    polite = _make_4x4_result("polite", str(tmp_path))
+    polite["multipliers"] = [0.02, 0.2, 2.0, 20.0]
+
+    with pytest.raises(ValueError, match="identical grid"):
+        plot_paper_sweep_concept_grid([refusal, polite], output_dir=tmp_path, formats=["png"])
+
+
+def test_plot_paper_sweep_concept_grid_inverts_asr_for_refusal(tmp_path: Path) -> None:
+    """Refusal concept_score is ASR (lower=better); plot displays 100-ASR."""
+    import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure
+
+    from steering_geometry.sweep_evaluation import plot_paper_sweep_concept_grid
+
+    refusal = _make_4x4_result("refusal", str(tmp_path))
+    for cell in refusal["cells"]:
+        cell["concept_score"] = 25.0
+
+    captured_figs: list[Figure] = []
+
+    def _capture_close(fig: object) -> None:
+        captured_figs.append(cast(Figure, fig))
+
+    with patch("matplotlib.pyplot.close", side_effect=_capture_close):
+        plot_paper_sweep_concept_grid([refusal], output_dir=tmp_path, formats=["png"])
+
+    fig = captured_figs[0]
+    steering_cell_labels = [t.get_text() for t in fig.axes[1].texts]
+    # 25 ASR → 75 refusal rate displayed.
+    assert "75.00" in steering_cell_labels
+    plt.close("all")
