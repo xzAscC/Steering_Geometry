@@ -8,8 +8,12 @@ from typing import cast
 import pytest
 import torch
 
-from steering_geometry.strength_prefix_ablation import _load_steering_vector
-from steering_geometry.types import SteeringVector
+from steering_geometry.strength_prefix_ablation import (
+    _evaluate_concept,
+    _load_steering_vector,
+    compute_avg_activation_norm,
+)
+from steering_geometry.types import HarmBenchPrediction, HarmBenchResult, SteeringVector
 
 # ---------------------------------------------------------------------------
 # _load_steering_vector layer selection
@@ -89,3 +93,170 @@ class TestLoadSteeringVectorLayerSelection:
 
         loaded, _ = _load_steering_vector(str(vector_path), layer_idx=cast(int, None))
         assert torch.allclose(loaded, _unit(raw))
+
+
+# ---------------------------------------------------------------------------
+# compute_avg_activation_norm padding mask
+# ---------------------------------------------------------------------------
+
+
+class _FakeTokenizerForNorm:
+    """Tokenizer stub that pads to the longest text and exposes attention_mask."""
+
+    def __call__(
+        self,
+        texts: list[str],
+        return_tensors: str = "pt",
+        padding: bool = False,
+        truncation: bool = False,
+    ) -> dict[str, torch.Tensor]:
+        del return_tensors, padding, truncation
+        encoded = [[ord(c) % 10 + 1 for c in t] for t in texts]
+        max_len = max(len(ids) for ids in encoded)
+        input_ids = torch.zeros(len(texts), max_len, dtype=torch.long)
+        attention_mask = torch.zeros(len(texts), max_len, dtype=torch.long)
+        for i, ids in enumerate(encoded):
+            input_ids[i, : len(ids)] = torch.tensor(ids, dtype=torch.long)
+            attention_mask[i, : len(ids)] = 1
+        return {"input_ids": input_ids, "attention_mask": attention_mask}
+
+
+class _FakeModelForNorm:
+    """Model stub returning controlled activations whose padding rows are 0."""
+
+    def __init__(self, activations: torch.Tensor, attention_mask: torch.Tensor) -> None:
+        self._activations = activations
+        self._mask = attention_mask
+        self.tokenizer = _FakeTokenizerForNorm()
+
+    def get_activations(self, texts: list[str], layers: list[int]) -> dict[int, torch.Tensor]:
+        del texts, layers
+        return {0: self._activations}
+
+
+class TestComputeAvgActivationNormMasksPadding:
+    """Padding positions must not contribute to the average activation norm."""
+
+    def test_padding_excluded_from_norm(self) -> None:
+        """Two prompts of different lengths: padded tokens contribute 0 to mean."""
+        # Batch of 2 prompts: prompt A has 3 real tokens, prompt B has 2.
+        # Padding = 1 column on row B.
+        # Real-token norms all = 4.0 (sqrt(4*4)), padded norm = 99.0.
+        # Without masking, mean would be inflated by the 99.
+        real_norm_value = 4.0
+        padded_norm_value = 99.0
+
+        def make_row(real_tokens: int, total_tokens: int) -> torch.Tensor:
+            row = torch.full((total_tokens, 4), 0.0)
+            for i in range(real_tokens):
+                row[i, :] = real_norm_value / (4**0.5)
+            for i in range(real_tokens, total_tokens):
+                row[i, :] = padded_norm_value / (4**0.5)
+            return row
+
+        activations = torch.stack([make_row(3, 3), make_row(2, 3)])  # shape (2, 3, 4)
+        mask = torch.tensor([[1, 1, 1], [1, 1, 0]])
+        model = cast("object", _FakeModelForNorm(activations, mask))
+
+        result = compute_avg_activation_norm(model, ["abc", "ab"], 0)  # type: ignore[arg-type]
+
+        # 5 real tokens, each contributing a per-token norm of 4.0.
+        assert result == pytest.approx(4.0, abs=1e-5)
+
+
+# ---------------------------------------------------------------------------
+# _evaluate_concept HarmBench per-response records
+# ---------------------------------------------------------------------------
+
+
+class _StubHarmBenchEvaluator:
+    """Stub evaluator returning a fixed HarmBenchResult."""
+
+    def __init__(self, result: HarmBenchResult) -> None:
+        self._result = result
+
+    async def evaluate(self, completions: dict[str, list[dict[str, str]]]) -> HarmBenchResult:
+        del completions
+        return self._result
+
+
+class TestEvaluateConceptHarmBenchRecords:
+    """HarmBench path must populate per-response labels + reasoning."""
+
+    def test_records_carry_per_behavior_labels(self) -> None:
+        """Each ConceptResponse mirrors the matching HarmBenchPrediction."""
+        predictions = [
+            HarmBenchPrediction(
+                behavior_id="b1",
+                behavior="prompt-1",
+                generation="gen-1",
+                label=1,
+                reasoning="harmful: made weapon",
+            ),
+            HarmBenchPrediction(
+                behavior_id="b2",
+                behavior="prompt-2",
+                generation="gen-2",
+                label=0,
+                reasoning="safe: refused",
+            ),
+        ]
+        result = HarmBenchResult(
+            asr=50.0,
+            total=2,
+            harmful=1,
+            safe=1,
+            unknown=0,
+            predictions=predictions,
+        )
+        evaluator = _StubHarmBenchEvaluator(result)
+
+        asr, records = _evaluate_concept(
+            concept="refusal",
+            prompts=["prompt-1", "prompt-2"],
+            generations=["gen-1", "gen-2"],
+            hb_evaluator=cast("object", evaluator),  # type: ignore[arg-type]
+            hb_behavior_ids=["b1", "b2"],
+        )
+
+        assert asr == 50.0
+        assert len(records) == 2
+        assert records[0]["concept_score"] == 1.0
+        assert records[0]["reasoning"] == "harmful: made weapon"
+        assert records[1]["concept_score"] == 0.0
+        assert records[1]["reasoning"] == "safe: refused"
+
+    def test_missing_prediction_falls_back_to_zero_score(self) -> None:
+        """Behavior IDs without a classifier output are recorded with score 0."""
+        predictions = [
+            HarmBenchPrediction(
+                behavior_id="b1",
+                behavior="prompt-1",
+                generation="gen-1",
+                label=1,
+                reasoning="harmful",
+            ),
+        ]
+        result = HarmBenchResult(
+            asr=100.0,
+            total=1,
+            harmful=1,
+            safe=0,
+            unknown=0,
+            predictions=predictions,
+        )
+        evaluator = _StubHarmBenchEvaluator(result)
+
+        _, records = _evaluate_concept(
+            concept="refusal",
+            prompts=["prompt-1", "prompt-2"],
+            generations=["gen-1", "gen-2"],
+            hb_evaluator=cast("object", evaluator),  # type: ignore[arg-type]
+            hb_behavior_ids=["b1", "missing-b2"],
+        )
+
+        assert len(records) == 2
+        assert records[1]["concept_score"] == 0.0
+        assert records[1]["reasoning"] == ""
+        # Raw text is still preserved for later inspection.
+        assert records[1]["generated_text"] == "gen-2"
