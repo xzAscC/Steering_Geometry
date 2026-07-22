@@ -96,7 +96,11 @@ class CellResult(TypedDict):
 
 
 class AblationConfig(TypedDict):
-    """Full experiment configuration, persisted as ``config.json``."""
+    """Full experiment configuration, persisted as ``config.json``.
+
+    Captures every parameter that affects how each grid cell is generated or
+    scored so a saved ``config.json`` fully describes the run.
+    """
 
     concept: str
     model: str
@@ -110,7 +114,18 @@ class AblationConfig(TypedDict):
     num_samples: int
     max_new_tokens: int
     mmlu_pro_num_questions: int
+    mmlu_pro_use_cot: bool
     seed: int
+    # Evaluation toggles — which scoring paths were active for this run.
+    evaluate_concept: bool
+    evaluate_mmlu: bool
+    # Judge evaluator config (sentiment/politeness).
+    judge_model: str
+    judge_api_base: str
+    # HarmBench classifier config (refusal concept).
+    harmbench_classifier_model: str
+    harmbench_classifier_api_base: str
+    harmbench_behaviors_file: str
 
 
 class AblationResult(TypedDict):
@@ -296,15 +311,34 @@ def _evaluate_concept(
             for bid, text in zip(hb_behavior_ids, generations, strict=True)
         }
         hb_result = asyncio.run(hb_evaluator.evaluate(completions))
-        records: list[ConceptResponse] = [
-            {
-                "prompt": prompt,
-                "generated_text": gen,
-                "concept_score": 0.0,
-                "reasoning": "",
-            }
-            for prompt, gen in zip(prompts, generations, strict=True)
-        ]
+        # Preserve per-behavior labels so each cell file can be re-aggregated
+        # later without rerunning the classifier. HarmBench label semantics:
+        # 1=harmful (attack succeeded), 0=safe (refused), -1=unknown.
+        pred_by_behavior_id = {p["behavior_id"]: p for p in hb_result.predictions}
+        records: list[ConceptResponse] = []
+        for prompt, gen, behavior_id in zip(prompts, generations, hb_behavior_ids, strict=True):
+            pred = pred_by_behavior_id.get(behavior_id)
+            if pred is None:
+                # No classifier output for this behavior — record the raw text
+                # but mark the score as missing rather than fabricating 0.
+                records.append(
+                    {
+                        "prompt": prompt,
+                        "generated_text": gen,
+                        "concept_score": 0.0,
+                        "reasoning": "",
+                    }
+                )
+                continue
+            label = pred["label"]
+            records.append(
+                {
+                    "prompt": prompt,
+                    "generated_text": gen,
+                    "concept_score": float(label) if label >= 0 else 0.0,
+                    "reasoning": pred["reasoning"],
+                }
+            )
         return hb_result.asr, records
 
     if concept == "refusal":
@@ -592,7 +626,15 @@ def run_strength_prefix_ablation(
         num_samples=num_samples,
         max_new_tokens=max_new_tokens,
         mmlu_pro_num_questions=mmlu_pro_num_questions,
+        mmlu_pro_use_cot=mmlu_pro_use_cot,
         seed=seed,
+        evaluate_concept=evaluate_concept,
+        evaluate_mmlu=evaluate_mmlu,
+        judge_model=judge_model,
+        judge_api_base=judge_api_base,
+        harmbench_classifier_model=harmbench_classifier_model,
+        harmbench_classifier_api_base=harmbench_classifier_api_base,
+        harmbench_behaviors_file=harmbench_behaviors_file,
     )
     config_path = result_dir / "config.json"
     with config_path.open("w") as f:
