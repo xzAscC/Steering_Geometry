@@ -26,7 +26,8 @@ import torch
 import torch.nn.functional as functional
 from torch import Tensor
 
-from .config import ModelConfig
+from .apply_steering import MMLUProEvaluator
+from .config import MMLUProConfig, ModelConfig
 from .extract import load_contrast_pairs
 from .models import HookedModel
 from .types import SteeringVector
@@ -104,6 +105,11 @@ class PrefixLengthKLSweepResult:
     scale: float
     num_prompts: int
     num_post_steer_steps: int = _DEFAULT_POST_STEER_STEPS
+    general_kl_vs_no_steer: dict[int, list[list[float]]] = field(default_factory=dict)
+    general_kl_vs_all_steer: dict[int, list[list[float]]] = field(default_factory=dict)
+    num_general_prompts: int = 0
+    all_steer_kl_vs_no_steer: list[list[float]] = field(default_factory=list)
+    general_all_steer_kl_vs_no_steer: list[list[float]] = field(default_factory=list)
 
 
 @dataclass
@@ -262,7 +268,7 @@ def _make_steering_hook(
 # =============================================================================
 
 
-def _generate_with_logits(
+def _generate_with_logits_and_ids(
     model: HookedModel,
     prompt: str,
     layer_idx: int,
@@ -271,7 +277,7 @@ def _generate_with_logits(
     max_new_tokens: int,
     temperature: float,
     steer_tokens: int | None,
-) -> tuple[str, list[Tensor]]:
+) -> tuple[str, list[Tensor], list[int]]:
     """Manual autoregressive generation returning per-step logits.
 
     Implements a token-by-token generation loop with KV-cache, registering
@@ -289,7 +295,7 @@ def _generate_with_logits(
         steer_tokens: Number of steps to apply steering (``None`` = all).
 
     Returns:
-        Tuple of ``(generated_text, list_of_per_step_logits)``.
+        Tuple of ``(generated_text, list_of_per_step_logits, generated_token_ids)``.
         Each logit tensor has shape ``(1, vocab_size)``.
     """
     inputs = model.tokenizer(prompt, return_tensors="pt")
@@ -349,7 +355,51 @@ def _generate_with_logits(
 
     raw_text = model.tokenizer.decode(generated_ids, skip_special_tokens=True)
     assert isinstance(raw_text, str)
-    return raw_text, all_logits
+    return raw_text, all_logits, generated_ids
+
+
+def _score_reference_logits(
+    model: HookedModel,
+    prompt: str,
+    reference_token_ids: list[int],
+    layer_idx: int,
+    steering_vector: Tensor | None,
+    scale: float,
+    steer_tokens: int | None,
+) -> list[Tensor]:
+    inputs = model.tokenizer(prompt, return_tensors="pt")
+    device = next(model.model.parameters()).device
+    input_ids = inputs["input_ids"].to(device)
+
+    model_layers = model._get_layers_module()
+    step_counter = [0]
+    all_logits: list[Tensor] = []
+
+    handle: torch.utils.hooks.RemovableHandle | None = None
+    if steering_vector is not None:
+        hook_fn = _make_steering_hook(steering_vector, scale, steer_tokens, step_counter)
+        handle = model_layers[layer_idx].register_forward_hook(hook_fn)
+
+    try:
+        with torch.no_grad():
+            outputs = model.model(input_ids=input_ids, use_cache=True)
+            all_logits.append(outputs.logits[:, -1, :].cpu())
+            past_kv = outputs.past_key_values
+
+            for token_id in reference_token_ids[:-1]:
+                next_token = torch.tensor([[token_id]], device=device, dtype=input_ids.dtype)
+                outputs = model.model(
+                    input_ids=next_token,
+                    past_key_values=past_kv,
+                    use_cache=True,
+                )
+                all_logits.append(outputs.logits[:, -1, :].cpu())
+                past_kv = outputs.past_key_values
+    finally:
+        if handle is not None:
+            handle.remove()
+
+    return all_logits[: len(reference_token_ids)]
 
 
 # =============================================================================
@@ -368,18 +418,17 @@ def run_kl_divergence_experiment(
     max_new_tokens: int = 100,
     temperature: float = 0.0,
 ) -> list[KLDivergenceResult]:
-    """Run KL divergence experiments for multiple prompts.
+    """Run KL divergence experiments for multiple prompts using teacher-forced replay.
 
-    For each prompt, runs 3 generation passes:
+    For each prompt, two KL comparisons are computed along fixed greedy reference
+    trajectories so that every compared position shares the same token history:
 
-    1. **No steering** — ``steering_vector=None``, ``scale=0``
-    2. **Prefix steering** — ``steer_tokens=N``
-    3. **All-step steering** — ``steer_tokens=None``
-
-    Then computes per-step KL divergence:
-
-    - ``KL(prefix || no_steer)`` — magnitude of prefix intervention
-    - ``KL(prefix || all_steer)`` — similarity to full steering
+    - ``KL(prefix(m) || none)`` — replay the unsteered continuation ``y^none``
+      under ``pi_none`` and ``pi_prefix(m)``; measures how much steering the
+      first ``m`` tokens shifts the distribution away from the unsteered baseline.
+    - ``KL(prefix(m) || full)`` — replay the prefix-steered continuation
+      ``y^prefix`` under ``pi_prefix(m)`` and ``pi_full``; measures how closely
+      prefix steering matches all-token steering along the prefix trajectory.
 
     Args:
         model: HookedModel instance.
@@ -390,18 +439,28 @@ def run_kl_divergence_experiment(
         scale: Steering scale factor.
         steer_tokens: Number of generation steps to steer (prefix mode).
         max_new_tokens: Maximum tokens per generation.
-        temperature: Sampling temperature.
+        temperature: Sampling temperature (0.0 = greedy).
 
     Returns:
-        List of :class:`KLDivergenceResult`, one per prompt.
+        List of :class:`KLDivergenceResult`, one per prompt. Each result carries the
+        full per-token KL curve along its reference trajectory (not windowed); window
+        averaging over ``t=m+1..m+w`` is the responsibility of the sweep
+        (:func:`_measure_prefix_length_kl_for_prompts`). Greedy decoding
+        (``temperature == 0.0``) is enforced because the methodology needs a
+        deterministic reference trajectory.
     """
+    assert temperature == 0.0, (
+        "teacher-forced KL methodology requires greedy decoding (temperature=0.0); "
+        "a sampled reference trajectory would break the shared-history comparison."
+    )
     results: list[KLDivergenceResult] = []
 
     for prompt_idx, prompt in enumerate(prompts):
         logger.info("KL experiment: prompt %d/%d", prompt_idx + 1, len(prompts))
 
-        # Pass 1: No steering
-        text_no_steer, logits_no_steer = _generate_with_logits(
+        # KL_{prefix||none} fixes the trajectory to the UNSTEERED continuation
+        # y^none and replays it under pi_none and pi_prefix(m).
+        text_no_steer, logits_none, none_token_ids = _generate_with_logits_and_ids(
             model,
             prompt,
             layer_idx,
@@ -411,9 +470,9 @@ def run_kl_divergence_experiment(
             temperature,
             None,
         )
-
-        # Pass 2: Prefix steering
-        text_prefix, logits_prefix = _generate_with_logits(
+        # KL_{prefix||full} fixes the trajectory to the prefix-steered
+        # continuation y^prefix and replays it under pi_prefix(m) and pi_full.
+        text_prefix, logits_prefix, prefix_token_ids = _generate_with_logits_and_ids(
             model,
             prompt,
             layer_idx,
@@ -423,9 +482,8 @@ def run_kl_divergence_experiment(
             temperature,
             steer_tokens,
         )
-
-        # Pass 3: All-step steering
-        text_all, logits_all = _generate_with_logits(
+        # All-step text is generated only for the report field.
+        text_all, _, _ = _generate_with_logits_and_ids(
             model,
             prompt,
             layer_idx,
@@ -436,15 +494,33 @@ def run_kl_divergence_experiment(
             None,
         )
 
-        # Align logits to same length (minimum of the three)
-        min_len = min(len(logits_no_steer), len(logits_prefix), len(logits_all))
+        logits_prefix_on_none = _score_reference_logits(
+            model,
+            prompt,
+            none_token_ids,
+            layer_idx,
+            steering_vector,
+            scale,
+            steer_tokens,
+        )
+        logits_full_on_prefix = _score_reference_logits(
+            model,
+            prompt,
+            prefix_token_ids,
+            layer_idx,
+            steering_vector,
+            scale,
+            None,
+        )
 
-        kl_no_steer: list[float] = []
-        kl_all_steer: list[float] = []
-
-        for t in range(min_len):
-            kl_no_steer.append(per_token_kl_divergence(logits_prefix[t], logits_no_steer[t]))
-            kl_all_steer.append(per_token_kl_divergence(logits_prefix[t], logits_all[t]))
+        kl_no_steer: list[float] = [
+            per_token_kl_divergence(logits_prefix_on_none[t], logits_none[t])
+            for t in range(min(len(logits_prefix_on_none), len(logits_none)))
+        ]
+        kl_all_steer: list[float] = [
+            per_token_kl_divergence(logits_prefix[t], logits_full_on_prefix[t])
+            for t in range(min(len(logits_prefix), len(logits_full_on_prefix)))
+        ]
 
         results.append(
             KLDivergenceResult(
@@ -471,6 +547,114 @@ def run_kl_divergence_experiment(
 _DEFAULT_STEER_TOKENS_LIST: list[int] = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]
 
 
+def _measure_prefix_length_kl_for_prompts(
+    model: HookedModel,
+    prompts: list[str],
+    steering_vector: Tensor,
+    layer_idx: int,
+    scale: float,
+    steer_tokens_list: list[int],
+    temperature: float,
+    num_post_steer_steps: int,
+) -> tuple[dict[int, list[list[float]]], dict[int, list[list[float]]], list[list[float]]]:
+    assert temperature == 0.0, (
+        "teacher-forced KL methodology requires greedy decoding (temperature=0.0); "
+        "a sampled reference trajectory would break the shared-history comparison."
+    )
+    max_tokens_needed = max(steer_tokens_list) + num_post_steer_steps
+    kl_vs_no_steer: dict[int, list[list[float]]] = {n: [] for n in steer_tokens_list}
+    kl_vs_all_steer: dict[int, list[list[float]]] = {n: [] for n in steer_tokens_list}
+    all_steer_kl_vs_no_steer: list[list[float]] = []
+
+    for prompt_idx, prompt in enumerate(prompts):
+        logger.info("KL sweep: prompt %d/%d", prompt_idx + 1, len(prompts))
+
+        # Reference trajectory for KL_{prefix||none}: the UNSTEERED greedy
+        # continuation y^none, reused across every N and for the All-tick.
+        _, logits_none, none_token_ids = _generate_with_logits_and_ids(
+            model,
+            prompt,
+            layer_idx,
+            None,
+            0.0,
+            max_tokens_needed,
+            temperature,
+            None,
+        )
+        # All-tick (m -> inf): replay y^none under full steering vs unsteered.
+        logits_full_on_none = _score_reference_logits(
+            model,
+            prompt,
+            none_token_ids,
+            layer_idx,
+            steering_vector,
+            scale,
+            None,
+        )
+        all_kl_no_steps: list[float] = []
+        for step_idx in range(min(len(logits_full_on_none), len(logits_none))):
+            all_kl_no_steps.append(
+                per_token_kl_divergence(logits_full_on_none[step_idx], logits_none[step_idx])
+            )
+        all_steer_kl_vs_no_steer.append(all_kl_no_steps)
+
+        for n in steer_tokens_list:
+            # KL_{prefix(n)||none}: replay y^none under prefix(n) vs unsteered.
+            logits_prefix_on_none = _score_reference_logits(
+                model,
+                prompt,
+                none_token_ids,
+                layer_idx,
+                steering_vector,
+                scale,
+                n,
+            )
+            # KL_{prefix(n)||full}: along the prefix-steered continuation
+            # y^prefix(n); its own generation logits are pi_prefix(n), and the
+            # full-steering replay provides pi_full on that same trajectory.
+            _, logits_prefix, prefix_token_ids = _generate_with_logits_and_ids(
+                model,
+                prompt,
+                layer_idx,
+                steering_vector,
+                scale,
+                n + num_post_steer_steps,
+                temperature,
+                n,
+            )
+            logits_full_on_prefix = _score_reference_logits(
+                model,
+                prompt,
+                prefix_token_ids,
+                layer_idx,
+                steering_vector,
+                scale,
+                None,
+            )
+
+            kl_no_steps: list[float] = []
+            kl_all_steps: list[float] = []
+            for offset in range(num_post_steer_steps):
+                step_idx = n + offset
+                if step_idx < len(logits_prefix_on_none) and step_idx < len(logits_none):
+                    kl_no_steps.append(
+                        per_token_kl_divergence(
+                            logits_prefix_on_none[step_idx], logits_none[step_idx]
+                        )
+                    )
+                if step_idx < len(logits_prefix) and step_idx < len(logits_full_on_prefix):
+                    kl_all_steps.append(
+                        per_token_kl_divergence(
+                            logits_prefix[step_idx], logits_full_on_prefix[step_idx]
+                        )
+                    )
+
+            kl_vs_no_steer[n].append(kl_no_steps)
+            kl_vs_all_steer[n].append(kl_all_steps)
+
+    return kl_vs_no_steer, kl_vs_all_steer, all_steer_kl_vs_no_steer
+
+
 def run_prefix_length_kl_sweep(
     model: HookedModel,
     prompts: list[str],
@@ -481,6 +665,7 @@ def run_prefix_length_kl_sweep(
     steer_tokens_list: list[int] | None = None,
     temperature: float = 0.0,
     num_post_steer_steps: int = _DEFAULT_POST_STEER_STEPS,
+    general_prompts: list[str] | None = None,
 ) -> PrefixLengthKLSweepResult:
     """Sweep prefix steering length N and measure KL at the next K steps.
 
@@ -512,62 +697,35 @@ def run_prefix_length_kl_sweep(
     if steer_tokens_list is None:
         steer_tokens_list = list(_DEFAULT_STEER_TOKENS_LIST)
 
-    max_tokens_needed = max(steer_tokens_list) + num_post_steer_steps
-
-    kl_vs_no_steer: dict[int, list[list[float]]] = {n: [] for n in steer_tokens_list}
-    kl_vs_all_steer: dict[int, list[list[float]]] = {n: [] for n in steer_tokens_list}
-
-    for prompt_idx, prompt in enumerate(prompts):
-        logger.info("KL sweep: prompt %d/%d", prompt_idx + 1, len(prompts))
-
-        _, logits_no_steer = _generate_with_logits(
+    kl_vs_no_steer, kl_vs_all_steer, all_steer_kl_vs_no_steer = (
+        _measure_prefix_length_kl_for_prompts(
             model,
-            prompt,
-            layer_idx,
-            None,
-            0.0,
-            max_tokens_needed,
-            temperature,
-            None,
-        )
-        _, logits_all_steer = _generate_with_logits(
-            model,
-            prompt,
-            layer_idx,
+            prompts,
             steering_vector,
+            layer_idx,
             scale,
-            max_tokens_needed,
+            steer_tokens_list,
             temperature,
-            None,
+            num_post_steer_steps,
         )
-
-        for n in steer_tokens_list:
-            _, logits_prefix = _generate_with_logits(
+    )
+    general_kl_vs_no_steer: dict[int, list[list[float]]] = {}
+    general_kl_vs_all_steer: dict[int, list[list[float]]] = {}
+    general_all_steer_kl_vs_no_steer: list[list[float]] = []
+    if general_prompts:
+        logger.info("=== Running General KL sweep on %d MMLU-Pro prompts ===", len(general_prompts))
+        general_kl_vs_no_steer, general_kl_vs_all_steer, general_all_steer_kl_vs_no_steer = (
+            _measure_prefix_length_kl_for_prompts(
                 model,
-                prompt,
-                layer_idx,
+                general_prompts,
                 steering_vector,
+                layer_idx,
                 scale,
-                n + num_post_steer_steps,
+                steer_tokens_list,
                 temperature,
-                n,
+                num_post_steer_steps,
             )
-
-            kl_no_steps: list[float] = []
-            kl_all_steps: list[float] = []
-            for offset in range(num_post_steer_steps):
-                step_idx = n + offset
-                if step_idx < len(logits_prefix) and step_idx < len(logits_no_steer):
-                    kl_no_steps.append(
-                        per_token_kl_divergence(logits_prefix[step_idx], logits_no_steer[step_idx])
-                    )
-                if step_idx < len(logits_prefix) and step_idx < len(logits_all_steer):
-                    kl_all_steps.append(
-                        per_token_kl_divergence(logits_prefix[step_idx], logits_all_steer[step_idx])
-                    )
-
-            kl_vs_no_steer[n].append(kl_no_steps)
-            kl_vs_all_steer[n].append(kl_all_steps)
+        )
 
     return PrefixLengthKLSweepResult(
         steer_tokens_list=steer_tokens_list,
@@ -577,7 +735,23 @@ def run_prefix_length_kl_sweep(
         scale=scale,
         num_prompts=len(prompts),
         num_post_steer_steps=num_post_steer_steps,
+        general_kl_vs_no_steer=general_kl_vs_no_steer,
+        general_kl_vs_all_steer=general_kl_vs_all_steer,
+        num_general_prompts=len(general_prompts or []),
+        all_steer_kl_vs_no_steer=all_steer_kl_vs_no_steer,
+        general_all_steer_kl_vs_no_steer=general_all_steer_kl_vs_no_steer,
     )
+
+
+def _load_mmlu_pro_prompts(model: HookedModel, num_prompts: int = 10) -> list[str]:
+    evaluator = MMLUProEvaluator(MMLUProConfig(num_questions=num_prompts), model)
+    test_data, val_data = evaluator.load_dataset()
+    prompts: list[str] = []
+    for question in test_data[:num_prompts]:
+        category = question.get("category", "")
+        val_same_cat = [v for v in val_data if v.get("category") == category]
+        prompts.append(evaluator.format_prompt(question, val_same_cat))
+    return prompts
 
 
 # =============================================================================
@@ -641,7 +815,7 @@ def _generate_with_attention(
 ) -> tuple[str, list[dict[int, Tensor]]]:
     """Manual autoregressive generation capturing attention weights.
 
-    Similar to :func:`_generate_with_logits` but passes
+    Similar to :func:`_generate_with_logits_and_ids` but passes
     ``output_attentions=True`` to the forward call, capturing per-layer
     attention tensors at each step.
 
@@ -1129,60 +1303,155 @@ def plot_prefix_length_kl_sweep(
             stds.append(float(np.std(prompt_step_avgs)))
         return means, stds
 
+    def _avg_prompt_steps(data: list[list[float]]) -> tuple[float, float]:
+        if not data:
+            return 0.0, 0.0
+        prompt_step_avgs = [
+            float(np.mean(prompt_steps)) if prompt_steps else 0.0 for prompt_steps in data
+        ]
+        return float(np.mean(prompt_step_avgs)), float(np.std(prompt_step_avgs))
+
     mean_no, std_no = _avg_over_steps(result.kl_vs_no_steer)
     mean_all, std_all = _avg_over_steps(result.kl_vs_all_steer)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    ax.plot(
-        n_values,
-        mean_no,
-        "-o",
-        color="#2196F3",
-        markersize=5,
-        label=f"KL(Prefix_N ‖ No Steer) avg steps N..N+{k - 1}",
-    )
-    ax.fill_between(
-        n_values,
-        [m - s for m, s in zip(mean_no, std_no, strict=True)],
-        [m + s for m, s in zip(mean_no, std_no, strict=True)],
-        alpha=0.2,
-        color="#2196F3",
+    general_mean_no, general_std_no = _avg_over_steps(result.general_kl_vs_no_steer)
+    general_mean_all, general_std_all = _avg_over_steps(result.general_kl_vs_all_steer)
+    all_vs_no_mean, all_vs_no_std = _avg_prompt_steps(result.all_steer_kl_vs_no_steer)
+    general_all_vs_no_mean, general_all_vs_no_std = _avg_prompt_steps(
+        result.general_all_steer_kl_vs_no_steer
     )
 
-    ax.plot(
-        n_values,
-        mean_all,
-        "-s",
-        color="#4CAF50",
-        markersize=5,
-        label=f"KL(Prefix_N ‖ All Steer) avg steps N..N+{k - 1}",
-    )
-    ax.fill_between(
-        n_values,
-        [m - s for m, s in zip(mean_all, std_all, strict=True)],
-        [m + s for m, s in zip(mean_all, std_all, strict=True)],
-        alpha=0.2,
-        color="#4CAF50",
-    )
+    if not result.general_kl_vs_no_steer and not result.general_kl_vs_all_steer:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(
+            n_values,
+            mean_no,
+            "-o",
+            color="#2196F3",
+            markersize=5,
+            label=f"KL(Prefix_N ‖ No Steer) avg steps N..N+{k - 1}",
+        )
+        ax.fill_between(
+            n_values,
+            [m - s for m, s in zip(mean_no, std_no, strict=True)],
+            [m + s for m, s in zip(mean_no, std_no, strict=True)],
+            alpha=0.2,
+            color="#2196F3",
+        )
+        ax.plot(
+            n_values,
+            mean_all,
+            "-s",
+            color="#4CAF50",
+            markersize=5,
+            label=f"KL(Prefix_N ‖ All Steer) avg steps N..N+{k - 1}",
+        )
+        ax.fill_between(
+            n_values,
+            [m - s for m, s in zip(mean_all, std_all, strict=True)],
+            [m + s for m, s in zip(mean_all, std_all, strict=True)],
+            alpha=0.2,
+            color="#4CAF50",
+        )
+        ax.set_xlabel("Prefix Steering Length (N)", fontsize=12)
+        ax.set_ylabel(f"KL Divergence avg(steps N..N+{k - 1}) (nats)", fontsize=12)
+        ax.set_title(
+            f"KL Divergence (avg next {k} tokens) vs Prefix Steering Length",
+            fontsize=14,
+            fontweight="bold",
+        )
+        ax.legend(fontsize=10)
+        ax.grid(alpha=0.3)
+        fig.tight_layout()
+        path = output_dir / "kl_prefix_length_sweep.pdf"
+        plt.savefig(path, bbox_inches="tight", format="pdf")
+        plt.close(fig)
+        logger.info("Saved KL prefix length sweep plot to %s", path)
+        return [path]
 
-    ax.set_xlabel("Prefix Steering Length (N)", fontsize=12)
-    ax.set_ylabel(f"KL Divergence avg(steps N..N+{k - 1}) (nats)", fontsize=12)
-    ax.set_title(
-        f"KL Divergence (avg next {k} tokens) vs Prefix Steering Length",
-        fontsize=14,
-        fontweight="bold",
-    )
-    ax.legend(fontsize=10)
-    ax.grid(alpha=0.3)
+    x_positions = list(range(len(n_values) + 1))
+    x_labels = [str(n) for n in n_values] + ["All"]
+    saved_paths: list[Path] = []
 
-    fig.tight_layout()
-    path = output_dir / "kl_prefix_length_sweep.pdf"
-    plt.savefig(path, bbox_inches="tight", format="pdf")
-    plt.close()
-    logger.info("Saved KL prefix length sweep plot to %s", path)
+    plot_specs = [
+        (
+            mean_no + [all_vs_no_mean],
+            std_no + [all_vs_no_std],
+            general_mean_no + [general_all_vs_no_mean],
+            general_std_no + [general_all_vs_no_std],
+            "Prefix vs No Steering KL",
+            "kl_prefix_length_concept_general_vs_no_steer.pdf",
+        ),
+        (
+            mean_all + [0.0],
+            std_all + [0.0],
+            general_mean_all + [0.0],
+            general_std_all + [0.0],
+            "Prefix vs All-Steer KL",
+            "kl_prefix_length_concept_general_vs_all_steer.pdf",
+        ),
+    ]
 
-    return [path]
+    for concept_mean, concept_std, general_mean, general_std, title, filename in plot_specs:
+        fig, ax_concept = plt.subplots(figsize=(4.4, 2.4))
+        ax_general = ax_concept.twinx()
+
+        concept_color = "#ff7f0e"
+        general_color = "#666666"
+        ax_concept.plot(
+            x_positions,
+            concept_mean,
+            "-o",
+            color=concept_color,
+            markersize=3,
+            linewidth=1.2,
+            label="Concept KL",
+        )
+        ax_concept.fill_between(
+            x_positions,
+            [m - s for m, s in zip(concept_mean, concept_std, strict=True)],
+            [m + s for m, s in zip(concept_mean, concept_std, strict=True)],
+            alpha=0.12,
+            color=concept_color,
+        )
+        ax_general.plot(
+            x_positions,
+            general_mean,
+            "--s",
+            color=general_color,
+            markersize=3,
+            linewidth=1.2,
+            label="General KL",
+        )
+        ax_general.fill_between(
+            x_positions,
+            [m - s for m, s in zip(general_mean, general_std, strict=True)],
+            [m + s for m, s in zip(general_mean, general_std, strict=True)],
+            alpha=0.12,
+            color=general_color,
+        )
+
+        ax_concept.set_xlabel("Early-token intervention length")
+        ax_concept.set_ylabel("Concept KL", color=concept_color)
+        ax_general.set_ylabel("General KL", color=general_color)
+        ax_concept.tick_params(axis="y", labelcolor=concept_color)
+        ax_general.tick_params(axis="y", labelcolor=general_color)
+        ax_concept.set_xticks(x_positions)
+        ax_concept.set_xticklabels(x_labels)
+        ax_concept.set_title(title, fontsize=10)
+        ax_concept.grid(alpha=0.25)
+
+        lines_1, labels_1 = ax_concept.get_legend_handles_labels()
+        lines_2, labels_2 = ax_general.get_legend_handles_labels()
+        ax_concept.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper left", fontsize=8)
+
+        fig.tight_layout()
+        path = output_dir / filename
+        plt.savefig(path, bbox_inches="tight", format="pdf")
+        plt.close(fig)
+        saved_paths.append(path)
+        logger.info("Saved KL prefix length sweep plot to %s", path)
+
+    return saved_paths
 
 
 def plot_attention_analysis(
@@ -2007,6 +2276,8 @@ def run_prefix_analysis(
         pairs = load_contrast_pairs(concept, num_prompts)
     prompts = [pair.negative for pair in pairs[:num_prompts]]
     logger.info("Loaded %d prompts for analysis", len(prompts))
+    general_prompts = _load_mmlu_pro_prompts(model, 10)
+    logger.info("Loaded %d MMLU-Pro prompts for General KL", len(general_prompts))
 
     calibration_texts = [t for pair in pairs for t in (pair.positive, pair.negative)]
     avg_act = _compute_avg_activation(model, calibration_texts, layer_idx, steering_vector)
@@ -2024,6 +2295,7 @@ def run_prefix_analysis(
         scale=scale,
         steer_tokens_list=effective_steer_tokens_list,
         num_post_steer_steps=effective_num_post_steer_steps,
+        general_prompts=general_prompts,
     )
 
     # Run legacy per-step KL experiment (single steer_tokens value)
