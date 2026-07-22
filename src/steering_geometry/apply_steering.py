@@ -829,6 +829,10 @@ class MMLUProEvaluator:
         'Think step by step and then finish your answer with "the answer is (X)" '
         "where X is the correct letter choice."
     )
+    NON_COT_PROMPT_TEMPLATE = (
+        "The following are multiple choice questions (with answers) about {category}.\n"
+        'Answer with the letter of the correct choice in the form "the answer is (X)".'
+    )
     CHOICES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
 
     REFUSAL_PATTERNS = [
@@ -916,13 +920,14 @@ class MMLUProEvaluator:
                 parts.append(f"{self.CHOICES[i]}. {opt}")
 
         if include_answer:
-            cot = example.get("cot_content", "")
-            if cot:
-                parts.append(cot)
+            if self.config.use_cot:
+                cot = example.get("cot_content", "")
+                if cot:
+                    parts.append(cot)
             parts.append(f"The answer is ({example.get('answer', '')})")
             parts.append("")
         else:
-            parts.append("Answer: Let's think step by step.")
+            parts.append("Answer: Let's think step by step." if self.config.use_cot else "Answer:")
 
         return "\n".join(parts)
 
@@ -937,7 +942,8 @@ class MMLUProEvaluator:
             Full prompt string: category template + few-shot examples + test question.
         """
         category = question.get("category", "")
-        parts = [self.COT_PROMPT_TEMPLATE.format(category=category), ""]
+        template = self.COT_PROMPT_TEMPLATE if self.config.use_cot else self.NON_COT_PROMPT_TEMPLATE
+        parts = [template.format(category=category), ""]
 
         for example in few_shot[: self.config.n_shot]:
             parts.append(self._format_cot_example(example, include_answer=True))
