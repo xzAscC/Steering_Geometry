@@ -961,12 +961,13 @@ def plot_heatmap_main(argv: Sequence[str] | None = None) -> int:
     embedded Python source.
     """
     args = cast(_PlotHeatmapArgs, _build_plot_heatmap_parser().parse_args(argv))
+    configure_logging(level="INFO")
     result = load_sweep_result_json(args.result)
     output_dir = args.output if args.output else str(Path(args.result).parent)
     formats = [fmt for fmt in args.formats.split(",") if fmt]
     paths = plot_paper_sweep_heatmap(result, output_dir=output_dir, formats=formats)
     for path in paths:
-        print(f"Saved: {path}")
+        logger.info("Saved: %s", path)
     return 0
 
 
