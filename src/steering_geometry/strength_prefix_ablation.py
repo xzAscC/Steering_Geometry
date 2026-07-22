@@ -26,6 +26,7 @@ Usage (CLI)::
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import random
@@ -465,6 +466,19 @@ def _prefix_label(prefix_length: int | None) -> str:
     return "L" if prefix_length is None else str(prefix_length)
 
 
+def _cell_rng(seed: int, multiplier: float, prefix_length: int | None) -> random.Random:
+    """Build a per-cell RNG so MMLU-Pro fallback choices don't depend on sweep order.
+
+    Combines the experiment seed with the cell's ``(multiplier, prefix_length)``
+    identity via SHA-256 (not Python's randomized ``hash()``) so the stream is
+    stable across Python interpreter runs and reproducible when a single cell
+    is re-run in isolation.
+    """
+    key = f"{seed}:{multiplier}:{prefix_length}".encode()
+    stable_int = int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
+    return random.Random(stable_int)
+
+
 def _cell_filename(multiplier: float, prefix_length: int | None) -> str:
     """Build the per-cell JSON filename from multiplier and prefix length."""
     return f"mult{multiplier:g}_prefix{_prefix_label(prefix_length)}.json"
@@ -560,9 +574,6 @@ def run_strength_prefix_ablation(
     # Select concept prompts and compute ᾱ over them
     # ------------------------------------------------------------------
     rng = random.Random(seed)
-    # Separate RNG for MMLU-Pro fallback so that prompt sampling and answer
-    # fallback stay independent streams (changing one does not perturb the other).
-    mmlu_rng = random.Random(seed)
     pairs = load_contrast_pairs(concept, num_pairs=max(500, num_samples))
     selected = rng.sample(pairs, min(num_samples, len(pairs)))
     prompts: list[str] = [pair.negative for pair in selected]
@@ -695,6 +706,9 @@ def run_strength_prefix_ablation(
             mmlu_total = 0
             mmlu_responses: list[MMLUProResponse] = []
             if evaluate_mmlu and mmlu_evaluator is not None:
+                # Per-cell RNG so MMLU-Pro fallback choices don't depend on
+                # sweep order or on whether earlier cells hit the fallback path.
+                cell_rng = _cell_rng(seed, mult, prefix_length)
                 mmlu_accuracy, mmlu_correct, mmlu_total, mmlu_responses = _evaluate_mmlu_pro(
                     mmlu_evaluator=mmlu_evaluator,
                     model=model,
@@ -702,7 +716,7 @@ def run_strength_prefix_ablation(
                     layer_idx=layer_idx,
                     scale=scale,
                     steer_tokens=prefix_length,
-                    rng=mmlu_rng,
+                    rng=cell_rng,
                 )
                 logger.info(
                     "  MMLU-Pro: %.2f%% (%d/%d)",

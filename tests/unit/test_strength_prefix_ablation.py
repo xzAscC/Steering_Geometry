@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import random
 from pathlib import Path
 from typing import cast
 
@@ -260,3 +262,42 @@ class TestEvaluateConceptHarmBenchRecords:
         assert records[1]["reasoning"] == ""
         # Raw text is still preserved for later inspection.
         assert records[1]["generated_text"] == "gen-2"
+
+
+# ---------------------------------------------------------------------------
+# Per-cell seeded RNG for MMLU-Pro fallback
+# ---------------------------------------------------------------------------
+
+
+class TestCellRngIsDeterministicPerCellIdentity:
+    """Fallback RNG must be reproducible from (seed, multiplier, prefix_length)."""
+
+    def test_same_cell_identity_yields_same_rng_sequence(self) -> None:
+        """Re-running the same cell in isolation reproduces the same fallbacks."""
+        from steering_geometry.strength_prefix_ablation import _cell_rng
+
+        rng1 = _cell_rng(seed=42, multiplier=1.0, prefix_length=5)
+        rng2 = _cell_rng(seed=42, multiplier=1.0, prefix_length=5)
+        seq1 = [rng1.choice("ABCDEFGHIJ") for _ in range(20)]
+        seq2 = [rng2.choice("ABCDEFGHIJ") for _ in range(20)]
+        assert seq1 == seq2
+
+    def test_different_cell_identity_yields_different_rng_sequence(self) -> None:
+        """Two cells with different prefix_length (or multiplier) get distinct streams."""
+        from steering_geometry.strength_prefix_ablation import _cell_rng
+
+        rng_a = _cell_rng(seed=42, multiplier=1.0, prefix_length=5)
+        rng_b = _cell_rng(seed=42, multiplier=1.0, prefix_length=10)
+        seq_a = [rng_a.choice("ABCDEFGHIJ") for _ in range(20)]
+        seq_b = [rng_b.choice("ABCDEFGHIJ") for _ in range(20)]
+        assert seq_a != seq_b
+
+    def test_cell_rng_stable_across_python_runs(self) -> None:
+        """The seed derivation must NOT depend on hash()-randomized str hashing."""
+        from steering_geometry.strength_prefix_ablation import _cell_rng
+
+        # Recompute the expected int manually using sha256 to confirm stability.
+        key = b"42:1.0:5"
+        expected_int = int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
+        rng = _cell_rng(seed=42, multiplier=1.0, prefix_length=5)
+        assert rng.random() == random.Random(expected_int).random()
